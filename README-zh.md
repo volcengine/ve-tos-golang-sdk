@@ -1,20 +1,20 @@
 
-# Volcengine Object Storage(TOS) Go SDK
+# 火山引擎对象存储服务Golang SDK
 
-## Install TOS Go SDK
+## 安装SDK
 
-TOS Go SDK supports Go 1.13+ . Run `go version` to check your version of Golang.
-* Install TOS Go SDK with `go get`
+SDK支持Go 1.13+ 版本. 运行 `go version`查看你的Go版本。
+* 使用`go get`安装go SDK
   ```shell
     go get -u https://github.com/volcengine/ve-tos-golang-sdk
   ```
-  
-## Use TOS Go SDK
-* Import 
+
+## 使用TOS Go SDK
+* Import
   ```go 
   import "github.com/volcengine/ve-tos-golang-sdk/tos"
   ```
-* Create a client
+* 创建一个TosClient
   ```go 
    var (
       accessKey = "Your Access Key"
@@ -25,4 +25,4 @@ TOS Go SDK supports Go 1.13+ . Run `go version` to check your version of Golang.
   client, err := tos.NewClient(endpoint, tos.WithRegion(region),
   tos.WithCredentials(tos.NewStaticCredentials(accessKey, secretKey)))
   ```
-* More example, see example/ folder
+* 更多例子，请查看example/文件夹
