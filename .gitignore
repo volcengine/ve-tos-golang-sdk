@@ -13,3 +13,17 @@
 
 # Dependency directories (remove the comment below to include it)
 # vendor/
+#
+*.log
+*.swp
+bin/
+.idea/
+.vscode/
+# tos
+*/**/.DS_Store
+*/**/coverage.out
+*/**/*.log
+.DS_Store
+cover.out
+vendor/
+go.sum
