@@ -6,7 +6,7 @@
 TOS Go SDK supports Go 1.13+ . Run `go version` to check your version of Golang.
 * Install TOS Go SDK with `go get`
   ```shell
-    go get -u https://github.com/volcengine/ve-tos-golang-sdk
+    go get -u github.com/volcengine/ve-tos-golang-sdk
   ```
   
 ## Use TOS Go SDK
