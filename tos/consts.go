@@ -2,7 +2,7 @@ package tos
 
 const (
 	// Version tos-go-sdk version
-	Version = "v0.2.0"
+	Version = "v0.2.1"
 )
 
 const (
@@ -22,6 +22,8 @@ const (
 
 	//LifecycleStatusEnabled  = "Enabled"
 	//LifecycleStatusDisabled = "Disabled"
+
+	ISO8601TimeFormat = "2006-01-02T15:04:05.000Z07:00"
 )
 
 const (
