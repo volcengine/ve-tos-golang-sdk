@@ -71,7 +71,6 @@ func (bkt *Bucket) CreateMultipartUpload(ctx context.Context, objectKey string, 
 type UploadPartInput struct {
 	Key        string    `json:"Key,omitempty"`
 	UploadID   string    `json:"UploadId,omitempty"`
-	PartSize   int64     `json:"PartSize,omitempty"`
 	PartNumber int       `json:"PartNumber,omitempty"`
 	Content    io.Reader `json:"-"`
 }
@@ -89,7 +88,9 @@ func (up *UploadPartOutput) uploadedPart() uploadedPart {
 }
 
 // UploadPart upload a part for a multipart upload operation
-// input: the parameters, some fields is required, e.g., Key, UploadID, PartSize, PartNumber and PartNumber
+// input: the parameters, some fields is required, e.g. Key, UploadID, PartNumber and PartNumber
+//
+// If uploading 'Content' with known Content-Length, please add option tos.WithContentLength
 func (bkt *Bucket) UploadPart(ctx context.Context, input *UploadPartInput, options ...Option) (*UploadPartOutput, error) {
 	if err := isValidKey(input.Key); err != nil {
 		return nil, err
@@ -98,7 +99,7 @@ func (bkt *Bucket) UploadPart(ctx context.Context, input *UploadPartInput, optio
 	res, err := bkt.client.newBuilder(bkt.name, input.Key, options...).
 		WithQuery("uploadId", input.UploadID).
 		WithQuery("partNumber", strconv.Itoa(input.PartNumber)).
-		Request(ctx, http.MethodPut, io.LimitReader(input.Content, input.PartSize), bkt.client.roundTripper(http.StatusOK))
+		Request(ctx, http.MethodPut, input.Content, bkt.client.roundTripper(http.StatusOK))
 	if err != nil {
 		return nil, err
 	}

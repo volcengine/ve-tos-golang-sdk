@@ -121,7 +121,7 @@ func (rb *requestBuilder) build(method string, content io.Reader) *Request {
 	if content != nil {
 		if rb.ContentLength != nil {
 			req.ContentLength = rb.ContentLength
-		} else if length, ok := tryResolveLength(content); ok {
+		} else if length := tryResolveLength(content); length >= 0 {
 			req.ContentLength = &length
 		}
 	}
@@ -259,29 +259,34 @@ func fileUnreadLength(file *os.File) (int64, error) {
 	return size - offset, nil
 }
 
-func tryResolveLength(reader io.Reader) (int64, bool) {
+func tryResolveLength(reader io.Reader) int64 {
 	switch v := reader.(type) {
 	case *bytes.Buffer:
-		return int64(v.Len()), true
+		return int64(v.Len())
 	case *bytes.Reader:
-		return int64(v.Len()), true
+		return int64(v.Len())
 	case *strings.Reader:
-		return int64(v.Len()), true
+		return int64(v.Len())
 	case *os.File:
 		length, err := fileUnreadLength(v)
-		return length, err == nil
+		if err != nil {
+			return -1
+		}
+		return length
 	case *io.LimitedReader:
-		return v.N, true
+		return v.N
 	case *net.Buffers:
 		if v != nil {
 			length := int64(0)
 			for _, p := range *v {
 				length += int64(len(p))
 			}
-			return length, true
+			return length
 		}
-		return 0, true // length is 0
+		return 0
 	default:
-		return 0, false
+		return -1
 	}
 }
+
+func Int64(value int64) *int64 { return &value }

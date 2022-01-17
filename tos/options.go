@@ -16,7 +16,9 @@ func WithContentType(contentType string) Option {
 }
 
 // WithContentLength set Content-Length header
-//   used in Bucket.PutObject Bucket.AppendObject
+//   used in Bucket.PutObject Bucket.AppendObject Bucket.UploadPart
+//
+// If the length of the content is known, it is better to add this option when Put, Append or Upload.
 func WithContentLength(length int64) Option {
 	return func(rb *requestBuilder) {
 		rb.WithContentLength(length)
