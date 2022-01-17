@@ -2,7 +2,7 @@ package tos
 
 import (
 	"encoding/json"
-	"io"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"net/url"
@@ -60,13 +60,11 @@ func TestTryResolveLength(t *testing.T) {
 	file, err := os.Open("./request.go")
 	require.Nil(t, err)
 
-	size, ok := tryResolveLength(file)
-	require.True(t, ok)
+	size := tryResolveLength(file)
 	require.Greater(t, size, int64(0))
 
 	buffers := net.Buffers{make([]byte, 1024), make([]byte, 1024)}
-	size, ok = tryResolveLength(&buffers)
-	require.True(t, ok)
+	size = tryResolveLength(&buffers)
 	require.Equal(t, size, int64(2048))
 }
 
@@ -89,7 +87,7 @@ func TestFileUnreadSize(t *testing.T) {
 	require.Nil(t, err)
 	require.Equal(t, size, stat.Size()-8)
 
-	data, err := io.ReadAll(file)
+	data, err := ioutil.ReadAll(file)
 	require.Nil(t, err)
 	require.Equal(t, size, int64(len(data)))
 
