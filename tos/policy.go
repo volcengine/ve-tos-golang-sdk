@@ -54,7 +54,6 @@ func (cli *Client) PutBucketPolicy(ctx context.Context, bucket string, policy *B
 	if err := IsValidBucketName(bucket); err != nil {
 		return nil, err
 	}
-
 	res, err := cli.newBuilder(bucket, "").
 		WithQuery("policy", "").
 		Request(ctx, http.MethodPut, strings.NewReader(policy.Policy), cli.roundTripper(http.StatusNoContent))
@@ -62,7 +61,6 @@ func (cli *Client) PutBucketPolicy(ctx context.Context, bucket string, policy *B
 		return nil, err
 	}
 	defer res.Close()
-
 	return &PutBucketPolicyOutput{RequestInfo: res.RequestInfo()}, nil
 }
 

@@ -2,6 +2,7 @@ package tos
 
 import (
 	"context"
+	"crypto/tls"
 	"net"
 	"net/http"
 	"time"
@@ -38,6 +39,9 @@ type TransportConfig struct {
 
 	// WriteTimeout set net.Conn SetWriteDeadline
 	WriteTimeout time.Duration
+
+	// InsecureSkipVerify set tls.Config InsecureSkipVerify
+	InsecureSkipVerify bool
 }
 
 type Transport interface {
@@ -52,25 +56,32 @@ type DefaultTransport struct {
 func NewDefaultTransport(config *TransportConfig) *DefaultTransport {
 	return &DefaultTransport{
 		client: http.Client{
+			// TODO: uncomment this in v2.2.0
+			// Prohibit redirection
+			// CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			// 	return http.ErrUseLastResponse
+			// },
 			Transport: &http.Transport{
-				DialContext: (&net.Dialer{
-					Timeout:   config.DialTimeout,
-					KeepAlive: config.KeepAlive,
-				}).DialContext,
-				//DialContext: (&TimeoutDialer{
-				//	Dialer: net.Dialer{
-				//		Timeout:   config.DialTimeout,
-				//		KeepAlive: config.KeepAlive,
-				//	},
-				//	ReadTimeout:  config.ReadTimeout,
-				//	WriteTimeout: config.WriteTimeout,
+				//DialContext: (&net.Dialer{
+				//	Timeout:   config.DialTimeout,
+				//	KeepAlive: config.KeepAlive,
 				//}).DialContext,
+				DialContext: (&TimeoutDialer{
+					Dialer: net.Dialer{
+						Timeout:   config.DialTimeout,
+						KeepAlive: config.KeepAlive,
+					},
+					ReadTimeout:  config.ReadTimeout,
+					WriteTimeout: config.WriteTimeout,
+				}).DialContext,
 				MaxIdleConns:          config.MaxIdleConns,
 				IdleConnTimeout:       config.IdleConnTimeout,
 				TLSHandshakeTimeout:   config.TLSHandshakeTimeout,
 				ResponseHeaderTimeout: config.ResponseHeaderTimeout,
 				ExpectContinueTimeout: config.ExpectContinueTimeout,
 				DisableCompression:    true,
+				// #nosec G402
+				TLSClientConfig: &tls.Config{InsecureSkipVerify: config.InsecureSkipVerify},
 			},
 		},
 	}
@@ -84,7 +95,7 @@ func NewDefaultTransportWithClient(client http.Client) *DefaultTransport {
 func (dt *DefaultTransport) RoundTrip(ctx context.Context, req *Request) (*Response, error) {
 	hr, err := http.NewRequestWithContext(ctx, req.Method, req.URL(), req.Content)
 	if err != nil {
-		return nil, err
+		return nil, newTosClientError(err.Error(), err)
 	}
 
 	if req.ContentLength != nil {
@@ -97,7 +108,7 @@ func (dt *DefaultTransport) RoundTrip(ctx context.Context, req *Request) (*Respo
 
 	res, err := dt.client.Do(hr)
 	if err != nil {
-		return nil, err
+		return nil, newTosClientError(err.Error(), err)
 	}
 
 	return &Response{
@@ -142,7 +153,7 @@ func (tc *TimeoutConn) Write(b []byte) (n int, err error) {
 		_ = tc.SetWriteDeadline(time.Now().Add(tc.writeTimeout))
 	}
 
-	n, err = tc.Conn.Read(b)
+	n, err = tc.Conn.Write(b)
 	if timeout {
 		_ = tc.SetWriteDeadline(tc.zero)
 	}

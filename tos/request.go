@@ -14,6 +14,8 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"reflect"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -59,6 +61,11 @@ func (hr *Range) String() string {
 	return fmt.Sprintf("bytes=%d-%d", hr.Start, hr.End)
 }
 
+type CopySource struct {
+	srcBucket    string
+	srcObjectKey string
+}
+
 type requestBuilder struct {
 	Signer        Signer
 	Scheme        string
@@ -70,8 +77,34 @@ type requestBuilder struct {
 	Range         *Range
 	Query         url.Values
 	Header        http.Header
-	//CheckETag  bool
-	//CheckCRC32 bool
+	Retry         *retryer
+	OnRetry       func(req *Request)
+	Classifier    classifier
+	CopySource    *CopySource
+	// CheckETag  bool
+	// CheckCRC32 bool
+}
+
+func (rb *requestBuilder) WithRetry(onRetry func(req *Request), classifier classifier) *requestBuilder {
+	if onRetry == nil {
+		rb.OnRetry = func(req *Request) {}
+	} else {
+		rb.OnRetry = onRetry
+	}
+	if classifier == nil {
+		rb.Classifier = NoRetryClassifier{}
+	} else {
+		rb.Classifier = classifier
+	}
+	return rb
+}
+
+func (rb *requestBuilder) WithCopySource(srcBucket, srcObjectKey string) *requestBuilder {
+	rb.CopySource = &CopySource{
+		srcBucket:    srcBucket,
+		srcObjectKey: srcObjectKey,
+	}
+	return rb
 }
 
 func (rb *requestBuilder) WithQuery(key, value string) *requestBuilder {
@@ -82,6 +115,71 @@ func (rb *requestBuilder) WithQuery(key, value string) *requestBuilder {
 func (rb *requestBuilder) WithHeader(key, value string) *requestBuilder {
 	if len(value) > 0 {
 		rb.Header.Set(key, value)
+	}
+	return rb
+}
+
+func convertToString(iface interface{}, tag *reflect.StructTag) string {
+	// return empty string if value is zero except filed with "default" tag
+	var result string
+	switch v := iface.(type) {
+	case string:
+		result = v
+	case int:
+		if v != 0 {
+			result = strconv.Itoa(v)
+		} else {
+			result = tag.Get("default")
+		}
+	case int64:
+		if v != 0 {
+			result = strconv.Itoa(int(v))
+		} else {
+			result = tag.Get("default")
+		}
+	case time.Time:
+		if !v.IsZero() {
+			result = v.Format(http.TimeFormat)
+		}
+	case bool:
+		result = strconv.FormatBool(v)
+	default:
+		if reflect.TypeOf(iface).Kind() == reflect.String {
+			result = reflect.ValueOf(iface).String()
+		}
+	}
+	return result
+}
+
+// WithParams will set filed with tag "header" rb.Header.
+func (rb *requestBuilder) WithParams(input interface{}) *requestBuilder {
+	t := reflect.TypeOf(input)
+	v := reflect.ValueOf(input)
+	for i := 0; i < v.NumField(); i++ {
+		filed := t.Field(i)
+		if filed.Type.Kind() == reflect.Struct {
+			rb.WithParams(v.Field(i).Interface())
+		}
+		location := filed.Tag.Get("location")
+		switch location {
+		case "header":
+			value := convertToString(v.Field(i).Interface(), &filed.Tag)
+			if filed.Tag.Get("encodeChinese") == "true" {
+				value = urlEncodeChinese(value)
+			}
+			rb.WithHeader(filed.Tag.Get("locationName"), value)
+		case "headers":
+			if headers, ok := v.Field(i).Interface().(map[string]string); ok {
+				for k, v := range headers {
+					if len(v) > 0 {
+						rb.Header.Set(HeaderMetaPrefix+urlEncodeChinese(k), urlEncodeChinese(v))
+					}
+				}
+				return rb
+			}
+		case "query":
+			rb.WithQuery(filed.Tag.Get("locationName"), convertToString(v.Field(i).Interface(), &filed.Tag))
+		}
 	}
 	return rb
 }
@@ -130,20 +228,11 @@ func (rb *requestBuilder) build(method string, content io.Reader) *Request {
 
 func (rb *requestBuilder) Build(method string, content io.Reader) *Request {
 	req := rb.build(method, content)
-	if rb.Signer != nil {
-		signed := rb.Signer.SignHeader(req)
-		for key, values := range signed {
-			req.Header[key] = values
-		}
+	if rb.CopySource != nil {
+		versionID := req.Query.Get("versionId")
+		req.Query.Del("versionId")
+		req.Header.Add(HeaderCopySource, copySource(rb.CopySource.srcBucket, rb.CopySource.srcObjectKey, versionID))
 	}
-	return req
-}
-
-func (rb *requestBuilder) BuildWithCopySource(method string, srcBucket, srcObject string) *Request {
-	req := rb.build(method, nil)
-	versionID := req.Query.Get("versionId")
-	req.Query.Del("versionId")
-	req.Header.Add(HeaderCopySource, copySource(srcBucket, srcObject, versionID))
 	if rb.Signer != nil {
 		signed := rb.Signer.SignHeader(req)
 		for key, values := range signed {
@@ -155,14 +244,33 @@ func (rb *requestBuilder) BuildWithCopySource(method string, srcBucket, srcObjec
 
 type roundTripper func(ctx context.Context, req *Request) (*Response, error)
 
-func (rb *requestBuilder) Request(ctx context.Context, method string, content io.Reader, roundTripper roundTripper) (*Response, error) {
-	req := rb.Build(method, content)
-	return roundTripper(ctx, req)
-}
+func (rb *requestBuilder) Request(ctx context.Context, method string,
+	content io.Reader, roundTripper roundTripper) (*Response, error) {
 
-func (rb *requestBuilder) RequestWithCopySource(ctx context.Context, method string, srcBucket, srcObject string, roundTripper roundTripper) (*Response, error) {
-	req := rb.BuildWithCopySource(method, srcBucket, srcObject)
-	return roundTripper(ctx, req)
+	var (
+		req *Request
+		res *Response
+		err error
+	)
+
+	req = rb.Build(method, content)
+
+	if rb.Retry != nil {
+		work := func() (err error) {
+			rb.OnRetry(req)
+			res, err = roundTripper(ctx, req)
+			return err
+		}
+		err = rb.Retry.Run(ctx, work, rb.Classifier)
+		if err != nil {
+			return nil, err
+		}
+		return res, err
+	}
+
+	res, err = roundTripper(ctx, req)
+
+	return res, err
 }
 
 func (rb *requestBuilder) PreSignedURL(method string, ttl time.Duration) (string, error) {
@@ -179,8 +287,10 @@ func (rb *requestBuilder) PreSignedURL(method string, ttl time.Duration) (string
 }
 
 type RequestInfo struct {
-	RequestID string
-	Header    http.Header
+	RequestID  string
+	ID2        string
+	StatusCode int
+	Header     http.Header
 }
 
 type Response struct {
@@ -192,8 +302,10 @@ type Response struct {
 
 func (r *Response) RequestInfo() RequestInfo {
 	return RequestInfo{
-		RequestID: r.Header.Get(HeaderRequestID),
-		Header:    r.Header,
+		RequestID:  r.Header.Get(HeaderRequestID),
+		ID2:        r.Header.Get(HeaderID2),
+		StatusCode: r.StatusCode,
+		Header:     r.Header,
 	}
 }
 
@@ -205,26 +317,27 @@ func (r *Response) Close() error {
 }
 
 func marshalOutput(requestID string, reader io.Reader, output interface{}) error {
+	// Although status code is ok, we need to check if response body is valid.
+	// If response body is invalid, TosServerError should be raised. But we can't
+	// unmarshal error from response body now.
 	data, err := ioutil.ReadAll(reader)
 	if err != nil {
-		return &SerializeError{
-			RequestID: requestID,
-			Message:   err.Error(),
+		return &TosServerError{
+			TosError:    TosError{Message: "tos: unmarshal response body failed."},
+			RequestInfo: RequestInfo{RequestID: requestID},
 		}
 	}
-
 	data = bytes.TrimSpace(data)
 	if len(data) == 0 {
-		return &SerializeError{
-			RequestID: requestID,
-			Message:   "server returns empty result",
+		return &TosServerError{
+			TosError:    TosError{Message: "server returns empty result"},
+			RequestInfo: RequestInfo{RequestID: requestID},
 		}
 	}
-
 	if err = json.Unmarshal(data, output); err != nil {
-		return &SerializeError{
-			RequestID: requestID,
-			Message:   err.Error(),
+		return &TosServerError{
+			TosError:    TosError{Message: err.Error()},
+			RequestInfo: RequestInfo{RequestID: requestID},
 		}
 	}
 	return nil
@@ -233,7 +346,7 @@ func marshalOutput(requestID string, reader io.Reader, output interface{}) error
 func marshalInput(name string, input interface{}) ([]byte, string, error) {
 	data, err := json.Marshal(input)
 	if err != nil {
-		return nil, "", &SerializeError{Message: fmt.Sprintf("marshal %s err: %s", name, err.Error())}
+		return nil, "", newTosClientError(fmt.Sprintf("marshal %s failed", name), err)
 	}
 
 	sum := md5.Sum(data)
@@ -253,7 +366,7 @@ func fileUnreadLength(file *os.File) (int64, error) {
 
 	size := stat.Size()
 	if offset > size || offset < 0 {
-		return 0, errors.New("tos: unexpected file size and(or) offset")
+		return 0, newTosClientError("tos: unexpected file size and(or) offset", nil)
 	}
 
 	return size - offset, nil

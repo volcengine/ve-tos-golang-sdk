@@ -2,7 +2,6 @@ package tos
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -26,16 +25,39 @@ import (
 //   client, err := NewClient(endpoint)
 //   // do something
 //
+// Deprecated: use ClientV2 instead
 type Client struct {
-	scheme      string
-	host        string
-	urlMode     urlMode
-	userAgent   string
-	credentials Credentials // nullable
-	signer      Signer      // nullable
-	transport   Transport
-	recognizer  ContentTypeRecognizer
-	config      Config
+	scheme       string
+	host         string
+	urlMode      urlMode
+	userAgent    string
+	credentials  Credentials // nullable
+	signer       Signer      // nullable
+	transport    Transport
+	recognizer   ContentTypeRecognizer
+	config       Config
+	retry        *retryer
+	dnsCacheTime time.Duration // milliseconds
+	enableCRC    bool
+	proxy        *Proxy
+}
+
+// ClientV2 TOS ClientV2
+// use NewClientV2 to create a new ClientV2
+//
+// example:
+//   client, err := NewClientV2(endpoint, WithCredentials(credentials), WithRegion(region))
+//   if err != nil {
+//      // ...
+//   }
+//   // do something
+//
+// if you only access the public bucket:
+//   client, err := NewClientV2(endpoint)
+//   // do something
+//
+type ClientV2 struct {
+	Client
 }
 
 type ClientOption func(*Client)
@@ -49,6 +71,84 @@ func WithCredentials(credentials Credentials) ClientOption {
 	}
 }
 
+// WithEnableVerifySSL set whether a client verifies the server's certificate chain and host name.
+func WithEnableVerifySSL(skip bool) ClientOption {
+	return func(client *Client) {
+		client.config.TransportConfig.InsecureSkipVerify = skip
+	}
+}
+
+// WithRequestTimeout set timeout for single http request
+func WithRequestTimeout(timeout time.Duration) ClientOption {
+	return func(client *Client) {
+		client.config.TransportConfig.ResponseHeaderTimeout = timeout
+
+	}
+}
+
+// WithConnectionTimeout set timeout for constructing connection
+func WithConnectionTimeout(timeout time.Duration) ClientOption {
+	return func(client *Client) {
+		client.config.TransportConfig.DialTimeout = timeout
+	}
+}
+
+// WithMaxConnections set maximum number of http connections
+func WithMaxConnections(max int) ClientOption {
+	return func(client *Client) {
+		client.config.TransportConfig.MaxIdleConns = max
+	}
+
+}
+
+// WithIdleConnTimeout set max idle time of a http connection
+func WithIdleConnTimeout(timeout time.Duration) ClientOption {
+	return func(client *Client) {
+		client.config.TransportConfig.IdleConnTimeout = timeout
+	}
+}
+
+// WithUserAgentSuffix set suffix of user-agent
+func WithUserAgentSuffix(suffix string) ClientOption {
+	return func(client *Client) {
+		client.userAgent = strings.Join([]string{client.userAgent, suffix}, " ")
+	}
+}
+
+// // WithProxy set Proxy
+// //
+// // see StaticProxy
+// func WithProxy(proxy *Proxy) ClientV2Option {
+//	return func(client *ClientV2) {
+//		client.proxy = proxy
+//	}
+// }
+//
+// // WithDNSCacheTime set dnsCacheTime in milliseconds
+// func WithDNSCacheTime(dnsCacheTime int) ClientV2Option {
+//	return func(client *ClientV2) {
+//		client.dnsCacheTime = dnsCacheTime * time.Milliseconds
+//	}
+// }
+//
+
+// WithEnableCRC set if check crc after uploading object.
+// Checking crc is enabled by default.
+// func WithEnableCRC(enableCRC bool) ClientOption {
+// 	return func(client *Client) {
+// 		client.enableCRC = enableCRC
+// 	}
+// }
+
+// // WithMaxRetryCount set MaxRetryCount
+// func WithMaxRetryCount(retryCount int) ClientOption {
+// 	return func(client *Client) {
+// 		if client.retry != nil {
+// 			client.retry.SetBackoff(retryer.exponentialBackoff(retryCount, retryer.DefaultRetryBackoffBase))
+// 		}
+// 	}
+// }
+
 // WithTransport set Transport
 func WithTransport(transport Transport) ClientOption {
 	return func(client *Client) {
@@ -59,12 +159,13 @@ func WithTransport(transport Transport) ClientOption {
 // WithTransportConfig set TransportConfig
 func WithTransportConfig(config *TransportConfig) ClientOption {
 	return func(client *Client) {
+		// client.config never be nil
 		client.config.TransportConfig = *config
 	}
 }
 
-// WithReadWriteTimeout set read-write timeout
-func WithReadWriteTimeout(readTimeout, writeTimeout time.Duration) ClientOption {
+// WithSocketTimeout set read-write timeout
+func WithSocketTimeout(readTimeout, writeTimeout time.Duration) ClientOption {
 	return func(client *Client) {
 		client.config.TransportConfig.ReadTimeout = readTimeout
 		client.config.TransportConfig.WriteTimeout = writeTimeout
@@ -74,7 +175,11 @@ func WithReadWriteTimeout(readTimeout, writeTimeout time.Duration) ClientOption 
 // WithRegion set region
 func WithRegion(region string) ClientOption {
 	return func(client *Client) {
+		// client.config never be nil
 		client.config.Region = region
+		if endpoint, ok := SupportedRegion()[region]; ok {
+			client.config.Endpoint = endpoint
+		}
 	}
 }
 
@@ -86,13 +191,10 @@ func WithSigner(signer Signer) ClientOption {
 }
 
 // WithPathAccessMode url mode is path model or default mode
+//
+// Deprecated: This option is deprecated. Setting PathAccessMode will be ignored silently.
 func WithPathAccessMode(pathAccessMode bool) ClientOption {
 	return func(client *Client) {
-		if pathAccessMode {
-			client.urlMode = urlModePath
-		} else {
-			client.urlMode = urlModeDefault
-		}
 	}
 }
 
@@ -126,33 +228,22 @@ func schemeHost(endpoint string) (scheme string, host string, urlMode urlMode) {
 		scheme = "http"
 		host = endpoint
 	}
-
 	urlMode = urlModeDefault
 	if net.ParseIP(host) != nil {
 		urlMode = urlModePath
 	}
-
 	return scheme, host, urlMode
 }
 
-// NewClient create a new client
-//   endpoint: access endpoint
-//   options: WithCredentials set Credentials
-//     WithRegion set region, this is required if WithCredentials is used
-//     WithReadWriteTimeout set read-write timeout
-//     WithTransportConfig set TransportConfig
-//     WithTransport set self-defined Transport
-func NewClient(endpoint string, options ...ClientOption) (*Client, error) {
-	client := Client{
-		recognizer: ExtensionBasedContentTypeRecognizer{},
-		config:     defaultConfig(),
-	}
-	client.config.Endpoint = endpoint
-	client.scheme, client.host, client.urlMode = schemeHost(endpoint)
-
+func initClient(client *Client, endpoint string, options ...ClientOption) error {
 	for _, option := range options {
-		option(&client)
+		option(client)
 	}
+	// if Region is set and supported, param "endpoint" will be ignored
+	if len(client.config.Endpoint) == 0 {
+		client.config.Endpoint = endpoint
+	}
+	client.scheme, client.host, client.urlMode = schemeHost(client.config.Endpoint)
 
 	if client.transport == nil {
 		client.transport = NewDefaultTransport(&client.config.TransportConfig)
@@ -160,38 +251,82 @@ func NewClient(endpoint string, options ...ClientOption) (*Client, error) {
 
 	if cred := client.credentials; cred != nil && client.signer == nil {
 		if len(client.config.Region) == 0 {
-			return nil, errors.New("tos: missing Region option")
+			return newTosClientError("tos: missing Region option", nil)
 		}
 		client.signer = NewSignV4(cred, client.config.Region)
 	}
 
-	if len(client.userAgent) == 0 {
-		client.userAgent = fmt.Sprintf("tos-go-sdk/%s (%s/%s;%s)", Version, runtime.GOOS, runtime.GOARCH, runtime.Version())
-	}
+	return nil
+}
 
+// NewClient create a new Tos Client
+//   endpoint: access endpoint
+//   options: WithCredentials set Credentials
+//     WithRegion set region, this is required if WithCredentials is used
+//     WithSocketTimeout set read-write timeout
+//     WithTransportConfig set TransportConfig
+//     WithTransport set self-defined Transport
+func NewClient(endpoint string, options ...ClientOption) (*Client, error) {
+	client := Client{
+		recognizer: ExtensionBasedContentTypeRecognizer{},
+		config:     defaultConfig(),
+		userAgent:  fmt.Sprintf("tos-go-sdk/%s (%s/%s;%s)", Version, runtime.GOOS, runtime.GOARCH, runtime.Version()),
+	}
+	err := initClient(&client, endpoint, options...)
+	if err != nil {
+		return nil, err
+	}
+	return &client, nil
+}
+
+// NewClientV2 create a new Tos ClientV2
+//   endpoint: access endpoint
+//   options: WithCredentials set Credentials
+//     WithRegion set region, this is required if WithCredentials is used.
+//     If Region is set and supported, param "endpoint" will be ignored.
+//     WithSocketTimeout set read-write timeout
+//     WithTransportConfig set TransportConfig
+//     WithTransport set self-defined Transport
+func NewClientV2(endpoint string, options ...ClientOption) (*ClientV2, error) {
+	client := ClientV2{
+		Client: Client{
+			recognizer: ExtensionBasedContentTypeRecognizer{},
+			config:     defaultConfig(),
+			retry:      newRetryer([]time.Duration{}),
+			userAgent:  fmt.Sprintf("tos-go-sdk/%s (%s/%s;%s)", Version, runtime.GOOS, runtime.GOARCH, runtime.Version()),
+			// TODO: uncomment this in 2.2.0
+			// enableCRC:  true,
+		},
+	}
+	client.retry.SetJitter(0.25)
+	err := initClient(&client.Client, endpoint, options...)
+	if err != nil {
+		return nil, err
+	}
 	return &client, nil
 }
 
 func (cli *Client) newBuilder(bucket, object string, options ...Option) *requestBuilder {
 	rb := &requestBuilder{
-		Signer:  cli.signer,
-		Scheme:  cli.scheme,
-		Host:    cli.host,
-		Bucket:  bucket,
-		Object:  object,
-		URLMode: cli.urlMode,
-		Query:   make(url.Values),
-		Header:  make(http.Header),
+		Signer:     cli.signer,
+		Scheme:     cli.scheme,
+		Host:       cli.host,
+		Bucket:     bucket,
+		Object:     object,
+		URLMode:    cli.urlMode,
+		Query:      make(url.Values),
+		Header:     make(http.Header),
+		OnRetry:    func(req *Request) {},
+		Classifier: StatusCodeClassifier{},
 	}
-
 	rb.Header.Set(HeaderUserAgent, cli.userAgent)
 	if typ := cli.recognizer.ContentType(object); len(typ) > 0 {
 		rb.Header.Set(HeaderContentType, typ)
 	}
-
 	for _, option := range options {
 		option(rb)
 	}
+	rb.Retry = cli.retry
 	return rb
 }
 
@@ -200,7 +335,6 @@ func (cli *Client) roundTrip(ctx context.Context, req *Request, expectedCode int
 	if err != nil {
 		return nil, err
 	}
-
 	if err = checkError(res, expectedCode, expectedCodes...); err != nil {
 		return nil, err
 	}
@@ -213,7 +347,7 @@ func (cli *Client) roundTripper(expectedCode int) roundTripper {
 	}
 }
 
-// PreSignedURL create a pre-signed URL
+// PreSignedURL return pre-signed url
 //   httpMethod: HTTP method, {
 //     PutObject: http.MethodPut
 //     GetObject: http.MethodGet
@@ -224,7 +358,41 @@ func (cli *Client) roundTripper(expectedCode int) roundTripper {
 //   objectKey: the object name
 //   ttl: the time-to-live of signed URL
 //   options: WithVersionID the version id of the object
+//  Deprecated: use PreSignedURL of ClientV2 instead
 func (cli *Client) PreSignedURL(httpMethod string, bucket, objectKey string, ttl time.Duration, options ...Option) (string, error) {
+	if err := isValidNames(bucket, objectKey); err != nil {
+		return "", err
+	}
 	return cli.newBuilder(bucket, objectKey, options...).
 		PreSignedURL(httpMethod, ttl)
+}
+
+// PreSignedURL return pre-signed url
+func (cli *ClientV2) PreSignedURL(input *PreSignedURLInput) (*PreSignedURLOutput, error) {
+	if err := IsValidBucketName(input.Bucket); err != nil {
+		return nil, err
+	}
+	rb := cli.newBuilder(input.Bucket, input.Key)
+	for k, v := range input.Header {
+		rb.WithHeader(k, v)
+	}
+	for k, v := range input.Query {
+		rb.WithQuery(k, v)
+	}
+	if input.Expires == 0 {
+		input.Expires = 3600
+	}
+	signedURL, err := rb.PreSignedURL(string(input.HTTPMethod), time.Second*time.Duration(3600))
+	if err != nil {
+		return nil, err
+	}
+	signed := make(map[string]string)
+	for k := range rb.Header {
+		signed[k] = rb.Header.Get(k)
+	}
+	output := &PreSignedURLOutput{
+		SignedUrl:    signedURL,
+		SignedHeader: signed,
+	}
+	return output, nil
 }
