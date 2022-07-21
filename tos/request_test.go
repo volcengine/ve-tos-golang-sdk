@@ -2,7 +2,7 @@ package tos
 
 import (
 	"encoding/json"
-	"io/ioutil"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -87,7 +87,7 @@ func TestFileUnreadSize(t *testing.T) {
 	require.Nil(t, err)
 	require.Equal(t, size, stat.Size()-8)
 
-	data, err := ioutil.ReadAll(file)
+	data, err := io.ReadAll(file)
 	require.Nil(t, err)
 	require.Equal(t, size, int64(len(data)))
 
@@ -95,3 +95,30 @@ func TestFileUnreadSize(t *testing.T) {
 	require.Nil(t, err)
 	require.Equal(t, size, int64(0))
 }
+
+// func TestSetHeaders(t *testing.T) {
+//
+//	input := PutObjectV2Input{
+//		PutObjectBasicInput: PutObjectBasicInput{
+//			Bucket: "bucket",
+//			Key:    "key",
+//			CommonHeaders: CommonHeaders{
+//				ContentLength: 123,
+//				ContentMD5:    "test_md5",
+//				ContentSHA256: "test_sha256",
+//				CacheControl:  "test_cache",
+//				Expires:       time.Now(),
+//				ACL:           ACLType("test_acl"),
+//				StorageClass:  StorageClassStandard,
+//			},
+//			SSEHeaders: SSEHeaders{
+//				SSECAlgorithm: "test_sse_algorithm",
+//			},
+//			Meta:                 nil,
+//			DataTransferListener: nil,
+//			RateLimiter:          nil,
+//		},
+//		Content: nil,
+//	}
+//
+// }

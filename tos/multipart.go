@@ -5,26 +5,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"hash"
 	"io"
 	"net/http"
+	"os"
 	"sort"
 	"strconv"
 )
-
-type CreateMultipartUploadOutput struct {
-	RequestInfo          `json:"-"`
-	Bucket               string `json:"Bucket,omitempty"`
-	Key                  string `json:"Key,omitempty"`
-	UploadID             string `json:"UploadId,omitempty"`
-	SSECustomerAlgorithm string `json:"SSECustomerAlgorithm,omitempty"`
-	SSECustomerKeyMD5    string `json:"SSECustomerKeyMD5,omitempty"`
-}
-
-type multipartUpload struct {
-	Bucket   string `json:"Bucket,omitempty"`
-	Key      string `json:"Key,omitempty"`
-	UploadID string `json:"UploadId,omitempty"`
-}
 
 // CreateMultipartUpload create a multipart upload operation
 //   objectKey: the name of object
@@ -40,6 +27,8 @@ type multipartUpload struct {
 //     WithExpires set Expires,
 //     WithServerSideEncryptionCustomer set server side encryption options
 //     WithACL WithACLGrantFullControl WithACLGrantRead WithACLGrantReadAcp WithACLGrantWrite WithACLGrantWriteAcp set object acl
+//
+// Deprecated: use CreateMultipartUpload of ClientV2 instead
 func (bkt *Bucket) CreateMultipartUpload(ctx context.Context, objectKey string, options ...Option) (*CreateMultipartUploadOutput, error) {
 	if err := isValidKey(objectKey); err != nil {
 		return nil, err
@@ -68,29 +57,49 @@ func (bkt *Bucket) CreateMultipartUpload(ctx context.Context, objectKey string, 
 	}, nil
 }
 
-type UploadPartInput struct {
-	Key        string    `json:"Key,omitempty"`
-	UploadID   string    `json:"UploadId,omitempty"`
-	PartNumber int       `json:"PartNumber,omitempty"`
-	Content    io.Reader `json:"-"`
-}
+// CreateMultipartUploadV2 create a multipart upload operation
+func (cli *ClientV2) CreateMultipartUploadV2(
+	ctx context.Context,
+	input *CreateMultipartUploadV2Input) (*CreateMultipartUploadV2Output, error) {
+	if err := IsValidBucketName(input.Bucket); err != nil {
+		return nil, err
+	}
+	if err := isValidKey(input.Key); err != nil {
+		return nil, err
+	}
 
-type UploadPartOutput struct {
-	RequestInfo          `json:"-"`
-	PartNumber           int    `json:"PartNumber,omitempty"`
-	ETag                 string `json:"ETag,omitempty"`
-	SSECustomerAlgorithm string `json:"SSECustomerAlgorithm,omitempty"`
-	SSECustomerKeyMD5    string `json:"SSECustomerKeyMD5,omitempty"`
-}
+	res, err := cli.newBuilder(input.Bucket, input.Key).
+		WithQuery("uploads", "").
+		WithParams(*input).
+		WithRetry(nil, ServerErrorClassifier{}).
+		Request(ctx, http.MethodPost, nil, cli.roundTripper(http.StatusOK))
+	if err != nil {
+		return nil, err
+	}
+	defer res.Close()
 
-func (up *UploadPartOutput) uploadedPart() uploadedPart {
-	return uploadedPart{PartNumber: up.PartNumber, ETag: up.ETag}
+	var upload multipartUpload
+	if err = marshalOutput(res.RequestInfo().RequestID, res.Body, &upload); err != nil {
+		return nil, err
+	}
+
+	return &CreateMultipartUploadV2Output{
+		RequestInfo:   res.RequestInfo(),
+		Bucket:        upload.Bucket,
+		Key:           upload.Key,
+		UploadID:      upload.UploadID,
+		SSECAlgorithm: res.Header.Get(HeaderSSECustomerAlgorithm),
+		SSECKeyMD5:    res.Header.Get(HeaderSSECustomerKeyMD5),
+		EncodingType:  res.Header.Get(HeaderContentEncoding),
+	}, nil
 }
 
 // UploadPart upload a part for a multipart upload operation
 // input: the parameters, some fields is required, e.g. Key, UploadID, PartNumber and PartNumber
 //
 // If uploading 'Content' with known Content-Length, please add option tos.WithContentLength
+//
+// Deprecated: use UploadPart of ClientV2 instead
 func (bkt *Bucket) UploadPart(ctx context.Context, input *UploadPartInput, options ...Option) (*UploadPartOutput, error) {
 	if err := isValidKey(input.Key); err != nil {
 		return nil, err
@@ -114,42 +123,101 @@ func (bkt *Bucket) UploadPart(ctx context.Context, input *UploadPartInput, optio
 	}, nil
 }
 
-type CompleteMultipartUploadOutput struct {
-	RequestInfo `json:"-"`
-	VersionID   string `json:"VersionId,omitempty"`
+// UploadPartV2 upload a part for a multipart upload operation
+func (cli *ClientV2) UploadPartV2(ctx context.Context, input *UploadPartV2Input) (*UploadPartV2Output, error) {
+	if err := isValidNames(input.Bucket, input.Key); err != nil {
+		return nil, err
+	}
+	var (
+		checker       hash.Hash64
+		content       = input.Content
+		contentLength = input.ContentLength
+	)
+	if contentLength == 0 {
+		contentLength = tryResolveLength(content)
+	}
+	if cli.enableCRC {
+		checker = NewCRC(DefaultCrcTable(), 0)
+	}
+	var (
+		onRetry    func(req *Request) = nil
+		classifier classifier
+	)
+	content = wrapReader(content, contentLength, input.DataTransferListener, input.RateLimiter, checker)
+	classifier = StatusCodeClassifier{}
+	if seeker, ok := content.(io.Seeker); ok {
+		start, err := seeker.Seek(0, io.SeekCurrent)
+		if err != nil {
+			return nil, err
+		}
+		onRetry = func(req *Request) {
+			// PutObject/UploadPartV2 can be treated as an idempotent semantics if the request message body
+			// supports a reset operation. e.g. the request message body is a string,
+			// a local file handle, binary data in memory
+			if seeker, ok := req.Content.(io.Seeker); ok {
+				seeker.Seek(start, io.SeekStart)
+			}
+		}
+	}
+	if onRetry == nil {
+		classifier = ServerErrorClassifier{}
+	}
+	res, err := cli.newBuilder(input.Bucket, input.Key).
+		WithParams(*input).
+		WithContentLength(input.ContentLength).
+		WithRetry(onRetry, classifier).
+		Request(ctx, http.MethodPut, content, cli.roundTripper(http.StatusOK))
+	if err != nil {
+		return nil, err
+	}
+	defer res.Close()
+	if err = checkCrc64(res, checker); err != nil {
+		return nil, err
+	}
+	checksum, _ := strconv.ParseUint(res.Header.Get(HeaderHashCrc64ecma), 10, 64)
+	return &UploadPartV2Output{
+		RequestInfo:   res.RequestInfo(),
+		PartNumber:    input.PartNumber,
+		ETag:          res.Header.Get(HeaderETag),
+		SSECAlgorithm: res.Header.Get(HeaderSSECustomerAlgorithm),
+		SSECKeyMD5:    res.Header.Get(HeaderSSECustomerKeyMD5),
+		HashCrc64ecma: checksum,
+	}, nil
 }
 
-type uploadedPart struct {
-	PartNumber int    `json:"PartNumber"`
-	ETag       string `json:"ETag"`
-}
+// UploadPartFromFile upload a part for a multipart upload operation from file
+func (cli *ClientV2) UploadPartFromFile(ctx context.Context, input *UploadPartFromFileInput) (*UploadPartFromFileOutput, error) {
+	file, err := os.Open(input.FilePath)
+	if err != nil {
+		return nil, err
+	}
+	_, err = file.Seek(int64(input.Offset), io.SeekStart)
 
-type uploadedParts []uploadedPart
-
-func (p uploadedParts) Less(i, j int) bool { return p[i].PartNumber < p[j].PartNumber }
-func (p uploadedParts) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
-func (p uploadedParts) Len() int           { return len(p) }
-
-type completeMultipartUploadInput struct {
-	Parts uploadedParts `json:"Parts"`
-}
-
-type MultipartUploadedPart interface {
-	uploadedPart() uploadedPart
-}
-
-type CompleteMultipartUploadInput struct {
-	Key           string                  `json:"Key,omitempty"`
-	UploadID      string                  `json:"UploadId,omitempty"`
-	UploadedParts []MultipartUploadedPart `json:"UploadedParts,omitempty"`
+	if err != nil {
+		return nil, err
+	}
+	output, err := cli.UploadPartV2(ctx, &UploadPartV2Input{
+		UploadPartBasicInput: input.UploadPartBasicInput,
+		Content:              file,
+		ContentLength:        input.PartSize,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &UploadPartFromFileOutput{*output}, nil
 }
 
 // CompleteMultipartUpload complete a multipart upload operation
 //   input: input.Key the object name,
 //     input.UploadID the uploadID got from CreateMultipartUpload
 //     input.UploadedParts upload part output got from UploadPart or UploadPartCopy
+//
+// Deprecated: use CompleteMultipartUpload of ClientV2 instead
 func (bkt *Bucket) CompleteMultipartUpload(ctx context.Context, input *CompleteMultipartUploadInput, options ...Option) (*CompleteMultipartUploadOutput, error) {
-	multipart := completeMultipartUploadInput{Parts: make(uploadedParts, 0, len(input.UploadedParts))}
+	if err := isValidKey(input.Key); err != nil {
+		return nil, err
+	}
+	multipart := partsToComplete{Parts: make(uploadedParts, 0, len(input.UploadedParts))}
 	for _, p := range input.UploadedParts {
 		multipart.Parts = append(multipart.Parts, p.uploadedPart())
 	}
@@ -174,21 +242,52 @@ func (bkt *Bucket) CompleteMultipartUpload(ctx context.Context, input *CompleteM
 	}, nil
 }
 
-type AbortMultipartUploadInput struct {
-	Key      string `json:"Key,omitempty"`
-	UploadID string `json:"UploadId,omitempty"`
-}
+// CompleteMultipartUploadV2 complete a multipart upload operation
+func (cli *ClientV2) CompleteMultipartUploadV2(
+	ctx context.Context, input *CompleteMultipartUploadV2Input) (*CompleteMultipartUploadV2Output, error) {
 
-type AbortMultipartUploadOutput struct {
-	RequestInfo `json:"-"`
+	if err := isValidNames(input.Bucket, input.Key); err != nil {
+		return nil, err
+	}
+	multipart := partsToComplete{Parts: make(uploadedParts, 0, len(input.Parts))}
+	for _, p := range input.Parts {
+		multipart.Parts = append(multipart.Parts, p.uploadedPart())
+	}
+
+	sort.Sort(multipart.Parts)
+	data, err := json.Marshal(&multipart)
+	if err != nil {
+		return nil, newTosClientError("tos: marshal uploadParts", err)
+	}
+
+	res, err := cli.newBuilder(input.Bucket, input.Key).
+		WithParams(*input).
+		WithRetry(nil, ServerErrorClassifier{}).
+		Request(ctx, http.MethodPost, bytes.NewReader(data), cli.roundTripper(http.StatusOK))
+	if err != nil {
+		return nil, err
+	}
+	defer res.Close()
+
+	crc64, _ := strconv.ParseUint(res.Header.Get(HeaderHashCrc64ecma), 10, 64)
+	output := &CompleteMultipartUploadV2Output{
+		RequestInfo:   res.RequestInfo(),
+		VersionID:     res.Header.Get(HeaderVersionID),
+		HashCrc64ecma: crc64,
+	}
+	if err = marshalOutput(output.RequestID, res.Body, &output); err != nil {
+		return nil, err
+	}
+	return output, nil
 }
 
 // AbortMultipartUpload abort a multipart upload operation
+//
+// Deprecated: use AbortMultipartUpload of ClientV2 instead
 func (bkt *Bucket) AbortMultipartUpload(ctx context.Context, input *AbortMultipartUploadInput, options ...Option) (*AbortMultipartUploadOutput, error) {
 	if err := isValidKey(input.Key); err != nil {
 		return nil, err
 	}
-
 	res, err := bkt.client.newBuilder(bkt.name, input.Key, options...).
 		WithQuery("uploadId", input.UploadID).
 		Request(ctx, http.MethodDelete, nil, bkt.client.roundTripper(http.StatusNoContent))
@@ -200,42 +299,27 @@ func (bkt *Bucket) AbortMultipartUpload(ctx context.Context, input *AbortMultipa
 	return &AbortMultipartUploadOutput{RequestInfo: res.RequestInfo()}, nil
 }
 
-type Owner struct {
-	ID          string `json:"ID,omitempty"`
-	DisplayName string `json:"DisplayName,omitempty"`
-}
-
-type UploadedPart struct {
-	PartNumber   int32  `json:"PartNumber,omitempty"`   // Part编号
-	LastModified string `json:"LastModified,omitempty"` // 最后一次修改时间
-	ETag         string `json:"ETag,omitempty"`         // ETag
-	Size         int64  `json:"Size,omitempty"`         // Part大小
-}
-
-type ListUploadedPartsInput struct {
-	Key              string `json:"Key,omitempty"`
-	UploadID         string `json:"UploadId,omitempty"`
-	MaxParts         int    `json:"MaxParts,omitempty"`             // 最大Part个数
-	PartNumberMarker int    `json:"NextPartNumberMarker,omitempty"` // 起始Part的位置
-}
-
-type ListUploadedPartsOutput struct {
-	RequestInfo          `json:"-"`
-	Bucket               string         `json:"Bucket,omitempty"`               // Bucket名称
-	Key                  string         `json:"Key,omitempty"`                  // Object名称
-	UploadID             string         `json:"UploadId,omitempty"`             // 上传ID
-	PartNumberMarker     int            `json:"PartNumberMarker,omitempty"`     // 当前页起始位置
-	NextPartNumberMarker int            `json:"NextPartNumberMarker,omitempty"` // 下一个Part的位置
-	MaxParts             int            `json:"MaxParts,omitempty"`             // 最大Part个数
-	IsTruncated          bool           `json:"IsTruncated,omitempty"`          // 是否完全上传完成
-	StorageClass         string         `json:"StorageClass,omitempty"`         // 存储类型
-	Owner                Owner          `json:"Owner,omitempty"`                // 属主
-	UploadedParts        []UploadedPart `json:"Parts,omitempty"`                // 已完成的Part
+// AbortMultipartUpload abort a multipart upload operation
+func (cli *ClientV2) AbortMultipartUpload(ctx context.Context, input *AbortMultipartUploadInput) (*AbortMultipartUploadOutput, error) {
+	if err := isValidNames(input.Bucket, input.Key); err != nil {
+		return nil, err
+	}
+	res, err := cli.newBuilder(input.Bucket, input.Key).
+		WithParams(*input).
+		WithRetry(nil, ServerErrorClassifier{}).
+		Request(ctx, http.MethodDelete, nil, cli.roundTripper(http.StatusNoContent))
+	if err != nil {
+		return nil, err
+	}
+	defer res.Close()
+	return &AbortMultipartUploadOutput{RequestInfo: res.RequestInfo()}, nil
 }
 
 // ListUploadedParts List Uploaded Parts
 //   objectKey: the object name
 //   input: key, uploadID and other parameters
+//
+// Deprecated: use ListParts of ClientV2 instead
 func (bkt *Bucket) ListUploadedParts(ctx context.Context, input *ListUploadedPartsInput, options ...Option) (*ListUploadedPartsOutput, error) {
 	if err := isValidKey(input.Key); err != nil {
 		return nil, err
@@ -258,42 +342,29 @@ func (bkt *Bucket) ListUploadedParts(ctx context.Context, input *ListUploadedPar
 	return &output, nil
 }
 
-type UploadInfo struct {
-	Key          string `json:"Key,omitempty"`
-	UploadId     string `json:"UploadId,omitempty"`
-	Owner        Owner  `json:"Owner,omitempty"`
-	StorageClass string `json:"StorageClass,omitempty"`
-	Initiated    string `json:"Initiated,omitempty"`
-}
+// ListParts List Uploaded Parts
+func (cli *ClientV2) ListParts(ctx context.Context, input *ListPartsInput) (*ListPartsOutput, error) {
+	if err := isValidNames(input.Bucket, input.Key); err != nil {
+		return nil, err
+	}
+	res, err := cli.newBuilder(input.Bucket, input.Key).
+		WithParams(*input).
+		Request(ctx, http.MethodGet, nil, cli.roundTripper(http.StatusOK))
+	if err != nil {
+		return nil, err
+	}
+	defer res.Close()
 
-type UploadCommonPrefix struct {
-	Prefix string `json:"Prefix"`
-}
-
-type ListMultipartUploadsOutput struct {
-	RequestInfo        `json:"-"`
-	Bucket             string               `json:"Bucket,omitempty"`
-	KeyMarker          string               `json:"KeyMarker,omitempty"`
-	UploadIdMarker     string               `json:"UploadIdMarker,omitempty"`
-	NextKeyMarker      string               `json:"NextKeyMarker,omitempty"`
-	NextUploadIdMarker string               `json:"NextUploadIdMarker,omitempty"`
-	Delimiter          string               `json:"Delimiter,omitempty"`
-	Prefix             string               `json:"Prefix,omitempty"`
-	MaxUploads         int32                `json:"MaxUploads,omitempty"`
-	IsTruncated        bool                 `json:"IsTruncated,omitempty"`
-	Upload             []UploadInfo         `json:"Uploads,omitempty"`
-	CommonPrefixes     []UploadCommonPrefix `json:"CommonPrefixes,omitempty"`
-}
-
-type ListMultipartUploadsInput struct {
-	Prefix         string `json:"Prefix,omitempty"`
-	Delimiter      string `json:"Delimiter,omitempty"`
-	KeyMarker      string `json:"KeyMarker,omitempty"`
-	UploadIDMarker string `json:"UploadIdMarker,omitempty"`
-	MaxUploads     int    `json:"MaxUploads,omitempty"`
+	output := ListPartsOutput{RequestInfo: res.RequestInfo()}
+	if err = marshalOutput(output.RequestID, res.Body, &output); err != nil {
+		return nil, err
+	}
+	return &output, nil
 }
 
 // ListMultipartUploads list multipart uploads
+//
+// Deprecated: use ListMultipartUploads of ClientV2 instead
 func (bkt *Bucket) ListMultipartUploads(ctx context.Context, input *ListMultipartUploadsInput, options ...Option) (*ListMultipartUploadsOutput, error) {
 	res, err := bkt.client.newBuilder(bkt.name, "", options...).
 		WithQuery("uploads", "").
@@ -309,6 +380,29 @@ func (bkt *Bucket) ListMultipartUploads(ctx context.Context, input *ListMultipar
 	defer res.Close()
 
 	output := ListMultipartUploadsOutput{RequestInfo: res.RequestInfo()}
+	if err = marshalOutput(output.RequestID, res.Body, &output); err != nil {
+		return nil, err
+	}
+	return &output, nil
+}
+
+// ListMultipartUploadsV2 list multipart uploads
+func (cli *ClientV2) ListMultipartUploadsV2(
+	ctx context.Context,
+	input *ListMultipartUploadsV2Input) (*ListMultipartUploadsV2Output, error) {
+	if err := IsValidBucketName(input.Bucket); err != nil {
+		return nil, err
+	}
+	res, err := cli.newBuilder(input.Bucket, "").
+		WithQuery("uploads", "").
+		WithParams(*input).
+		Request(ctx, http.MethodGet, nil, cli.roundTripper(http.StatusOK))
+	if err != nil {
+		return nil, err
+	}
+	defer res.Close()
+
+	output := ListMultipartUploadsV2Output{RequestInfo: res.RequestInfo()}
 	if err = marshalOutput(output.RequestID, res.Body, &output); err != nil {
 		return nil, err
 	}

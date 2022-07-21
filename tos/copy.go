@@ -6,15 +6,8 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"time"
 )
-
-type CopyObjectOutput struct {
-	RequestInfo     `json:"-"`
-	VersionID       string `json:"VersionId,omitempty"`
-	SourceVersionID string `json:"SourceVersionId,omitempty"`
-	ETag            string `json:"ETag,omitempty"`
-	LastModified    string `json:"LastModified,omitempty"`
-}
 
 // CopyObject copy an object
 //   srcObjectKey: the source object name
@@ -31,6 +24,8 @@ type CopyObjectOutput struct {
 //     WithCacheControl set Cache-Control,
 //     WithExpires set Expires,
 //     WithMeta set meta header(s),
+//
+// Deprecated: use CopyObject of ClientV2 instead
 func (bkt *Bucket) CopyObject(ctx context.Context, srcObjectKey, dstObjectKey string, options ...Option) (*CopyObjectOutput, error) {
 	if err := isValidKey(dstObjectKey, srcObjectKey); err != nil {
 		return nil, err
@@ -39,7 +34,7 @@ func (bkt *Bucket) CopyObject(ctx context.Context, srcObjectKey, dstObjectKey st
 	return bkt.client.copyObject(ctx, bkt.name, dstObjectKey, bkt.name, srcObjectKey, options...)
 }
 
-// CopyObjectTo copy an object
+// CopyObjectTo copy an object to target bucket
 //   dstBucket: the destination bucket
 //   dstObjectKey: the destination object name
 //   srcObjectKey: the source object name
@@ -55,6 +50,8 @@ func (bkt *Bucket) CopyObject(ctx context.Context, srcObjectKey, dstObjectKey st
 //     WithCacheControl set Cache-Control,
 //     WithExpires set Expires,
 //     WithMeta set meta header(s),
+//
+// Deprecated: use CopyObject of ClientV2 instead
 func (bkt *Bucket) CopyObjectTo(ctx context.Context, dstBucket, dstObjectKey, srcObjectKey string, options ...Option) (*CopyObjectOutput, error) {
 	if err := isValidNames(dstBucket, dstObjectKey, srcObjectKey); err != nil {
 		return nil, err
@@ -63,7 +60,7 @@ func (bkt *Bucket) CopyObjectTo(ctx context.Context, dstBucket, dstObjectKey, sr
 	return bkt.client.copyObject(ctx, dstBucket, dstObjectKey, bkt.name, srcObjectKey, options...)
 }
 
-// CopyObjectFrom copy an object
+// CopyObjectFrom copy an object from target bucket
 //   srcBucket: the srcBucket bucket
 //   srcObjectKey: the source object name
 //   dstObjectKey: the destination object name
@@ -79,6 +76,8 @@ func (bkt *Bucket) CopyObjectTo(ctx context.Context, dstBucket, dstObjectKey, sr
 //     WithCacheControl set Cache-Control,
 //     WithExpires set Expires,
 //     WithMeta set meta header(s),
+//
+// Deprecated: use CopyObject of ClientV2 instead
 func (bkt *Bucket) CopyObjectFrom(ctx context.Context, srcBucket, srcObjectKey, dstObjectKey string, options ...Option) (*CopyObjectOutput, error) {
 	if err := isValidNames(srcBucket, srcObjectKey, dstObjectKey); err != nil {
 		return nil, err
@@ -89,12 +88,12 @@ func (bkt *Bucket) CopyObjectFrom(ctx context.Context, srcBucket, srcObjectKey, 
 
 func (cli *Client) copyObject(ctx context.Context, dstBucket, dstObject string, srcBucket, srcObject string, options ...Option) (*CopyObjectOutput, error) {
 	res, err := cli.newBuilder(dstBucket, dstObject, options...).
-		RequestWithCopySource(ctx, http.MethodPut, srcBucket, srcObject, cli.roundTripper(http.StatusOK))
+		WithCopySource(srcBucket, srcObject).
+		Request(ctx, http.MethodPut, nil, cli.roundTripper(http.StatusOK))
 	if err != nil {
 		return nil, err
 	}
 	defer res.Close()
-
 	out := CopyObjectOutput{RequestInfo: res.RequestInfo()}
 	if err = marshalOutput(out.RequestID, res.Body, &out); err != nil {
 		return nil, err
@@ -104,28 +103,33 @@ func (cli *Client) copyObject(ctx context.Context, dstBucket, dstObject string, 
 	return &out, nil
 }
 
-type UploadPartCopyInput struct {
-	UploadID        string `json:"UploadId,omitempty"`
-	DestinationKey  string `json:"DestinationKey,omitempty"`
-	SourceBucket    string `json:"SourceBucket,omitempty"`
-	SourceKey       string `json:"SourceKey,omitempty"`
-	SourceVersionID string `json:"SourceVersionId,omitempty"` // optional
-	StartOffset     *int64 `json:"StartOffset,omitempty"`     // optional
-	PartSize        *int64 `json:"PartSize,omitempty"`        // optional
-	PartNumber      int    `json:"PartNumber,omitempty"`
-}
-
-type UploadPartCopyOutput struct {
-	RequestInfo     `json:"-"`
-	VersionID       string `json:"VersionId,omitempty"`
-	SourceVersionID string `json:"SourceVersionId,omitempty"`
-	PartNumber      int    `json:"PartNumber,omitempty"`
-	ETag            string `json:"ETag,omitempty"`
-	LastModified    string `json:"LastModified,omitempty"`
-}
-
-func (up *UploadPartCopyOutput) uploadedPart() uploadedPart {
-	return uploadedPart{PartNumber: up.PartNumber, ETag: up.ETag}
+// CopyObject copy an object
+func (cli *ClientV2) CopyObject(ctx context.Context, input *CopyObjectInput) (*CopyObjectOutput, error) {
+	if err := IsValidBucketName(input.SrcBucket); err != nil {
+		return nil, err
+	}
+	if err := IsValidBucketName(input.Bucket); err != nil {
+		return nil, err
+	}
+	if err := isValidKey(input.Key, input.SrcKey); err != nil {
+		return nil, err
+	}
+	res, err := cli.newBuilder(input.Bucket, input.Key).
+		WithParams(*input).
+		WithCopySource(input.SrcBucket, input.SrcKey).
+		WithRetry(nil, ServerErrorClassifier{}).
+		Request(ctx, http.MethodPut, nil, cli.roundTripper(http.StatusOK))
+	if err != nil {
+		return nil, err
+	}
+	defer res.Close()
+	out := CopyObjectOutput{RequestInfo: res.RequestInfo()}
+	if err = marshalOutput(out.RequestID, res.Body, &out); err != nil {
+		return nil, err
+	}
+	out.VersionID = res.Header.Get(HeaderVersionID)
+	out.SourceVersionID = res.Header.Get(HeaderCopySourceVersionID)
+	return &out, nil
 }
 
 type uploadPartCopyOutput struct {
@@ -147,9 +151,22 @@ func copyRange(startOffset, partSize *int64) string {
 	return cr
 }
 
+func copySource(bucket, object, versionID string) string {
+	if len(versionID) == 0 {
+		return "/" + bucket + "/" + url.QueryEscape(object)
+	}
+	return "/" + bucket + "/" + url.QueryEscape(object) + "?versionId=" + versionID
+}
+
+func (up *UploadPartCopyOutput) uploadedPart() uploadedPart {
+	return uploadedPart{PartNumber: up.PartNumber, ETag: up.ETag}
+}
+
 // UploadPartCopy copy a part of object as a part of a multipart upload operation
 //   input: uploadID, DestinationKey, SourceBucket, SourceKey and other parameters,
 //   options: WithCopySourceIfMatch WithCopySourceIfNoneMatch WithCopySourceIfModifiedSince WithCopySourceIfUnmodifiedSince set copy conditions
+//
+// Deprecated: use UploadPartCopy of ClientV2 instead
 func (bkt *Bucket) UploadPartCopy(ctx context.Context, input *UploadPartCopyInput, options ...Option) (*UploadPartCopyOutput, error) {
 	if err := isValidNames(input.SourceBucket, input.DestinationKey); err != nil {
 		return nil, err
@@ -160,12 +177,12 @@ func (bkt *Bucket) UploadPartCopy(ctx context.Context, input *UploadPartCopyInpu
 		WithQuery("uploadId", input.UploadID).
 		WithQuery("versionId", input.SourceVersionID).
 		WithHeader(HeaderCopySourceRange, copyRange(input.StartOffset, input.PartSize)).
-		RequestWithCopySource(ctx, http.MethodPut, input.SourceBucket, input.SourceKey, bkt.client.roundTripper(http.StatusOK))
+		WithCopySource(input.SourceBucket, input.SourceKey).
+		Request(ctx, http.MethodPut, nil, bkt.client.roundTripper(http.StatusOK))
 	if err != nil {
 		return nil, err
 	}
 	defer res.Close()
-
 	var out uploadPartCopyOutput
 	if err = marshalOutput(res.RequestInfo().RequestID, res.Body, &out); err != nil {
 		return nil, err
@@ -181,9 +198,53 @@ func (bkt *Bucket) UploadPartCopy(ctx context.Context, input *UploadPartCopyInpu
 	}, nil
 }
 
-func copySource(bucket, object, versionID string) string {
-	if len(versionID) == 0 {
-		return "/" + bucket + "/" + url.QueryEscape(object)
+func copyRangeV2(start, end int64) string {
+	cr := ""
+	if start == 0 && end == 0 {
+		return cr
 	}
-	return "/" + bucket + "/" + url.QueryEscape(object) + "?versionId=" + versionID
+	if start > end {
+		return cr
+	}
+	cr = fmt.Sprintf("bytes=%d-%d", start, end)
+	return cr
+}
+
+// UploadPartCopyV2 copy a part of object as a part of a multipart upload operation
+func (cli *ClientV2) UploadPartCopyV2(
+	ctx context.Context,
+	input *UploadPartCopyV2Input) (*UploadPartCopyV2Output, error) {
+	if err := IsValidBucketName(input.Bucket); err != nil {
+		return nil, err
+	}
+	if err := IsValidBucketName(input.SrcBucket); err != nil {
+		return nil, err
+	}
+	if err := isValidKey(input.SrcKey, input.Key); err != nil {
+		return nil, err
+	}
+
+	res, err := cli.newBuilder(input.Bucket, input.Key).
+		WithParams(*input).
+		WithHeader(HeaderCopySourceRange, copyRangeV2(input.CopySourceRangeStart, input.CopySourceRangeEnd)).
+		WithCopySource(input.SrcBucket, input.SrcKey).
+		WithRetry(nil, ServerErrorClassifier{}).
+		Request(ctx, http.MethodPut, nil, cli.roundTripper(http.StatusOK))
+	if err != nil {
+		return nil, err
+	}
+	defer res.Close()
+	var out uploadPartCopyOutput
+	if err = marshalOutput(res.RequestInfo().RequestID, res.Body, &out); err != nil {
+		return nil, err
+	}
+
+	lastModified, _ := time.ParseInLocation(http.TimeFormat, res.Header.Get(HeaderLastModified), time.UTC)
+	return &UploadPartCopyV2Output{
+		RequestInfo:         res.RequestInfo(),
+		CopySourceVersionID: res.Header.Get(HeaderCopySourceVersionID),
+		PartNumber:          input.PartNumber,
+		ETag:                out.ETag,
+		LastModified:        lastModified,
+	}, nil
 }

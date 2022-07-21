@@ -32,20 +32,8 @@ const (
 	v4ContentSHA256  = "X-Tos-Content-Sha256"
 	v4SecurityToken  = "X-Tos-Security-Token"
 
-	//v4MetaPrefix = "x-tos-meta-"
 	v4Prefix = "x-tos"
 )
-
-//var (
-//	v4SigningQueries = map[string]struct{}{
-//		strings.ToLower(v4Algorithm):     {},
-//		strings.ToLower(v4Credential):    {},
-//		strings.ToLower(v4Date):          {},
-//		strings.ToLower(v4Expires):       {},
-//		strings.ToLower(v4SignedHeaders): {},
-//		strings.ToLower(v4SecurityToken): {},
-//	}
-//)
 
 func defaultSigningQueryV4(key string) bool {
 	return key != v4SignatureLower
@@ -215,10 +203,10 @@ func (sv *SignV4) SignHeader(req *Request) http.Header {
 	signedHeader = append(signedHeader, KV{Key: strings.ToLower(v4Date), Values: []string{date}})
 	signedHeader = append(signedHeader, KV{Key: "date", Values: []string{date}})
 	signedHeader = append(signedHeader, KV{Key: "host", Values: []string{req.Host}})
-	//if len(contentSha256) == 0 {
+	// if len(contentSha256) == 0 {
 	//	signedHeader = append(signedHeader, KV{Key: strings.ToLower(v4ContentSHA256), Values: []string{unsignedPayload}})
 	//	signed.Set(v4ContentSHA256, unsignedPayload)
-	//}
+	// }
 
 	cred := sv.credentials.Credential()
 	if sts := cred.SecurityToken; len(sts) > 0 {

@@ -8,12 +8,70 @@ import (
 	"net/http"
 )
 
+type TosError struct {
+	Message string
+}
+
+func (e *TosError) Error() string {
+	return e.Message
+}
+
+// for simplify code
+func newTosClientError(message string, cause error) *TosClientError {
+	return &TosClientError{
+		TosError: TosError{
+			Message: message,
+		},
+		Cause: cause,
+	}
+}
+
+type TosClientError struct {
+	TosError
+	Cause error
+}
+
+// try to unmarshal server error from response
+func newTosServerError(res *Response) error {
+	data, err := ioutil.ReadAll(io.LimitReader(res.Body, 64<<10)) // avoid too large
+	if err != nil && len(data) <= 0 {
+		return &TosServerError{
+			TosError:    TosError{"tos: server returned an empty body"},
+			RequestInfo: res.RequestInfo(),
+		}
+	}
+	se := Error{StatusCode: res.StatusCode}
+	if err = json.Unmarshal(data, &se); err != nil {
+		return &TosServerError{
+			TosError:    TosError{"tos: server returned an invalid body"},
+			RequestInfo: res.RequestInfo(),
+		}
+	}
+	return &TosServerError{
+		TosError:    TosError{se.Message},
+		RequestInfo: res.RequestInfo(),
+		Code:        se.Code,
+		HostID:      se.HostID,
+		Resource:    se.Resource,
+	}
+}
+
+// 服务端错误定义参考：https://www.volcengine.com/docs/6349/74874
+type TosServerError struct {
+	TosError    `json:"TosError"`
+	RequestInfo `json:"RequestInfo"`
+	Code        string `json:"Code,omitempty"`
+	HostID      string `json:"HostID,omitempty"`
+	Resource    string `json:"Resource,omitempty"`
+}
+
 type Error struct {
 	StatusCode int    `json:"-"`
 	Code       string `json:"Code,omitempty"`
 	Message    string `json:"Message,omitempty"`
 	RequestID  string `json:"RequestId,omitempty"`
 	HostID     string `json:"HostId,omitempty"`
+	Resource   string `json:"Resource,omitempty"`
 }
 
 func (e *Error) Error() string {
@@ -21,30 +79,35 @@ func (e *Error) Error() string {
 		e.StatusCode, e.Code, e.Message, e.RequestID, e.HostID)
 }
 
-// Code return error code saved in tos.Error
+// Code return error code saved in TosServerError
 func Code(err error) string {
-	if er, ok := err.(*Error); ok {
+	if er, ok := err.(*TosServerError); ok {
 		return er.Code
 	}
 	return ""
 }
 
-// StatueCode return status code saved in tos.Error or tos.UnexpectedStatusCodeError
+// StatueCode return status code saved in TosServerError or UnexpectedStatusCodeError
+//
+// Deprecated: use StatusCode instead
 func StatueCode(err error) int {
-	if er, ok := err.(*Error); ok {
+	return StatusCode(err)
+}
+
+// StatusCode return status code saved in TosServerError or UnexpectedStatusCodeError
+func StatusCode(err error) int {
+	if er, ok := err.(*TosServerError); ok {
 		return er.StatusCode
 	}
-
 	if er, ok := err.(*UnexpectedStatusCodeError); ok {
 		return er.StatusCode
 	}
-
 	return 0
 }
 
 func RequestID(err error) string {
 	switch ev := err.(type) {
-	case *Error:
+	case *TosServerError:
 		return ev.RequestID
 	case *UnexpectedStatusCodeError:
 		return ev.RequestID
@@ -112,26 +175,72 @@ func checkError(res *Response, okCode int, okCodes ...int) error {
 	if res.StatusCode == okCode {
 		return nil
 	}
-
 	for _, code := range okCodes {
 		if res.StatusCode == code {
 			return nil
 		}
 	}
-
 	defer res.Close()
-
 	if res.StatusCode >= http.StatusBadRequest && res.Body != nil {
-		data, err := ioutil.ReadAll(io.LimitReader(res.Body, 64<<10)) // avoid too large
-		if err == nil && len(data) > 0 {
-			se := Error{StatusCode: res.StatusCode}
-			if err = json.Unmarshal(data, &se); err == nil {
-				return &se
-			}
-		}
+		return newTosServerError(res)
 		// fall through
 	}
-
-	return NewUnexpectedStatusCodeError(res.StatusCode, okCode, okCodes...).
+	unexpected := NewUnexpectedStatusCodeError(res.StatusCode, okCode, okCodes...).
 		WithRequestID(res.RequestInfo().RequestID)
+	return &TosServerError{
+		TosError:    TosError{unexpected.Error()},
+		RequestInfo: res.RequestInfo(),
+	}
+}
+
+// StatusCodeClassifier classifies Errors.
+// If the error is nil, it returns NoRetry;
+// if the error is TimeoutException or can be interpreted as TosServerError, and the StatusCode is 5xx or 529, it returns Retry;
+// otherwise, it returns NoRetry.
+type StatusCodeClassifier struct{}
+
+// Classify implements the classifier interface.
+func (classifier StatusCodeClassifier) Classify(err error) retryAction {
+	if err == nil {
+		return NoRetry
+	}
+	e, ok := err.(*TosServerError)
+	if ok {
+		if e.StatusCode >= 500 || e.StatusCode == 429 {
+			return Retry
+		}
+	}
+	t, ok := err.(interface{ Timeout() bool })
+	if ok && t.Timeout() {
+		return Retry
+	}
+
+	return NoRetry
+}
+
+// ServerErrorClassifier classify errors returned by POST method.
+// If the error is nil, it returns NoRetry;
+// if the error can be interpreted as TosServerError and its StatusCode is 5xx, it returns Retry;
+// otherwise, it returns NoRetry.
+type ServerErrorClassifier struct{}
+
+// Classify implements the classifier interface.
+func (classifier ServerErrorClassifier) Classify(err error) retryAction {
+	if err == nil {
+		return NoRetry
+	}
+	e, ok := err.(*TosServerError)
+	if ok {
+		if e.StatusCode >= 500 {
+			return Retry
+		}
+	}
+	return NoRetry
+}
+
+type NoRetryClassifier struct{}
+
+// Classify implements the classifier interface.
+func (classifier NoRetryClassifier) Classify(_ error) retryAction {
+	return NoRetry
 }

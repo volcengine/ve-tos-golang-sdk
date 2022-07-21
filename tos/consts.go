@@ -1,29 +1,73 @@
 package tos
 
-const (
-	// Version tos-go-sdk version
-	Version = "v0.2.1"
+import (
+	"hash/crc64"
 )
 
 const (
-	ACLPrivate                = "private"
-	ACLPublicRead             = "public-read"
-	ACLPublicReadWrite        = "public-read-write"
-	ACLAuthRead               = "authenticated-read"
-	ACLBucketOwnerRead        = "bucket-owner-read"
+	// Version tos-go-sdk version
+	Version = "v2.1.0"
+)
+
+const TempFileSuffix = ".temp"
+const DefaultFilePerm = 0644
+
+var DefaultCrcTable = func() *crc64.Table {
+	return crc64.MakeTable(crc64.ECMA)
+}
+
+const DefaultTaskBufferSize = 100
+
+func SupportedRegion() map[string]string {
+	return map[string]string{
+		"cn-beijing":   "https://tos-cn-beijing.volces.com",
+		"cn-guangzhou": "https://tos-cn-guangzhou.volces.com",
+	}
+}
+
+const (
+	MaxPartSize = 5 * 1024 * 1024 * 1024
+	MinPartSize = 5 * 1024 * 1024
+)
+
+const (
+	// Deprecated: use enum.ACLPrivate instead
+	ACLPrivate = "private"
+	// Deprecated: use enum.ACLPublicRead instead
+	ACLPublicRead = "public-read"
+	// Deprecated: use enum.ACLPublicReadWrite instead
+	ACLPublicReadWrite = "public-read-write"
+	// Deprecated: use enum.ACLAuthRead instead
+	ACLAuthRead = "authenticated-read"
+	// Deprecated: use enum.ACLBucketOwnerRead instead
+	ACLBucketOwnerRead = "bucket-owner-read"
+	// Deprecated: use enum.ACLBucketOwnerFullControl instead
 	ACLBucketOwnerFullControl = "bucket-owner-full-control"
-	ACLLogDeliveryWrite       = "log-delivery-write"
+	// Deprecated: use enum.ACLLogDeliveryWrite instead
+	ACLLogDeliveryWrite = "log-delivery-write"
 
-	PermissionRead         = "READ"
-	PermissionTypeWrite    = "WRITE"
-	PermissionTypeReadAcp  = "READ_ACP"
+	// Deprecated: use enum.PermissionRead instead
+	PermissionRead = "READ"
+	// Deprecated: use enum.PermissionWrite instead
+	PermissionTypeWrite = "WRITE"
+	// Deprecated: use enum.PermissionReadAcp instead
+	PermissionTypeReadAcp = "READ_ACP"
+	// Deprecated: use enum.PermissionWriteAcp instead
 	PermissionTypeWriteAcp = "WRITE_ACP"
-	PermissionFullControl  = "FULL_CONTROL"
+	// Deprecated: use enum.PermissionFullControl instead
+	PermissionFullControl = "FULL_CONTROL"
+)
 
-	//LifecycleStatusEnabled  = "Enabled"
-	//LifecycleStatusDisabled = "Disabled"
-
+const (
 	ISO8601TimeFormat = "2006-01-02T15:04:05.000Z07:00"
+)
+
+const (
+	// MetadataDirectiveReplace replace source object metadata when calling CopyObject
+	MetadataDirectiveReplace = "REPLACE"
+
+	// MetadataDirectiveCopy copy source object metadata when calling CopyObject
+	MetadataDirectiveCopy = "COPY"
 )
 
 const (
@@ -42,11 +86,16 @@ const (
 	HeaderVersionID                   = "X-Tos-Version-Id"
 	HeaderDeleteMarker                = "X-Tos-Delete-Marker"
 	HeaderStorageClass                = "X-Tos-Storage-Class"
+	HeaderAzRedundancy                = "X-Tos-Az-Redundancy"
 	HeaderRestore                     = "X-Tos-Restore"
 	HeaderTag                         = "X-Tos-Tag"
 	HeaderSSECustomerAlgorithm        = "X-Tos-Server-Side-Encryption-Customer-Algorithm"
 	HeaderSSECustomerKeyMD5           = "X-Tos-Server-Side-Encryption-Customer-Key-MD5"
 	HeaderSSECustomerKey              = "X-Tos-Server-Side-Encryption-Customer-Key"
+	HeaderServerSideEncryption        = "X-Tos-Server-Side-Encryption"
+	HeaderCopySourceSSECAlgorithm     = "X-Tos-Server-Side-Encryption-Customer-Algorithm"
+	HeaderCopySourceSSECKeyMD5        = "X-Tos-Server-Side-Encryption-Customer-Key-MD5"
+	HeaderCopySourceSSECKey           = "X-Tos-Server-Side-Encryption-Customer-Key"
 	HeaderIfModifiedSince             = "If-Modified-Since"
 	HeaderIfUnmodifiedSince           = "If-Unmodified-Since"
 	HeaderIfMatch                     = "If-Match"
@@ -65,6 +114,7 @@ const (
 	HeaderGrantWriteAcp               = "X-Tos-Grant-Write-Acp"
 	HeaderNextAppendOffset            = "X-Tos-Next-Append-Offset"
 	HeaderObjectType                  = "X-Tos-Object-Type"
+	HeaderHashCrc64ecma               = "X-Tos-Hash-Crc64ecma"
 	HeaderMetadataDirective           = "X-Tos-Metadata-Directive"
 	HeaderCopySource                  = "X-Tos-Copy-Source"
 	HeaderCopySourceIfMatch           = "X-Tos-Copy-Source-If-Match"
@@ -76,10 +126,4 @@ const (
 	HeaderWebsiteRedirectLocation     = "X-Tos-Website-Redirect-Location"
 	HeaderCSType                      = "X-Tos-Cs-Type"
 	HeaderMetaPrefix                  = "X-Tos-Meta-"
-
-	// MetadataDirectiveReplace replace source object metadata when calling CopyObject
-	MetadataDirectiveReplace = "REPLACE"
-
-	// MetadataDirectiveCopy copy source object metadata when calling CopyObject
-	MetadataDirectiveCopy = "COPY"
 )

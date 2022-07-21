@@ -23,7 +23,7 @@ func DefaultTransportConfig() TransportConfig {
 		TLSHandshakeTimeout:   10 * time.Second,
 		ResponseHeaderTimeout: 60 * time.Second,
 		ExpectContinueTimeout: 3 * time.Second,
-		ReadTimeout:           120 * time.Second,
-		WriteTimeout:          120 * time.Second,
+		ReadTimeout:           30 * time.Second,
+		WriteTimeout:          30 * time.Second,
 	}
 }
