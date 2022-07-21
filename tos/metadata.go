@@ -2,8 +2,12 @@ package tos
 
 import (
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
+	"time"
+
+	"github.com/volcengine/ve-tos-golang-sdk/tos/enum"
 )
 
 // ObjectMeta object metadata
@@ -30,35 +34,88 @@ type ObjectMeta struct {
 	CSType               string            `json:"CSType,omitempty"`
 }
 
+type ObjectMetaV2 struct {
+	ContentRange            string
+	ETag                    string
+	LastModified            time.Time
+	DeleteMarker            bool
+	SSECAlgorithm           string
+	SSECKeyMD5              string
+	VersionID               string
+	WebsiteRedirectLocation string
+	ObjectType              string
+	HashCrc64ecma           uint64
+	StorageClass            enum.StorageClassType
+	Meta                    map[string]string
+
+	ContentLength      int64
+	ContentType        string
+	CacheControl       string
+	ContentDisposition string
+	ContentEncoding    string
+	ContentLanguage    string
+	Expires            time.Time
+}
+
 func (om *ObjectMeta) fromResponse(res *Response) {
-	om.ContentLength = res.ContentLength
-	om.ContentType = res.Header.Get(HeaderContentType)
-	om.ContentMD5 = res.Header.Get(HeaderContentMD5)
-	om.ContentLanguage = res.Header.Get(HeaderContentLanguage)
-	om.ContentEncoding = res.Header.Get(HeaderContentEncoding)
-	om.ContentDisposition = res.Header.Get(HeaderContentDisposition)
-	om.LastModified = res.Header.Get(HeaderLastModified)
-	om.CacheControl = res.Header.Get(HeaderCacheControl)
-	om.Expires = res.Header.Get(HeaderExpires)
 	om.ETag = res.Header.Get(HeaderETag)
-	om.VersionID = res.Header.Get(HeaderVersionID)
+	om.LastModified = res.Header.Get(HeaderLastModified)
 	om.DeleteMarker, _ = strconv.ParseBool(res.Header.Get(HeaderDeleteMarker))
-	om.ObjectType = res.Header.Get(HeaderObjectType)
-	om.StorageClass = res.Header.Get(HeaderStorageClass)
-	om.Restore = res.Header.Get(HeaderRestore)
-	om.Metadata = userMetadata(res.Header)
-	om.Tag = res.Header.Get(HeaderTag)
 	om.SSECustomerAlgorithm = res.Header.Get(HeaderSSECustomerAlgorithm)
 	om.SSECustomerKeyMD5 = res.Header.Get(HeaderSSECustomerKeyMD5)
+	om.VersionID = res.Header.Get(HeaderVersionID)
+
+	om.ObjectType = res.Header.Get(HeaderObjectType)
+	om.StorageClass = res.Header.Get(HeaderStorageClass)
+	om.Metadata = userMetadata(res.Header)
+
+	om.ContentLength = res.ContentLength
+	om.ContentType = res.Header.Get(HeaderContentType)
+	om.CacheControl = res.Header.Get(HeaderCacheControl)
+	om.ContentDisposition = res.Header.Get(HeaderContentDisposition)
+	om.ContentEncoding = res.Header.Get(HeaderContentEncoding)
+	om.ContentLanguage = res.Header.Get(HeaderContentLanguage)
+	om.Expires = res.Header.Get(HeaderExpires)
+
+	om.ContentMD5 = res.Header.Get(HeaderContentMD5)
+	om.Restore = res.Header.Get(HeaderRestore)
+	om.Tag = res.Header.Get(HeaderTag)
 	om.CSType = res.Header.Get(HeaderCSType)
+}
+
+func (om *ObjectMetaV2) fromResponseV2(res *Response) {
+	lastModified, _ := time.ParseInLocation(http.TimeFormat, res.Header.Get(HeaderLastModified), time.UTC)
+	deleteMarker, _ := strconv.ParseBool(res.Header.Get(HeaderDeleteMarker))
+	// If s is empty or contains invalid digits, err.Err = ErrSyntax and the returned value is 0;
+	crc64, _ := strconv.ParseUint(res.Header.Get(HeaderHashCrc64ecma), 10, 64)
+	length, _ := strconv.ParseInt(res.Header.Get(HeaderContentLength), 10, 64)
+	expires, _ := time.ParseInLocation(http.TimeFormat, res.Header.Get(HeaderExpires), time.UTC)
+	om.ETag = res.Header.Get(HeaderETag)
+	om.LastModified = lastModified
+	om.DeleteMarker = deleteMarker
+	om.SSECAlgorithm = res.Header.Get(HeaderSSECustomerAlgorithm)
+	om.SSECKeyMD5 = res.Header.Get(HeaderContentMD5)
+	om.VersionID = res.Header.Get(HeaderVersionID)
+	om.WebsiteRedirectLocation = res.Header.Get(HeaderWebsiteRedirectLocation)
+	om.ObjectType = res.Header.Get(HeaderObjectType)
+	om.HashCrc64ecma = crc64
+	om.StorageClass = enum.StorageClassType(res.Header.Get(HeaderStorageClass))
+	om.Meta = userMetadata(res.Header)
+	om.ContentLength = length
+	om.ContentType = res.Header.Get(HeaderContentType)
+	om.CacheControl = res.Header.Get(HeaderCacheControl)
+	om.ContentDisposition, _ = url.QueryUnescape(res.Header.Get(HeaderContentDisposition))
+	om.ContentEncoding = res.Header.Get(HeaderContentEncoding)
+	om.ContentLanguage = res.Header.Get(HeaderContentLanguage)
+	om.Expires = expires
 }
 
 func userMetadata(header http.Header) map[string]string {
 	meta := make(map[string]string)
 	for key := range header {
 		if strings.HasPrefix(key, HeaderMetaPrefix) {
-			kk := key[len(HeaderMetaPrefix):]
-			meta[kk] = header.Get(key)
+			kk, _ := url.QueryUnescape(key[len(HeaderMetaPrefix):])
+			meta[kk], _ = url.QueryUnescape(header.Get(key))
 		}
 	}
 	return meta

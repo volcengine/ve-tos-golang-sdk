@@ -3,9 +3,14 @@ package tos
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
+	"hash"
 	"io"
+	"io/ioutil"
 	"net/http"
+	"net/url"
+	"os"
 	"strconv"
 )
 
@@ -14,30 +19,23 @@ type Bucket struct {
 	client *Client
 }
 
-type GetObjectOutput struct {
-	RequestInfo  `json:"-"`
-	ContentRange string        `json:"ContentRange,omitempty"`
-	Content      io.ReadCloser `json:"-"`
-	ObjectMeta
-}
-
 // GetObject get data and metadata of an object
 //  objectKey: the name of object
 //  options: WithVersionID which version of this object
 //    WithRange the range of content,
 //    WithIfModifiedSince return if the object modified after the given date, otherwise return status code 304
 //    WithIfUnmodifiedSince, WithIfMatch, WithIfNoneMatch set If-Unmodified-Since, If-Match and If-None-Match
+//
+// Deprecated: use GetObject of ClientV2 instead
 func (bkt *Bucket) GetObject(ctx context.Context, objectKey string, options ...Option) (*GetObjectOutput, error) {
 	if err := isValidKey(objectKey); err != nil {
 		return nil, err
 	}
-
 	rb := bkt.client.newBuilder(bkt.name, objectKey, options...)
 	res, err := rb.Request(ctx, http.MethodGet, nil, bkt.client.roundTripper(expectedCode(rb)))
 	if err != nil {
 		return nil, err
 	}
-
 	output := GetObjectOutput{
 		RequestInfo:  res.RequestInfo(),
 		ContentRange: rb.Header.Get(HeaderContentRange),
@@ -47,18 +45,69 @@ func (bkt *Bucket) GetObject(ctx context.Context, objectKey string, options ...O
 	return &output, nil
 }
 
-type HeadObjectOutput struct {
-	RequestInfo  `json:"-"`
-	ContentRange string `json:"ContentRange,omitempty"`
-	ObjectMeta
+// GetObjectToFile get object and write it to file
+func (cli *ClientV2) GetObjectToFile(ctx context.Context, input *GetObjectToFileInput) (*GetObjectToFileOutput, error) {
+	tempFilePath := input.FilePath + TempFileSuffix
+	fd, err := os.OpenFile(tempFilePath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, DefaultFilePerm)
+	if err != nil {
+		return nil, err
+	}
+	defer fd.Close()
+	get, err := cli.GetObjectV2(ctx, &input.GetObjectV2Input)
+	if err != nil {
+		return nil, err
+	}
+	_, err = io.Copy(fd, get.Content)
+	if err != nil {
+		return nil, err
+	}
+	err = os.Rename(tempFilePath, input.FilePath)
+	if err != nil {
+		return nil, err
+	}
+	return &GetObjectToFileOutput{get.GetObjectBasicOutput}, nil
 }
 
-// HeadObject get data and metadata of an object
+// GetObjectV2 get data and metadata of an object
+func (cli *ClientV2) GetObjectV2(ctx context.Context, input *GetObjectV2Input) (*GetObjectV2Output, error) {
+	if err := isValidNames(input.Bucket, input.Key); err != nil {
+		return nil, err
+	}
+	rb := cli.newBuilder(input.Bucket, input.Key).
+		WithQuery("versionId", input.VersionID).
+		WithParams(*input)
+	if input.RangeEnd != 0 || input.RangeStart != 0 {
+		if input.RangeEnd < input.RangeStart {
+			return nil, errors.New("tos: invalid range")
+		}
+		// set rb.Range will change expected code
+		rb.Range = &Range{Start: input.RangeStart, End: input.RangeEnd}
+		rb.WithHeader(HeaderRange, rb.Range.String())
+	}
+	res, err := rb.Request(ctx, http.MethodGet, nil, cli.roundTripper(expectedCode(rb)))
+	if err != nil {
+		return nil, err
+	}
+	basic := GetObjectBasicOutput{
+		RequestInfo:  res.RequestInfo(),
+		ContentRange: res.Header.Get(HeaderContentRange),
+	}
+	basic.ObjectMetaV2.fromResponseV2(res)
+	output := GetObjectV2Output{
+		GetObjectBasicOutput: basic,
+		Content:              wrapReader(res.Body, res.ContentLength, input.DataTransferListener, input.RateLimiter, nil),
+	}
+	return &output, nil
+}
+
+// HeadObject get metadata of an object
 //  objectKey: the name of object
 //  options: WithVersionID which version of this object
 //    WithRange the range of content,
 //    WithIfModifiedSince return if the object modified after the given date, otherwise return status code 304
 //    WithIfUnmodifiedSince, WithIfMatch, WithIfNoneMatch set If-Unmodified-Since, If-Match and If-None-Match
+//
+// Deprecated: use HeadObject of ClientV2 instead
 func (bkt *Bucket) HeadObject(ctx context.Context, objectKey string, options ...Option) (*HeadObjectOutput, error) {
 	if err := isValidKey(objectKey); err != nil {
 		return nil, err
@@ -79,6 +128,28 @@ func (bkt *Bucket) HeadObject(ctx context.Context, objectKey string, options ...
 	return &output, nil
 }
 
+// HeadObjectV2 get metadata of an object
+func (cli *ClientV2) HeadObjectV2(ctx context.Context, input *HeadObjectV2Input) (*HeadObjectV2Output, error) {
+	if err := isValidNames(input.Bucket, input.Key); err != nil {
+		return nil, err
+	}
+
+	rb := cli.newBuilder(input.Bucket, input.Key).
+		WithParams(*input).
+		WithRetry(nil, StatusCodeClassifier{})
+	res, err := rb.Request(ctx, http.MethodHead, nil, cli.roundTripper(expectedCode(rb)))
+	if err != nil {
+		return nil, err
+	}
+	defer res.Close()
+
+	output := HeadObjectV2Output{
+		RequestInfo: res.RequestInfo(),
+	}
+	output.ObjectMetaV2.fromResponseV2(res)
+	return &output, nil
+}
+
 func expectedCode(rb *requestBuilder) int {
 	okCode := http.StatusOK
 	if rb.Range != nil {
@@ -87,15 +158,11 @@ func expectedCode(rb *requestBuilder) int {
 	return okCode
 }
 
-type DeleteObjectOutput struct {
-	RequestInfo  `json:"-"`
-	DeleteMarker bool   `json:"DeleteMarker,omitempty"`
-	VersionID    string `json:"VersionId,omitempty"`
-}
-
 // DeleteObject delete an object
 //  objectKey: the name of object
 //  options: WithVersionID which version of this object will be deleted
+//
+// Deprecated: use DeleteObject of ClientV2 instead
 func (bkt *Bucket) DeleteObject(ctx context.Context, objectKey string, options ...Option) (*DeleteObjectOutput, error) {
 	if err := isValidKey(objectKey); err != nil {
 		return nil, err
@@ -116,48 +183,85 @@ func (bkt *Bucket) DeleteObject(ctx context.Context, objectKey string, options .
 	}, nil
 }
 
-type ObjectTobeDeleted struct {
-	Key       string `json:"Key,omitempty"`
-	VersionID string `json:"VersionId,omitempty"`
-}
+// DeleteObjectV2 delete an object
+func (cli *ClientV2) DeleteObjectV2(ctx context.Context, input *DeleteObjectV2Input) (*DeleteObjectV2Output, error) {
+	if err := isValidNames(input.Bucket, input.Key); err != nil {
+		return nil, err
+	}
 
-type DeleteMultiObjectsInput struct {
-	Objects []ObjectTobeDeleted `json:"Objects,omitempty"`
-	Quiet   bool                `json:"Quiet,omitempty"`
-}
+	res, err := cli.newBuilder(input.Bucket, input.Key).
+		WithParams(*input).
+		WithRetry(nil, StatusCodeClassifier{}).
+		Request(ctx, http.MethodDelete, nil, cli.roundTripper(http.StatusNoContent))
+	if err != nil {
+		return nil, err
+	}
+	defer res.Close()
 
-type Deleted struct {
-	Key                   string `json:"Key,omitempty"`
-	VersionID             string `json:"VersionId,omitempty"`
-	DeleteMarker          *bool  `json:"DeleteMarker,omitempty"`
-	DeleteMarkerVersionID string `json:"DeleteMarkerVersionId,omitempty"`
-}
-
-type DeleteError struct {
-	Code      string `json:"Code,omitempty"`
-	Message   string `json:"Message,omitempty"`
-	Key       string `json:"Key,omitempty"`
-	VersionID string `json:"VersionId,omitempty"`
-}
-
-type DeleteMultiObjectsOutput struct {
-	RequestInfo `json:"-"`
-	Deleted     []Deleted     `json:"Deleted,omitempty"` // 删除成功的Object列表
-	Error       []DeleteError `json:"Error,omitempty"`   // 删除失败的Object列表
+	deleteMarker, _ := strconv.ParseBool(res.Header.Get(HeaderDeleteMarker))
+	return &DeleteObjectV2Output{
+		DeleteObjectOutput{
+			RequestInfo:  res.RequestInfo(),
+			DeleteMarker: deleteMarker,
+			VersionID:    res.Header.Get(HeaderVersionID)}}, nil
 }
 
 // DeleteMultiObjects delete multi-objects
 //   input: the objects will be deleted
+//
+// Deprecated: use DeleteMultiObjects of ClientV2 instead
 func (bkt *Bucket) DeleteMultiObjects(ctx context.Context, input *DeleteMultiObjectsInput, options ...Option) (*DeleteMultiObjectsOutput, error) {
-	in, contentMD5, err := marshalInput("DeleteMultiObjectsInput", input)
+	for _, object := range input.Objects {
+		if err := isValidKey(object.Key); err != nil {
+			return nil, err
+		}
+	}
+
+	in, contentMD5, err := marshalInput("DeleteMultiObjectsInput", deleteMultiObjectsInput{
+		Objects: input.Objects,
+		Quiet:   input.Quiet,
+	})
 	if err != nil {
 		return nil, err
 	}
-
 	res, err := bkt.client.newBuilder(bkt.name, "", options...).
 		WithHeader(HeaderContentMD5, contentMD5).
 		WithQuery("delete", "").
 		Request(ctx, http.MethodPost, bytes.NewReader(in), bkt.client.roundTripper(http.StatusOK))
+	if err != nil {
+		return nil, err
+	}
+	defer res.Close()
+	output := DeleteMultiObjectsOutput{RequestInfo: res.RequestInfo()}
+	if err = marshalOutput(output.RequestID, res.Body, &output); err != nil {
+		return nil, err
+	}
+	return &output, nil
+}
+
+// DeleteMultiObjects delete multi-objects
+func (cli *ClientV2) DeleteMultiObjects(ctx context.Context, input *DeleteMultiObjectsInput) (*DeleteMultiObjectsOutput, error) {
+	if err := IsValidBucketName(input.Bucket); err != nil {
+		return nil, err
+	}
+	for _, object := range input.Objects {
+		if err := isValidKey(object.Key); err != nil {
+			return nil, err
+		}
+	}
+	in, contentMD5, err := marshalInput("DeleteMultiObjectsInput", deleteMultiObjectsInput{
+		Objects: input.Objects,
+		Quiet:   input.Quiet,
+	})
+	if err != nil {
+		return nil, err
+	}
+	// POST method, don't retry
+	res, err := cli.newBuilder(input.Bucket, "").
+		WithQuery("delete", "").
+		WithHeader(HeaderContentMD5, contentMD5).
+		WithRetry(nil, ServerErrorClassifier{}).
+		Request(ctx, http.MethodPost, bytes.NewReader(in), cli.roundTripper(http.StatusOK))
 	if err != nil {
 		return nil, err
 	}
@@ -168,14 +272,6 @@ func (bkt *Bucket) DeleteMultiObjects(ctx context.Context, input *DeleteMultiObj
 		return nil, err
 	}
 	return &output, nil
-}
-
-type PutObjectOutput struct {
-	RequestInfo          `json:"-"`
-	ETag                 string `json:"ETag,omitempty"`
-	VersionID            string `json:"VersionId,omitempty"`
-	SSECustomerAlgorithm string `json:"SSECustomerAlgorithm,omitempty"`
-	SSECustomerKeyMD5    string `json:"SSECustomerKeyMD5,omitempty"`
 }
 
 // PutObject put an object
@@ -198,6 +294,8 @@ type PutObjectOutput struct {
 //   e.g, bytes.Buffer, bytes.Reader, strings.Reader, os.File, io.LimitedReader, net.Buffers.
 //   if the parameter content(an io.Reader) is not one of these,
 //   please use io.LimitReader(reader, length) to wrap this reader or use the WithContentLength option.
+//
+// Deprecated: use PutObject of ClientV2 instead
 func (bkt *Bucket) PutObject(ctx context.Context, objectKey string, content io.Reader, options ...Option) (*PutObjectOutput, error) {
 	if err := isValidKey(objectKey); err != nil {
 		return nil, err
@@ -219,10 +317,152 @@ func (bkt *Bucket) PutObject(ctx context.Context, objectKey string, content io.R
 	}, nil
 }
 
-type AppendObjectOutput struct {
-	RequestInfo      `json:"-"`
-	ETag             string `json:"ETag,omitempty"`
-	NextAppendOffset int64  `json:"NextAppendOffset,omitempty"`
+// url-encode Chinese characters only
+func urlEncodeChinese(s string) string {
+	var res string
+	r := []rune(s)
+	for i := 0; i < len(r); i++ {
+		if r[i] >= 0x4E00 && r[i] <= 0x9FA5 {
+			res += url.QueryEscape(string(r[i]))
+		} else {
+			res += string(r[i])
+		}
+	}
+	return res
+}
+
+func checkCrc64(res *Response, checker hash.Hash64) error {
+	if res.Header.Get(HeaderHashCrc64ecma) == "" || checker == nil {
+		return nil
+	}
+	crc64, err := strconv.ParseUint(res.Header.Get(HeaderHashCrc64ecma), 10, 64)
+	if err != nil {
+		return &TosServerError{
+			TosError:    TosError{"tos: server returned invalid crc"},
+			RequestInfo: res.RequestInfo(),
+		}
+	}
+	if checker.Sum64() != crc64 {
+		return &TosServerError{
+			TosError:    TosError{Message: fmt.Sprintf("tos: crc64 check failed, expected:%d, in fact:%d", crc64, checker.Sum64())},
+			RequestInfo: res.RequestInfo(),
+		}
+	}
+	return nil
+}
+
+// wrapReader wrap reader with some extension function.
+// If reader can be interpreted as io.ReadCloser, use itself as base ReadCloser, else wrap it a NopCloser.
+func wrapReader(reader io.Reader, totalBytes int64, listener DataTransferListener, limiter RateLimiter, checker hash.Hash64) io.ReadCloser {
+	var wrapped io.ReadCloser
+	// get base ReadCloser
+	if rc, ok := reader.(io.ReadCloser); ok {
+		wrapped = rc
+	}
+	wrapped = ioutil.NopCloser(reader)
+	// wrap with listener
+	if listener != nil {
+		wrapped = &readCloserWithListener{
+			listener: listener,
+			base:     wrapped,
+			consumed: 0,
+			total:    totalBytes,
+		}
+	}
+	// wrap with limiter
+	if limiter != nil {
+		wrapped = &ReadCloserWithLimiter{
+			limiter: limiter,
+			base:    wrapped,
+		}
+	}
+	// wrap with crc64 checker
+	if checker != nil {
+		wrapped = &readCloserWithCRC{
+			checker: checker,
+			base:    wrapped,
+		}
+	}
+	return wrapped
+}
+
+// PutObject put an object
+func (cli *ClientV2) PutObject(ctx context.Context, input *PutObjectV2Input) (*PutObjectV2Output, error) {
+	if err := isValidNames(input.Bucket, input.Key); err != nil {
+		return nil, err
+	}
+	var (
+		checker       hash.Hash64
+		content       = input.Content
+		contentLength = input.ContentLength
+	)
+	if cli.enableCRC {
+		checker = NewCRC(DefaultCrcTable(), 0)
+	}
+	if contentLength <= 0 {
+		contentLength = tryResolveLength(content)
+	}
+	content = wrapReader(content, contentLength, input.DataTransferListener, input.RateLimiter, checker)
+	var (
+		onRetry    func(req *Request) = nil
+		classifier classifier
+	)
+	classifier = StatusCodeClassifier{}
+	if seeker, ok := content.(io.Seeker); ok {
+		start, err := seeker.Seek(0, io.SeekCurrent)
+		if err != nil {
+			return nil, err
+		}
+		onRetry = func(req *Request) {
+			// PutObject/UploadPart can be treated as an idempotent semantics if the request message body
+			// supports a reset operation. e.g. the request message body is a string,
+			// a local file handle, binary data in memory
+			if seeker, ok := req.Content.(io.Seeker); ok {
+				seeker.Seek(start, io.SeekStart)
+			}
+		}
+	}
+	if onRetry == nil {
+		classifier = ServerErrorClassifier{}
+	}
+	rb := cli.newBuilder(input.Bucket, input.Key).
+		WithContentLength(contentLength).
+		WithParams(*input).
+		WithRetry(onRetry, classifier)
+	res, err := rb.Request(ctx, http.MethodPut, content, cli.roundTripper(http.StatusOK))
+	if err != nil {
+		return nil, err
+	}
+	defer res.Close()
+	if err = checkCrc64(res, checker); err != nil {
+		return nil, err
+	}
+	crc64, _ := strconv.ParseUint(res.Header.Get(HeaderHashCrc64ecma), 10, 64)
+	return &PutObjectV2Output{
+		RequestInfo:   res.RequestInfo(),
+		ETag:          res.Header.Get(HeaderETag),
+		SSECAlgorithm: res.Header.Get(HeaderSSECustomerAlgorithm),
+		SSECKeyMD5:    res.Header.Get(HeaderSSECustomerKeyMD5),
+		VersionID:     res.Header.Get(HeaderVersionID),
+		HashCrc64ecma: crc64,
+	}, nil
+}
+
+// PutObjectFromFile put an object from file
+func (cli *ClientV2) PutObjectFromFile(ctx context.Context, input *PutObjectFromFileInput) (*PutObjectFromFileOutput, error) {
+	file, err := os.Open(input.FilePath)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+	putOutput, err := cli.PutObject(ctx, &PutObjectV2Input{
+		PutObjectBasicInput: input.PutObjectBasicInput,
+		Content:             file,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &PutObjectFromFileOutput{*putOutput}, err
 }
 
 // AppendObject append content at the tail of an appendable object
@@ -245,6 +485,8 @@ type AppendObjectOutput struct {
 //   e.g, bytes.Buffer, bytes.Reader, strings.Reader, os.File, io.LimitedReader, net.Buffers.
 //   if the parameter content(an io.Reader) is not one of these,
 //   please use io.LimitReader(reader, length) to wrap this reader or use the WithContentLength option.
+//
+// Deprecated: use AppendObject of ClientV2 instead
 func (bkt *Bucket) AppendObject(ctx context.Context, objectKey string, content io.Reader, offset int64, options ...Option) (*AppendObjectOutput, error) {
 	if err := isValidKey(objectKey); err != nil {
 		return nil, err
@@ -264,7 +506,6 @@ func (bkt *Bucket) AppendObject(ctx context.Context, objectKey string, content i
 	if err != nil {
 		return nil, fmt.Errorf("tos: server return unexptected Next-Append-Offset header %q", nextOffset)
 	}
-
 	return &AppendObjectOutput{
 		RequestInfo:      res.RequestInfo(),
 		ETag:             res.Header.Get(HeaderETag),
@@ -272,8 +513,52 @@ func (bkt *Bucket) AppendObject(ctx context.Context, objectKey string, content i
 	}, nil
 }
 
-type SetObjectMetaOutput struct {
-	RequestInfo `json:"-"`
+// AppendObjectV2 append content at the tail of an appendable object
+func (cli *ClientV2) AppendObjectV2(ctx context.Context, input *AppendObjectV2Input) (*AppendObjectV2Output, error) {
+	if err := isValidNames(input.Bucket, input.Key); err != nil {
+		return nil, err
+	}
+	var (
+		checker       hash.Hash64
+		content       = input.Content
+		contentLength = input.ContentLength
+	)
+	if contentLength <= 0 {
+		contentLength = tryResolveLength(content)
+	}
+	if cli.enableCRC {
+		checker = NewCRC(DefaultCrcTable(), input.PreHashCrc64ecma)
+	}
+	content = wrapReader(content, contentLength, input.DataTransferListener, input.RateLimiter, checker)
+	res, err := cli.newBuilder(input.Bucket, input.Key).
+		WithQuery("append", "").
+		WithParams(*input).
+		WithContentLength(contentLength).
+		WithRetry(nil, NoRetryClassifier{}).
+		Request(ctx, http.MethodPost, content, cli.roundTripper(http.StatusOK))
+	if err != nil {
+		return nil, err
+	}
+	defer res.Close()
+
+	nextOffset := res.Header.Get(HeaderNextAppendOffset)
+	appendOffset, err := strconv.ParseInt(nextOffset, 10, 64)
+	if err != nil {
+		return nil, &TosServerError{
+			TosError:    TosError{fmt.Sprintf("tos: server return unexptected Next-Append-Offset header %q", nextOffset)},
+			RequestInfo: res.RequestInfo(),
+		}
+	}
+	if err = checkCrc64(res, checker); err != nil {
+		return nil, err
+	}
+	crc64, _ := strconv.ParseUint(res.Header.Get(HeaderHashCrc64ecma), 10, 64)
+	return &AppendObjectV2Output{
+		RequestInfo:      res.RequestInfo(),
+		VersionID:        res.Header.Get(HeaderVersionID),
+		NextAppendOffset: appendOffset,
+		HashCrc64ecma:    crc64,
+	}, nil
 }
 
 // SetObjectMeta overwrites metadata of the object
@@ -288,6 +573,8 @@ type SetObjectMetaOutput struct {
 //     WithVersionID which version of this object will be set
 //
 // NOTICE: SetObjectMeta always overwrites all previous metadata
+//
+// Deprecated: use SetObjectMeta of ClientV2 instead
 func (bkt *Bucket) SetObjectMeta(ctx context.Context, objectKey string, options ...Option) (*SetObjectMetaOutput, error) {
 	if err := isValidKey(objectKey); err != nil {
 		return nil, err
@@ -304,44 +591,28 @@ func (bkt *Bucket) SetObjectMeta(ctx context.Context, objectKey string, options 
 	return &SetObjectMetaOutput{RequestInfo: res.RequestInfo()}, nil
 }
 
-type ListObjectsInput struct {
-	Prefix       string `json:"Prefix,omitempty"`
-	Delimiter    string `json:"Delimiter,omitempty"`
-	Marker       string `json:"Marker,omitempty"`
-	MaxKeys      int    `json:"MaxKeys,omitempty"`
-	Reverse      bool   `json:"Reverse,omitempty"`
-	EncodingType string `json:"EncodingType,omitempty"` // "" or "url"
-}
+// SetObjectMeta overwrites metadata of the object
+func (cli *ClientV2) SetObjectMeta(ctx context.Context, input *SetObjectMetaInput) (*SetObjectMetaOutput, error) {
+	if err := isValidNames(input.Bucket, input.Key); err != nil {
+		return nil, err
+	}
 
-type ListedObject struct {
-	Key          string `json:"Key,omitempty"`
-	LastModified string `json:"LastModified,omitempty"`
-	ETag         string `json:"ETag,omitempty"`
-	Size         int64  `json:"Size,omitempty"`
-	Owner        Owner  `json:"Owner,omitempty"`
-	StorageClass string `json:"StorageClass,omitempty"`
-	Type         string `json:"Type,omitempty"`
-}
+	res, err := cli.newBuilder(input.Bucket, input.Key).
+		WithQuery("metadata", "").
+		WithParams(*input).
+		WithRetry(nil, StatusCodeClassifier{}).
+		Request(ctx, http.MethodPost, nil, cli.roundTripper(http.StatusOK))
+	if err != nil {
+		return nil, err
+	}
+	defer res.Close()
 
-type ListedCommonPrefix struct {
-	Prefix string `json:"Prefix,omitempty"`
-}
-
-type ListObjectsOutput struct {
-	RequestInfo    `json:"-"`
-	Name           string               `json:"Name,omitempty"` // bucket name
-	Prefix         string               `json:"Prefix,omitempty"`
-	Marker         string               `json:"Marker,omitempty"`
-	MaxKeys        int64                `json:"MaxKeys,omitempty"`
-	NextMarker     string               `json:"NextMarker,omitempty"`
-	Delimiter      string               `json:"Delimiter,omitempty"`
-	IsTruncated    bool                 `json:"IsTruncated,omitempty"`
-	EncodingType   string               `json:"EncodingType,omitempty"`
-	CommonPrefixes []ListedCommonPrefix `json:"CommonPrefixes,omitempty"`
-	Contents       []ListedObject       `json:"Contents,omitempty"`
+	return &SetObjectMetaOutput{RequestInfo: res.RequestInfo()}, nil
 }
 
 // ListObjects list objects of a bucket
+//
+// Deprecated: use ListObjects of ClientV2 instead
 func (bkt *Bucket) ListObjects(ctx context.Context, input *ListObjectsInput, options ...Option) (*ListObjectsOutput, error) {
 	res, err := bkt.client.newBuilder(bkt.name, "", options...).
 		WithQuery("prefix", input.Prefix).
@@ -363,53 +634,30 @@ func (bkt *Bucket) ListObjects(ctx context.Context, input *ListObjectsInput, opt
 	return &output, nil
 }
 
-type ListObjectVersionsInput struct {
-	Prefix          string `json:"Prefix,omitempty"`
-	Delimiter       string `json:"Delimiter,omitempty"`
-	KeyMarker       string `json:"KeyMarker,omitempty"`
-	VersionIDMarker string `json:"VersionIdMarker,omitempty"`
-	MaxKeys         int    `json:"MaxKeys,omitempty"`
-	EncodingType    string `json:"EncodingType,omitempty"` // "" or "url"
-}
-
-type ListedObjectVersion struct {
-	ETag         string `json:"ETag,omitempty"`
-	IsLatest     bool   `json:"IsLatest,omitempty"`
-	Key          string `json:"Key,omitempty"`
-	LastModified string `json:"LastModified,omitempty"`
-	Owner        Owner  `json:"Owner,omitempty"`
-	Size         int64  `json:"Size,omitempty"`
-	StorageClass string `json:"StorageClass,omitempty"`
-	Type         string `json:"Type,omitempty"`
-	VersionID    string `json:"VersionId,omitempty"`
-}
-
-type ListedDeleteMarkerEntry struct {
-	IsLatest     bool   `json:"IsLatest,omitempty"`
-	Key          string `json:"Key,omitempty"`
-	LastModified string `json:"LastModified,omitempty"`
-	Owner        Owner  `json:"Owner,omitempty"`
-	VersionID    string `json:"VersionId,omitempty"`
-}
-
-type ListObjectVersionsOutput struct {
-	RequestInfo         `json:"-"`
-	Name                string                    `json:"Name,omitempty"` // bucket name
-	Prefix              string                    `json:"Prefix,omitempty"`
-	KeyMarker           string                    `json:"KeyMarker,omitempty"`
-	VersionIDMarker     string                    `json:"VersionIdMarker,omitempty"`
-	Delimiter           string                    `json:"Delimiter,omitempty"`
-	EncodingType        string                    `json:"EncodingType,omitempty"`
-	MaxKeys             int64                     `json:"MaxKeys,omitempty"`
-	NextKeyMarker       string                    `json:"NextKeyMarker,omitempty"`
-	NextVersionIDMarker string                    `json:"NextVersionIdMarker,omitempty"`
-	IsTruncated         bool                      `json:"IsTruncated,omitempty"`
-	CommonPrefixes      []ListedCommonPrefix      `json:"CommonPrefixes,omitempty"`
-	Versions            []ListedObjectVersion     `json:"Versions,omitempty"`
-	DeleteMarkers       []ListedDeleteMarkerEntry `json:"DeleteMarkers,omitempty"`
+// ListObjectsV2 list objects of a bucket
+func (cli *ClientV2) ListObjectsV2(ctx context.Context, input *ListObjectsV2Input) (*ListObjectsV2Output, error) {
+	if err := IsValidBucketName(input.Bucket); err != nil {
+		return nil, err
+	}
+	res, err := cli.newBuilder(input.Bucket, "").
+		WithParams(*input).
+		Request(ctx, http.MethodGet, nil, cli.roundTripper(http.StatusOK))
+	if err != nil {
+		return nil, err
+	}
+	defer res.Close()
+	output := ListObjectsV2Output{
+		ListObjectsOutput{RequestInfo: res.RequestInfo()},
+	}
+	if err = marshalOutput(output.RequestID, res.Body, &output); err != nil {
+		return nil, err
+	}
+	return &output, nil
 }
 
 // ListObjectVersions list multi-version objects of a bucket
+//
+// Deprecated: use ListObjectV2Versions of ClientV2 instead
 func (bkt *Bucket) ListObjectVersions(ctx context.Context, input *ListObjectVersionsInput, options ...Option) (*ListObjectVersionsOutput, error) {
 	res, err := bkt.client.newBuilder(bkt.name, "", options...).
 		WithQuery("prefix", input.Prefix).
@@ -431,54 +679,24 @@ func (bkt *Bucket) ListObjectVersions(ctx context.Context, input *ListObjectVers
 	return &output, nil
 }
 
-//type ListObjectsV2Input struct {
-//	Prefix            string `json:"Prefix,omitempty"`
-//	Delimiter         string `json:"Delimiter,omitempty"`
-//	Marker            string `json:"Marker,omitempty"`
-//	MaxKeys           int    `json:"MaxKeys,omitempty"`
-//	FetchOwner        bool   `json:"FetchOwner,omitempty"`
-//	ContinuationToken string `json:"ContinuationToken,omitempty"`
-//	Reverse           bool   `json:"Reverse,omitempty"`
-//	EncodingType      string `json:"EncodingType,omitempty"` // "" or "url"
-//}
-//
-//type ListObjectsV2Output struct {
-//	RequestInfo           `json:"-"`
-//	Name                  string               `json:"Name,omitempty"` // bucket name
-//	Prefix                string               `json:"Prefix,omitempty"`
-//	KeyCount              int64                `json:"KeyCount,omitempty"`
-//	MaxKeys               int64                `json:"MaxKeys,omitempty"`
-//	IsTruncated           bool                 `json:"IsTruncated,omitempty"`
-//	ContinuationToken     string               `json:"ContinuationToken,omitempty"`
-//	Delimiter             string               `json:"Delimiter,omitempty"`
-//	EncodingType          string               `json:"EncodingType,omitempty"`
-//	StartAfter            string               `json:"StartAfter,omitempty"`
-//	NextContinuationToken string               `json:"NextContinuationToken,omitempty"`
-//	CommonPrefixes        []ListedCommonPrefix `json:"CommonPrefixes,omitempty"`
-//	Contents              []ListedObject       `json:"Contents,omitempty"`
-//}
-//
-//// ListObjectsV2 list objects of a bucket
-//func (bkt *Bucket) ListObjectsV2(ctx context.Context, input *ListObjectsV2Input, options ...Option) (*ListObjectsV2Output, error) {
-//	res, err := bkt.client.newBuilder(bkt.name, "", options...).
-//		WithQuery("prefix", input.Prefix).
-//		WithQuery("delimiter", input.Delimiter).
-//		WithQuery("marker", input.Marker).
-//		WithQuery("max-keys", strconv.Itoa(input.MaxKeys)).
-//		WithQuery("continuation-token", input.ContinuationToken).
-//		WithQuery("fetch-owner", strconv.FormatBool(input.FetchOwner)).
-//		WithQuery("reverse", strconv.FormatBool(input.Reverse)).
-//		WithQuery("encoding-type", input.EncodingType).
-//		WithQuery("list-type", "2").
-//		Request(ctx, http.MethodGet, nil, bkt.client.roundTripper(http.StatusOK))
-//	if err != nil {
-//		return nil, err
-//	}
-//	defer res.Close()
-//
-//	output := &ListObjectsV2Output{RequestInfo: res.RequestInfo()}
-//	if err = marshalOutput(res.Body, output); err != nil {
-//		return nil, err
-//	}
-//	return output, nil
-//}
+// ListObjectVersionsV2 list multi-version objects of a bucket
+func (cli *ClientV2) ListObjectVersionsV2(
+	ctx context.Context,
+	input *ListObjectVersionsV2Input) (*ListObjectVersionsV2Output, error) {
+	if err := IsValidBucketName(input.Bucket); err != nil {
+		return nil, err
+	}
+	res, err := cli.newBuilder(input.Bucket, "").
+		WithQuery("versions", "").
+		Request(ctx, http.MethodGet, nil, cli.roundTripper(http.StatusOK))
+	if err != nil {
+		return nil, err
+	}
+	defer res.Close()
+
+	output := ListObjectVersionsV2Output{RequestInfo: res.RequestInfo()}
+	if err = marshalOutput(output.RequestID, res.Body, &output); err != nil {
+		return nil, err
+	}
+	return &output, nil
+}

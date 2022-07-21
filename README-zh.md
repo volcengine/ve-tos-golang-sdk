@@ -6,7 +6,7 @@
 SDK支持Go 1.13+ 版本. 运行 `go version`查看你的Go版本。
 * 使用`go get`安装go SDK
   ```shell
-    go get -u https://github.com/volcengine/ve-tos-golang-sdk
+    go get -u github.com/volcengine/ve-tos-golang-sdk
   ```
 
 ## 使用TOS Go SDK
@@ -17,8 +17,8 @@ SDK支持Go 1.13+ 版本. 运行 `go version`查看你的Go版本。
 * 创建一个TosClient
   ```go 
    var (
-      accessKey = "Your Access Key"
-      secretKey = "Your Secret Key"
+      accessKey = "your Access Key"
+      secretKey = "your Secret Key"
       endpoint = "your endpoint"
       region = "your region"
   )
