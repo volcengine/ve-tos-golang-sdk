@@ -349,7 +349,7 @@ func (cli *Client) roundTripper(expectedCode int) roundTripper {
 
 // PreSignedURL return pre-signed url
 //   httpMethod: HTTP method, {
-//     PutObjectV2: http.MethodPut
+//     PutObject: http.MethodPut
 //     GetObject: http.MethodGet
 //     HeadObject: http.MethodHead
 //     DeleteObject: http.MethodDelete
