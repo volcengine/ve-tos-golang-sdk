@@ -242,8 +242,9 @@ func (bkt *Bucket) CompleteMultipartUpload(ctx context.Context, input *CompleteM
 	}, nil
 }
 
-// CompleteMultipartUpload complete a multipart upload operation
-func (cli *ClientV2) CompleteMultipartUpload(ctx context.Context, input *CompleteMultipartUploadV2Input) (*CompleteMultipartUploadV2Output, error) {
+// CompleteMultipartUploadV2 complete a multipart upload operation
+func (cli *ClientV2) CompleteMultipartUploadV2(
+	ctx context.Context, input *CompleteMultipartUploadV2Input) (*CompleteMultipartUploadV2Output, error) {
 
 	if err := isValidNames(input.Bucket, input.Key); err != nil {
 		return nil, err
@@ -269,15 +270,15 @@ func (cli *ClientV2) CompleteMultipartUpload(ctx context.Context, input *Complet
 	defer res.Close()
 
 	crc64, _ := strconv.ParseUint(res.Header.Get(HeaderHashCrc64ecma), 10, 64)
-	return &CompleteMultipartUploadV2Output{
+	output := &CompleteMultipartUploadV2Output{
 		RequestInfo:   res.RequestInfo(),
-		Bucket:        input.Bucket,
-		Key:           input.Key,
 		VersionID:     res.Header.Get(HeaderVersionID),
-		ETag:          res.Header.Get(HeaderETag),
-		Location:      res.Header.Get(HeaderLocation),
 		HashCrc64ecma: crc64,
-	}, nil
+	}
+	if err = marshalOutput(output.RequestID, res.Body, &output); err != nil {
+		return nil, err
+	}
+	return output, nil
 }
 
 // AbortMultipartUpload abort a multipart upload operation

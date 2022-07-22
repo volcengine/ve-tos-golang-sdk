@@ -386,8 +386,8 @@ func wrapReader(reader io.Reader, totalBytes int64, listener DataTransferListene
 	return wrapped
 }
 
-// PutObject put an object
-func (cli *ClientV2) PutObject(ctx context.Context, input *PutObjectV2Input) (*PutObjectV2Output, error) {
+// PutObjectV2 put an object
+func (cli *ClientV2) PutObjectV2(ctx context.Context, input *PutObjectV2Input) (*PutObjectV2Output, error) {
 	if err := isValidNames(input.Bucket, input.Key); err != nil {
 		return nil, err
 	}
@@ -455,7 +455,7 @@ func (cli *ClientV2) PutObjectFromFile(ctx context.Context, input *PutObjectFrom
 		return nil, err
 	}
 	defer file.Close()
-	putOutput, err := cli.PutObject(ctx, &PutObjectV2Input{
+	putOutput, err := cli.PutObjectV2(ctx, &PutObjectV2Input{
 		PutObjectBasicInput: input.PutObjectBasicInput,
 		Content:             file,
 	})

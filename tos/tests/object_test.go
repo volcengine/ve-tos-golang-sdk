@@ -100,7 +100,7 @@ func TestPutWithAllParams(t *testing.T) {
 		},
 		Content: strings.NewReader(value),
 	}
-	put, err := client.PutObject(context.Background(), input)
+	put, err := client.PutObjectV2(context.Background(), input)
 	require.Nil(t, err)
 	require.NotNil(t, put)
 	require.Equal(t, 200, put.StatusCode)
@@ -137,7 +137,7 @@ func TestPutEmptyObject(t *testing.T) {
 	defer func() {
 		cleanBucket(t, client, bucket)
 	}()
-	put, err := client.PutObject(context.Background(), &tos.PutObjectV2Input{
+	put, err := client.PutObjectV2(context.Background(), &tos.PutObjectV2Input{
 		PutObjectBasicInput: tos.PutObjectBasicInput{Bucket: bucket, Key: key},
 		Content:             strings.NewReader(value),
 	})
@@ -165,7 +165,7 @@ func TestCopyObject(t *testing.T) {
 	defer func() {
 		cleanBucket(t, client, bucket)
 	}()
-	put, err := client.PutObject(context.Background(), &tos.PutObjectV2Input{
+	put, err := client.PutObjectV2(context.Background(), &tos.PutObjectV2Input{
 		PutObjectBasicInput: tos.PutObjectBasicInput{Bucket: bucket, Key: key},
 		Content:             strings.NewReader(value),
 	})
@@ -232,7 +232,7 @@ func TestUnmatchedMD5(t *testing.T) {
 		Content:             strings.NewReader(value),
 	}
 	input.ContentMD5 = "unmatched md5"
-	_, err := client.PutObject(context.Background(), input)
+	_, err := client.PutObjectV2(context.Background(), input)
 	require.NotNil(t, err)
 	require.True(t, isTosServerError(err))
 }
@@ -256,7 +256,7 @@ func TestUrlEncodeChineseInMeta(t *testing.T) {
 		Content:             strings.NewReader(value),
 	}
 	input.Meta = meta
-	put, err := client.PutObject(context.Background(), input)
+	put, err := client.PutObjectV2(context.Background(), input)
 	checkSuccess(t, put, err, 200)
 	get, err := client.GetObjectV2(context.Background(), &tos.GetObjectV2Input{
 		Bucket: bucket,
@@ -289,7 +289,7 @@ func TestSSEC(t *testing.T) {
 	defer func() {
 		cleanBucket(t, client, bucket)
 	}()
-	put, err := client.PutObject(context.Background(), &tos.PutObjectV2Input{
+	put, err := client.PutObjectV2(context.Background(), &tos.PutObjectV2Input{
 		PutObjectBasicInput: tos.PutObjectBasicInput{
 			Bucket:        bucket,
 			Key:           key,
@@ -335,7 +335,7 @@ func TestSSE(t *testing.T) {
 	defer func() {
 		cleanBucket(t, client, bucket)
 	}()
-	put, err := client.PutObject(context.Background(), &tos.PutObjectV2Input{
+	put, err := client.PutObjectV2(context.Background(), &tos.PutObjectV2Input{
 		PutObjectBasicInput: tos.PutObjectBasicInput{
 			Bucket:               bucket,
 			Key:                  key,
@@ -374,7 +374,7 @@ func TestUnsupportedSSEC(t *testing.T) {
 	defer func() {
 		cleanBucket(t, client, bucket)
 	}()
-	put, err := client.PutObject(context.Background(), &tos.PutObjectV2Input{
+	put, err := client.PutObjectV2(context.Background(), &tos.PutObjectV2Input{
 		PutObjectBasicInput: tos.PutObjectBasicInput{
 			Bucket:        bucket,
 			Key:           key,
@@ -438,7 +438,7 @@ func TestCAS(t *testing.T) {
 	defer func() {
 		cleanBucket(t, client, bucket)
 	}()
-	put, err := client.PutObject(context.Background(), &tos.PutObjectV2Input{
+	put, err := client.PutObjectV2(context.Background(), &tos.PutObjectV2Input{
 		PutObjectBasicInput: tos.PutObjectBasicInput{
 			Bucket: bucket,
 			Key:    key,
@@ -495,7 +495,7 @@ func TestCAS(t *testing.T) {
 		Bucket: bucket,
 		Key:    key,
 	})
-	put, err = client.PutObject(context.Background(), &tos.PutObjectV2Input{
+	put, err = client.PutObjectV2(context.Background(), &tos.PutObjectV2Input{
 		PutObjectBasicInput: tos.PutObjectBasicInput{
 			Bucket: bucket,
 			Key:    key,
@@ -535,7 +535,7 @@ func TestEscapeCharacters(t *testing.T) {
 		Content:             strings.NewReader(value),
 	}
 	putInput.ContentMD5 = md5Sum
-	put, err := client.PutObject(context.Background(), putInput)
+	put, err := client.PutObjectV2(context.Background(), putInput)
 	checkSuccess(t, put, err, 200)
 	get, err := client.GetObjectV2(context.Background(), &tos.GetObjectV2Input{
 		Bucket: bucket,
@@ -566,7 +566,7 @@ func TestGetWithRange(t *testing.T) {
 		Content:             strings.NewReader(value),
 	}
 	putInput.ContentMD5 = md5Sum
-	put, err := client.PutObject(context.Background(), putInput)
+	put, err := client.PutObjectV2(context.Background(), putInput)
 	checkSuccess(t, put, err, 200)
 	get, err := client.GetObjectV2(context.Background(), &tos.GetObjectV2Input{Bucket: bucket, Key: key, RangeStart: 0, RangeEnd: 4095})
 	checkSuccess(t, get, err, 206)
@@ -731,7 +731,7 @@ func TestGetObjectToFile(t *testing.T) {
 		},
 		Content: strings.NewReader(value),
 	}
-	put, err := client.PutObject(context.Background(), input)
+	put, err := client.PutObjectV2(context.Background(), input)
 	require.Nil(t, err)
 	require.NotNil(t, put)
 	require.Equal(t, 200, put.StatusCode)
@@ -850,7 +850,7 @@ func TestMultiVersion(t *testing.T) {
 	map2 := make(map[string]string)
 	// put multi version objects
 	for i := 0; i < 3; i++ {
-		put, err := client.PutObject(context.Background(), &tos.PutObjectV2Input{
+		put, err := client.PutObjectV2(context.Background(), &tos.PutObjectV2Input{
 			PutObjectBasicInput: tos.PutObjectBasicInput{
 				Bucket: bucket,
 				Key:    key,

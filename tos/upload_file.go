@@ -434,7 +434,7 @@ Loop:
 	if success < len(tasks) {
 		return nil, newTosClientError("tos: some upload tasks failed.", nil)
 	}
-	complete, err := cli.CompleteMultipartUpload(ctx, &CompleteMultipartUploadV2Input{
+	complete, err := cli.CompleteMultipartUploadV2(ctx, &CompleteMultipartUploadV2Input{
 		Bucket:   input.Bucket,
 		Key:      input.Key,
 		UploadID: checkpoint.UploadID,

@@ -58,7 +58,7 @@ func TestPutWithACLV2(t *testing.T) {
 	defer func() {
 		cleanBucket(t, client, bucket)
 	}()
-	put, err := client.PutObject(context.Background(), &tos.PutObjectV2Input{
+	put, err := client.PutObjectV2(context.Background(), &tos.PutObjectV2Input{
 		PutObjectBasicInput: tos.PutObjectBasicInput{
 			Bucket:    bucket,
 			Key:       key,

@@ -14,7 +14,7 @@ import (
 	"github.com/volcengine/ve-tos-golang-sdk/tos"
 )
 
-// TestCreateMultipartUploadV2 test CreateMultipartUploadV2,UploadPartV2,ListPartsV2,UploadPartCopyV2,CompleteMultipartUpload
+// TestCreateMultipartUploadV2 test CreateMultipartUploadV2,UploadPartV2,ListPartsV2,UploadPartCopyV2,CompleteMultipartUploadV2
 func TestMultipartUpload(t *testing.T) {
 	var (
 		env     = newTestEnv(t)
@@ -23,7 +23,9 @@ func TestMultipartUpload(t *testing.T) {
 		copyKey = "key-copyKey"
 		key     = "key-test-create-multipart-upload"
 	)
-	defer func() {}()
+	defer func() {
+		cleanBucket(t, client, bucket)
+	}()
 	upload, err := client.CreateMultipartUploadV2(context.Background(), &tos.CreateMultipartUploadV2Input{
 		Bucket: bucket,
 		Key:    key,
@@ -73,7 +75,7 @@ func TestMultipartUpload(t *testing.T) {
 	require.Equal(t, part2.ETag, parts.Parts[1].ETag)
 	require.Equal(t, part3.ETag, parts.Parts[2].ETag)
 
-	_, err = client.CompleteMultipartUpload(context.Background(), &tos.CompleteMultipartUploadV2Input{
+	complete, err := client.CompleteMultipartUploadV2(context.Background(), &tos.CompleteMultipartUploadV2Input{
 		Bucket:   bucket,
 		Key:      key,
 		UploadID: upload.UploadID,
@@ -89,6 +91,10 @@ func TestMultipartUpload(t *testing.T) {
 		}},
 	})
 	require.Nil(t, err)
+	require.NotEqual(t, len(complete.ETag), 0)
+	require.NotEqual(t, len(complete.Location), 0)
+	require.NotEqual(t, len(complete.Bucket), 0)
+	require.NotEqual(t, len(complete.Key), 0)
 }
 
 func TestAbortMultipartUpload(t *testing.T) {
@@ -192,7 +198,7 @@ func TestUploadPartFromFile(t *testing.T) {
 	require.Equal(t, 2, len(parts.Parts))
 	require.Equal(t, part1.ETag, parts.Parts[0].ETag)
 	require.Equal(t, part2.ETag, parts.Parts[1].ETag)
-	complete, err := client.CompleteMultipartUpload(context.Background(), &tos.CompleteMultipartUploadV2Input{
+	complete, err := client.CompleteMultipartUploadV2(context.Background(), &tos.CompleteMultipartUploadV2Input{
 		Bucket:   bucket,
 		Key:      key,
 		UploadID: upload.UploadID,
@@ -212,4 +218,8 @@ func TestUploadPartFromFile(t *testing.T) {
 	checkSuccess(t, get, err, 200)
 	content, err := ioutil.ReadAll(get.Content)
 	require.Equal(t, md5Sum, md5s(string(content)))
+	require.NotEqual(t, len(complete.ETag), 0)
+	require.NotEqual(t, len(complete.Location), 0)
+	require.NotEqual(t, len(complete.Bucket), 0)
+	require.NotEqual(t, len(complete.Key), 0)
 }

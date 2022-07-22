@@ -281,7 +281,7 @@ func testInvalidBucketName(t *testing.T, bucket string) {
 func testInvalidObjectKey(t *testing.T, client *tos.ClientV2, key string) {
 	value := "test-value"
 	bucket := "test-bucket"
-	put, err := client.PutObject(context.Background(), &tos.PutObjectV2Input{
+	put, err := client.PutObjectV2(context.Background(), &tos.PutObjectV2Input{
 		PutObjectBasicInput: tos.PutObjectBasicInput{Bucket: bucket, Key: key},
 		Content:             strings.NewReader(value),
 	})
@@ -292,7 +292,7 @@ func testInvalidObjectKey(t *testing.T, client *tos.ClientV2, key string) {
 
 func testValidObjectKey(t *testing.T, client *tos.ClientV2, bucket string, key string) {
 	value := ""
-	put, err := client.PutObject(context.Background(), &tos.PutObjectV2Input{
+	put, err := client.PutObjectV2(context.Background(), &tos.PutObjectV2Input{
 		PutObjectBasicInput: tos.PutObjectBasicInput{Bucket: bucket, Key: key},
 		Content:             strings.NewReader(value),
 	})
@@ -301,7 +301,7 @@ func testValidObjectKey(t *testing.T, client *tos.ClientV2, bucket string, key s
 
 func putRandomObject(t *testing.T, client *tos.ClientV2, bucket string, key string, size int) {
 	value := randomString(size)
-	put, err := client.PutObject(context.Background(), &tos.PutObjectV2Input{
+	put, err := client.PutObjectV2(context.Background(), &tos.PutObjectV2Input{
 		PutObjectBasicInput: tos.PutObjectBasicInput{Bucket: bucket, Key: key},
 		Content:             strings.NewReader(value),
 	})
