@@ -3,7 +3,7 @@ package tests
 import (
 	"context"
 	"github.com/stretchr/testify/require"
-	"github.com/volcengine/ve-tos-golang-sdk/tos"
+	"github.com/volcengine/ve-tos-golang-sdk/v2/tos"
 	"os"
 	"testing"
 )
@@ -30,6 +30,7 @@ func (e testEnv) prepareClient(bucketName string, extraOptions ...tos.ClientOpti
 	options := []tos.ClientOption{
 		tos.WithRegion(e.region),
 		tos.WithCredentials(tos.NewStaticCredentials(e.accessKey, e.secretKey)),
+		tos.WithEnableVerifySSL(false),
 	}
 	options = append(options, extraOptions...)
 	client, err := tos.NewClientV2(e.endpoint, options...)

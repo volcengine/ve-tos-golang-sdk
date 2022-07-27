@@ -1,7 +1,7 @@
 package session
 
 import (
-	"github.com/volcengine/ve-tos-golang-sdk/tos"
+	"github.com/volcengine/ve-tos-golang-sdk/v2/tos"
 )
 
 type Session struct {

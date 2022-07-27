@@ -3,7 +3,7 @@ package tos
 import (
 	"unicode/utf8"
 
-	"github.com/volcengine/ve-tos-golang-sdk/tos/enum"
+	"github.com/volcengine/ve-tos-golang-sdk/v2/tos/enum"
 )
 
 // IsValidBucketName validate bucket name, return TosClientError if failed

@@ -18,7 +18,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/volcengine/ve-tos-golang-sdk/tos"
+	"github.com/volcengine/ve-tos-golang-sdk/v2/tos"
 )
 
 const testPrefix = "g0lan9-5dk-t35ts"
