@@ -8,8 +8,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/volcengine/ve-tos-golang-sdk/tos"
-	"github.com/volcengine/ve-tos-golang-sdk/tos/enum"
+	"github.com/volcengine/ve-tos-golang-sdk/v2/tos"
+	"github.com/volcengine/ve-tos-golang-sdk/v2/tos/enum"
 )
 
 func TestOnlyBucketNameV2(t *testing.T) {
@@ -87,6 +87,7 @@ func TestListBucketV2(t *testing.T) {
 	)
 
 	listed, err := client.ListBucketsV2(context.Background(), &tos.ListBucketsV2Input{})
+	checkSuccess(t, listed, err, 200)
 	for _, bkt := range listed.Buckets {
 		if strings.HasPrefix(bkt.Name, testPrefix) {
 			cleanBucket(t, client, bkt.Name)

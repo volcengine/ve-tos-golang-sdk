@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/volcengine/ve-tos-golang-sdk/tos/enum"
+	"github.com/volcengine/ve-tos-golang-sdk/v2/tos/enum"
 )
 
 // ObjectMeta object metadata

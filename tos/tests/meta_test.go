@@ -6,7 +6,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/volcengine/ve-tos-golang-sdk/tos"
+	"github.com/volcengine/ve-tos-golang-sdk/v2/tos"
 )
 
 func TestSetObjectMetaV2(t *testing.T) {

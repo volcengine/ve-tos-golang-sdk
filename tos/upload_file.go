@@ -2,7 +2,7 @@ package tos
 
 import (
 	"context"
-	"github.com/volcengine/ve-tos-golang-sdk/tos/enum"
+	"github.com/volcengine/ve-tos-golang-sdk/v2/tos/enum"
 	"os"
 	"path/filepath"
 	"strings"

@@ -72,7 +72,8 @@ func WithCredentials(credentials Credentials) ClientOption {
 }
 
 // WithEnableVerifySSL set whether a client verifies the server's certificate chain and host name.
-func WithEnableVerifySSL(skip bool) ClientOption {
+func WithEnableVerifySSL(enable bool) ClientOption {
+	skip := !enable
 	return func(client *Client) {
 		client.config.TransportConfig.InsecureSkipVerify = skip
 	}

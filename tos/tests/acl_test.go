@@ -7,8 +7,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/volcengine/ve-tos-golang-sdk/tos"
-	"github.com/volcengine/ve-tos-golang-sdk/tos/enum"
+	"github.com/volcengine/ve-tos-golang-sdk/v2/tos"
+	"github.com/volcengine/ve-tos-golang-sdk/v2/tos/enum"
 )
 
 func TestObjectACLV2(t *testing.T) {

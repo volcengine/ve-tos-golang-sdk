@@ -11,7 +11,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/volcengine/ve-tos-golang-sdk/tos"
+	"github.com/volcengine/ve-tos-golang-sdk/v2/tos"
 )
 
 // TestCreateMultipartUploadV2 test CreateMultipartUploadV2,UploadPartV2,ListPartsV2,UploadPartCopyV2,CompleteMultipartUploadV2

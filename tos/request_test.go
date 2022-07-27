@@ -2,7 +2,7 @@ package tos
 
 import (
 	"encoding/json"
-	"io"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"net/url"
@@ -87,7 +87,7 @@ func TestFileUnreadSize(t *testing.T) {
 	require.Nil(t, err)
 	require.Equal(t, size, stat.Size()-8)
 
-	data, err := io.ReadAll(file)
+	data, err := ioutil.ReadAll(file)
 	require.Nil(t, err)
 	require.Equal(t, size, int64(len(data)))
 

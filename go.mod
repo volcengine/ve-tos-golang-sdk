@@ -1,4 +1,4 @@
-module github.com/volcengine/ve-tos-golang-sdk
+module github.com/volcengine/ve-tos-golang-sdk/v2
 
 go 1.13
 
