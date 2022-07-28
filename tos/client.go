@@ -207,6 +207,10 @@ func (cli *Client) roundTrip(ctx context.Context, req *Request, expectedCode int
 	return res, nil
 }
 
+func (cli *Client) SetTransport(transport Transport) {
+	cli.transport = transport
+}
+
 func (cli *Client) roundTripper(expectedCode int) roundTripper {
 	return func(ctx context.Context, req *Request) (*Response, error) {
 		return cli.roundTrip(ctx, req, expectedCode)
