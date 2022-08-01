@@ -20,8 +20,9 @@ const DefaultTaskBufferSize = 100
 
 func SupportedRegion() map[string]string {
 	return map[string]string{
-		"cn-beijing":   "https://tos-cn-beijing.volces.com",
-		"cn-guangzhou": "https://tos-cn-guangzhou.volces.com",
+		"cn-beijing":   "tos-cn-beijing.volces.com",
+		"cn-guangzhou": "tos-cn-guangzhou.volces.com",
+		"cn-shanghai":  "tos-cn-shanghai.volces.com",
 	}
 }
 

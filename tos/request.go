@@ -151,7 +151,7 @@ func convertToString(iface interface{}, tag *reflect.StructTag) string {
 	return result
 }
 
-// WithParams will set filed with tag "header" rb.Header.
+// WithParams will set filed with tag "header" in input to rb.Header.
 func (rb *requestBuilder) WithParams(input interface{}) *requestBuilder {
 	t := reflect.TypeOf(input)
 	v := reflect.ValueOf(input)
@@ -178,7 +178,10 @@ func (rb *requestBuilder) WithParams(input interface{}) *requestBuilder {
 				return rb
 			}
 		case "query":
-			rb.WithQuery(filed.Tag.Get("locationName"), convertToString(v.Field(i).Interface(), &filed.Tag))
+			v := convertToString(v.Field(i).Interface(), &filed.Tag)
+			if len(v) > 0 {
+				rb.WithQuery(filed.Tag.Get("locationName"), v)
+			}
 		}
 	}
 	return rb

@@ -34,5 +34,7 @@ func TestSetObjectMetaV2(t *testing.T) {
 	require.Nil(t, err)
 	require.Equal(t, 200, head.StatusCode)
 	require.Equal(t, contentType, head.Header.Get(tos.HeaderContentType))
-	require.Equal(t, meta, head.Meta)
+	for k, v := range meta {
+		require.Equal(t, v, head.Meta.Get(k))
+	}
 }

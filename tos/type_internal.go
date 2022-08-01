@@ -7,12 +7,29 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/volcengine/ve-tos-golang-sdk/v2/tos/enum"
 )
+
+type Metadata struct {
+	m map[string]string
+}
+
+func (md Metadata) AllKeys() []string {
+	keys := make([]string, 0, len(md.m))
+	for k := range md.m {
+		keys = append(keys, k)
+	}
+	return keys
+}
+
+func (md Metadata) Get(key string) (val string) {
+	return md.m[strings.ToLower(key)]
+}
 
 type multipartUpload struct {
 	Bucket   string `json:"Bucket,omitempty"`

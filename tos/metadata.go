@@ -46,15 +46,14 @@ type ObjectMetaV2 struct {
 	ObjectType              string
 	HashCrc64ecma           uint64
 	StorageClass            enum.StorageClassType
-	Meta                    map[string]string
-
-	ContentLength      int64
-	ContentType        string
-	CacheControl       string
-	ContentDisposition string
-	ContentEncoding    string
-	ContentLanguage    string
-	Expires            time.Time
+	Meta                    Metadata
+	ContentLength           int64
+	ContentType             string
+	CacheControl            string
+	ContentDisposition      string
+	ContentEncoding         string
+	ContentLanguage         string
+	Expires                 time.Time
 }
 
 func (om *ObjectMeta) fromResponse(res *Response) {
@@ -100,7 +99,7 @@ func (om *ObjectMetaV2) fromResponseV2(res *Response) {
 	om.ObjectType = res.Header.Get(HeaderObjectType)
 	om.HashCrc64ecma = crc64
 	om.StorageClass = enum.StorageClassType(res.Header.Get(HeaderStorageClass))
-	om.Meta = userMetadata(res.Header)
+	om.Meta.m = userMetadata(res.Header)
 	om.ContentLength = length
 	om.ContentType = res.Header.Get(HeaderContentType)
 	om.CacheControl = res.Header.Get(HeaderCacheControl)
@@ -111,11 +110,12 @@ func (om *ObjectMetaV2) fromResponseV2(res *Response) {
 }
 
 func userMetadata(header http.Header) map[string]string {
+
 	meta := make(map[string]string)
 	for key := range header {
 		if strings.HasPrefix(key, HeaderMetaPrefix) {
 			kk, _ := url.QueryUnescape(key[len(HeaderMetaPrefix):])
-			meta[kk], _ = url.QueryUnescape(header.Get(key))
+			meta[strings.ToLower(kk)], _ = url.QueryUnescape(header.Get(key))
 		}
 	}
 	return meta

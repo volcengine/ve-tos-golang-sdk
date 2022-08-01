@@ -62,10 +62,6 @@ func NewDefaultTransport(config *TransportConfig) *DefaultTransport {
 			// 	return http.ErrUseLastResponse
 			// },
 			Transport: &http.Transport{
-				//DialContext: (&net.Dialer{
-				//	Timeout:   config.DialTimeout,
-				//	KeepAlive: config.KeepAlive,
-				//}).DialContext,
 				DialContext: (&TimeoutDialer{
 					Dialer: net.Dialer{
 						Timeout:   config.DialTimeout,
@@ -83,6 +79,20 @@ func NewDefaultTransport(config *TransportConfig) *DefaultTransport {
 				// #nosec G402
 				TLSClientConfig: &tls.Config{InsecureSkipVerify: config.InsecureSkipVerify},
 			},
+		},
+	}
+}
+
+//   newDefaultTranposrtWithHTTPTransport
+func newDefaultTranposrtWithHTTPTransport(transport http.RoundTripper) *DefaultTransport {
+	return &DefaultTransport{
+		client: http.Client{
+			// TODO: uncomment this in v2.2.0
+			// Prohibit redirection
+			// CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			// 	return http.ErrUseLastResponse
+			// },
+			Transport: transport,
 		},
 	}
 }

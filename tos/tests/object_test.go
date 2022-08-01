@@ -120,7 +120,9 @@ func TestPutWithAllParams(t *testing.T) {
 	require.Nil(t, err)
 	require.Equal(t, string(buffer), value)
 	require.Equal(t, md5Sum, md5s(string(buffer)))
-	require.Equal(t, meta, get.Meta)
+	for k, v := range meta {
+		require.Equal(t, v, head.Meta.Get(k))
+	}
 	require.Equal(t, "中文测试", get.ContentDisposition)
 	require.Equal(t, expires.Format(time.UnixDate), get.Expires.Format(time.UnixDate))
 	require.Equal(t, storageClass, get.StorageClass)
@@ -249,8 +251,13 @@ func TestUrlEncodeChineseInMeta(t *testing.T) {
 		cleanBucket(t, client, bucket)
 	}()
 	meta := make(map[string]string)
-	meta["Test-带中文的key"] = "Test-Val"
-	meta["Test-Key"] = "带中文的Value"
+	meta["中文开头的键"] = "中文值"
+	meta["中文开头的键-test-key"] = "中文值-test-val"
+	meta["test-key带中文的键"] = "test-val-中文值"
+	meta["test-key-带中文的键"] = "test-val-中文值"
+	// same key
+	meta["test-key"] = "TEST-VAL"
+	meta["TEST-KEY"] = "TEST-VAL"
 	input := &tos.PutObjectV2Input{
 		PutObjectBasicInput: tos.PutObjectBasicInput{Bucket: bucket, Key: key},
 		Content:             strings.NewReader(value),
@@ -263,7 +270,9 @@ func TestUrlEncodeChineseInMeta(t *testing.T) {
 		Key:    key,
 	})
 	require.NotNil(t, get)
-	require.Equal(t, meta, get.Meta)
+	for k := range meta {
+		require.Equal(t, meta[k], get.Meta.Get(k))
+	}
 	require.Nil(t, err)
 }
 
@@ -586,6 +595,7 @@ func TestAppend(t *testing.T) {
 		value2 = randomString(4 * 1024)
 		md5Sum = md5s(value1 + value2)
 		client = env.prepareClient(bucket)
+		meta   = map[string]string{"my-key": "长风破浪会有时"}
 	)
 	defer func() {
 		cleanBucket(t, client, bucket)
@@ -608,7 +618,7 @@ func TestAppend(t *testing.T) {
 		GrantFullControl: "id=2",
 		GrantReadAcp:     "id=3",
 		Content:          strings.NewReader(value1),
-		Meta:             map[string]string{"my-key": "长风破浪会有时"},
+		Meta:             meta,
 	})
 	checkSuccess(t, appendOutput, err, 200)
 	appendOutput, err = client.AppendObjectV2(context.Background(), &tos.AppendObjectV2Input{
@@ -627,8 +637,9 @@ func TestAppend(t *testing.T) {
 	checkSuccess(t, get, err, 200)
 	buffer, err := ioutil.ReadAll(get.Content)
 	require.Equal(t, md5Sum, md5s(string(buffer)))
-	require.Equal(t, map[string]string{"My-Key": "长风破浪会有时"}, get.Meta)
-
+	for k, v := range meta {
+		require.Equal(t, v, get.Meta.Get(k))
+	}
 }
 
 func TestPutObjectFromFile(t *testing.T) {
@@ -691,7 +702,9 @@ func TestPutObjectFromFile(t *testing.T) {
 	require.Nil(t, err)
 	require.Equal(t, string(buffer), value)
 	require.Equal(t, md5Sum, md5s(string(buffer)))
-	require.Equal(t, meta, get.Meta)
+	for k, v := range meta {
+		require.Equal(t, v, get.Meta.Get(k))
+	}
 	require.Equal(t, expires.Format(time.UnixDate), get.Expires.Format(time.UnixDate))
 	require.Equal(t, storageClass, get.StorageClass)
 }
@@ -752,7 +765,9 @@ func TestGetObjectToFile(t *testing.T) {
 	require.Nil(t, err)
 	require.Equal(t, string(buffer), value)
 	require.Equal(t, md5Sum, md5s(string(buffer)))
-	require.Equal(t, meta, get.Meta)
+	for k, v := range meta {
+		require.Equal(t, v, get.Meta.Get(k))
+	}
 	require.Equal(t, expires.Format(time.UnixDate), get.Expires.Format(time.UnixDate))
 	require.Equal(t, storageClass, get.StorageClass)
 }
@@ -821,7 +836,9 @@ func TestPutAndGetFile(t *testing.T) {
 	buffer, err := ioutil.ReadAll(downFile)
 	require.Equal(t, value, string(buffer))
 	require.Equal(t, md5Sum, md5s(string(buffer)))
-	require.Equal(t, meta, get.Meta)
+	for k, v := range meta {
+		require.Equal(t, v, get.Meta.Get(k))
+	}
 	require.Equal(t, expires.Format(time.UnixDate), get.Expires.Format(time.UnixDate))
 	require.Equal(t, storageClass, get.StorageClass)
 }
