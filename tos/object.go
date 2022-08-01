@@ -74,7 +74,6 @@ func (cli *ClientV2) GetObjectV2(ctx context.Context, input *GetObjectV2Input) (
 		return nil, err
 	}
 	rb := cli.newBuilder(input.Bucket, input.Key).
-		WithQuery("versionId", input.VersionID).
 		WithParams(*input)
 	if input.RangeEnd != 0 || input.RangeStart != 0 {
 		if input.RangeEnd < input.RangeStart {

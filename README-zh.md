@@ -19,9 +19,10 @@ SDK 支持 Go 1.13+ 版本. 运行 `go version`查看你的 Go 版本。
   ```go 
   import "github.com/volcengine/ve-tos-golang-sdk/v2/tos"
   ```
-你也可以使用一些像[mod](https://github.com/marwan-at-work/mod)这样到开源工具来完成这件事。 以下代码展示如何使用 mod 快速升级到v2：
+你也可以使用一些像 [mod](https://github.com/marwan-at-work/mod) 这样的开源工具来完成这件事。 以下代码展示如何使用 mod 快速升级到v2：
   ```shell
   go install github.com/marwan-at-work/mod/cmd/mod@latest
+  cd your/project/dir
   mod upgrade --mod-name=github.com/volcengine/ve-tos-golang-sdk
   ```
 

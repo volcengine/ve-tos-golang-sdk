@@ -151,9 +151,19 @@ func WithUserAgentSuffix(suffix string) ClientOption {
 // }
 
 // WithTransport set Transport
+//
+// Deprecated: this function is Deprecated.
+// If you want to set http.Transport use WithHTTPTransport instead
 func WithTransport(transport Transport) ClientOption {
 	return func(client *Client) {
 		client.transport = transport
+	}
+}
+
+// WithHTTPTransport set Transport of http.Client
+func WithHTTPTransport(transport http.RoundTripper) ClientOption {
+	return func(client *Client) {
+		client.transport = newDefaultTranposrtWithHTTPTransport(transport)
 	}
 }
 
@@ -179,7 +189,9 @@ func WithRegion(region string) ClientOption {
 		// client.config never be nil
 		client.config.Region = region
 		if endpoint, ok := SupportedRegion()[region]; ok {
-			client.config.Endpoint = endpoint
+			if len(client.config.Endpoint) == 0 {
+				client.config.Endpoint = endpoint
+			}
 		}
 	}
 }
@@ -237,26 +249,20 @@ func schemeHost(endpoint string) (scheme string, host string, urlMode urlMode) {
 }
 
 func initClient(client *Client, endpoint string, options ...ClientOption) error {
+	client.config.Endpoint = endpoint
 	for _, option := range options {
 		option(client)
 	}
-	// if Region is set and supported, param "endpoint" will be ignored
-	if len(client.config.Endpoint) == 0 {
-		client.config.Endpoint = endpoint
-	}
 	client.scheme, client.host, client.urlMode = schemeHost(client.config.Endpoint)
-
 	if client.transport == nil {
 		client.transport = NewDefaultTransport(&client.config.TransportConfig)
 	}
-
 	if cred := client.credentials; cred != nil && client.signer == nil {
 		if len(client.config.Region) == 0 {
 			return newTosClientError("tos: missing Region option", nil)
 		}
 		client.signer = NewSignV4(cred, client.config.Region)
 	}
-
 	return nil
 }
 
@@ -284,7 +290,7 @@ func NewClient(endpoint string, options ...ClientOption) (*Client, error) {
 //   endpoint: access endpoint
 //   options: WithCredentials set Credentials
 //     WithRegion set region, this is required if WithCredentials is used.
-//     If Region is set and supported, param "endpoint" will be ignored.
+//     If Region is supported and the Endpoint parameter is not set, the Endpoint will be resolved automatically
 //     WithSocketTimeout set read-write timeout
 //     WithTransportConfig set TransportConfig
 //     WithTransport set self-defined Transport
