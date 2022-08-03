@@ -121,7 +121,9 @@ func TestPutWithAllParams(t *testing.T) {
 	require.Equal(t, string(buffer), value)
 	require.Equal(t, md5Sum, md5s(string(buffer)))
 	for k, v := range meta {
-		require.Equal(t, v, head.Meta.Get(k))
+		val, ok := head.Meta.Get(k)
+		require.Equal(t, ok, true)
+		require.Equal(t, v, val)
 	}
 	require.Equal(t, "中文测试", get.ContentDisposition)
 	require.Equal(t, expires.Format(time.UnixDate), get.Expires.Format(time.UnixDate))
@@ -270,8 +272,10 @@ func TestUrlEncodeChineseInMeta(t *testing.T) {
 		Key:    key,
 	})
 	require.NotNil(t, get)
-	for k := range meta {
-		require.Equal(t, meta[k], get.Meta.Get(k))
+	for k, v := range meta {
+		val, ok := get.Meta.Get(k)
+		require.Equal(t, ok, true)
+		require.Equal(t, v, val)
 	}
 	require.Nil(t, err)
 }
@@ -638,7 +642,9 @@ func TestAppend(t *testing.T) {
 	buffer, err := ioutil.ReadAll(get.Content)
 	require.Equal(t, md5Sum, md5s(string(buffer)))
 	for k, v := range meta {
-		require.Equal(t, v, get.Meta.Get(k))
+		val, ok := get.Meta.Get(k)
+		require.Equal(t, ok, true)
+		require.Equal(t, v, val)
 	}
 }
 
@@ -703,7 +709,9 @@ func TestPutObjectFromFile(t *testing.T) {
 	require.Equal(t, string(buffer), value)
 	require.Equal(t, md5Sum, md5s(string(buffer)))
 	for k, v := range meta {
-		require.Equal(t, v, get.Meta.Get(k))
+		val, ok := get.Meta.Get(k)
+		require.Equal(t, ok, true)
+		require.Equal(t, v, val)
 	}
 	require.Equal(t, expires.Format(time.UnixDate), get.Expires.Format(time.UnixDate))
 	require.Equal(t, storageClass, get.StorageClass)
@@ -766,7 +774,9 @@ func TestGetObjectToFile(t *testing.T) {
 	require.Equal(t, string(buffer), value)
 	require.Equal(t, md5Sum, md5s(string(buffer)))
 	for k, v := range meta {
-		require.Equal(t, v, get.Meta.Get(k))
+		val, ok := get.Meta.Get(k)
+		require.Equal(t, ok, true)
+		require.Equal(t, v, val)
 	}
 	require.Equal(t, expires.Format(time.UnixDate), get.Expires.Format(time.UnixDate))
 	require.Equal(t, storageClass, get.StorageClass)
@@ -837,7 +847,9 @@ func TestPutAndGetFile(t *testing.T) {
 	require.Equal(t, value, string(buffer))
 	require.Equal(t, md5Sum, md5s(string(buffer)))
 	for k, v := range meta {
-		require.Equal(t, v, get.Meta.Get(k))
+		val, ok := get.Meta.Get(k)
+		require.Equal(t, ok, true)
+		require.Equal(t, v, val)
 	}
 	require.Equal(t, expires.Format(time.UnixDate), get.Expires.Format(time.UnixDate))
 	require.Equal(t, storageClass, get.StorageClass)

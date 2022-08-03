@@ -14,6 +14,18 @@ type Grantee struct {
 	URI         string `json:"Canned,omitempty"`
 }
 
+type GranteeV2 struct {
+	ID          string
+	DisplayName string
+	Type        enum.GranteeType
+	Canned      enum.CannedType
+}
+
+type GrantV2 struct {
+	GranteeV2  GranteeV2           `json:"Grantee,omitempty"`
+	Permission enum.PermissionType `json:"Permission,omitempty"`
+}
+
 type Grant struct {
 	Grantee    Grantee             `json:"Grantee,omitempty"`
 	Permission enum.PermissionType `json:"Permission,omitempty"`
@@ -49,9 +61,9 @@ type GetObjectACLInput struct {
 
 type GetObjectACLOutput struct {
 	RequestInfo `json:"-"`
-	VersionID   string  `json:"VersionID,omitempty"`
-	Owner       Owner   `json:"Owner,omitempty"`
-	Grants      []Grant `json:"Grants,omitempty"`
+	VersionID   string    `json:"VersionID,omitempty"`
+	Owner       Owner     `json:"Owner,omitempty"`
+	Grants      []GrantV2 `json:"Grants,omitempty"`
 }
 
 // PutObjectAclInput AclGrant, AclRules can not set both.
@@ -73,7 +85,7 @@ type PutObjectACLInput struct {
 	GrantWrite       string       `location:"header" locationName:"X-Tos-Grant-Write"`        // optional
 	GrantWriteAcp    string       `location:"header" locationName:"X-Tos-Grant-Write-Acp"`    // optional
 	Owner            Owner
-	Grants           []Grant
+	Grants           []GrantV2
 }
 
 type PutObjectAclOutput struct {
@@ -355,6 +367,16 @@ type ListedObject struct {
 	HashCrc64ecma uint64 `json:"HashCrc64Ecma,omitempty"`
 }
 
+type ListedObjectV2 struct {
+	Key           string
+	LastModified  time.Time
+	ETag          string
+	Size          int64
+	Owner         Owner
+	StorageClass  enum.StorageClassType
+	HashCrc64ecma uint64
+}
+
 type ListedCommonPrefix struct {
 	Prefix string `json:"Prefix,omitempty"`
 }
@@ -374,8 +396,19 @@ type ListObjectsOutput struct {
 }
 
 type ListObjectsV2Output struct {
-	ListObjectsOutput
+	RequestInfo    `json:"-"`
+	Name           string               `json:"Name,omitempty"`
+	Prefix         string               `json:"Prefix,omitempty"`
+	Marker         string               `json:"Marker,omitempty"`
+	MaxKeys        int64                `json:"MaxKeys,omitempty"`
+	NextMarker     string               `json:"NextMarker,omitempty"`
+	Delimiter      string               `json:"Delimiter,omitempty"`
+	IsTruncated    bool                 `json:"IsTruncated,omitempty"`
+	EncodingType   string               `json:"EncodingType,omitempty"`
+	CommonPrefixes []ListedCommonPrefix `json:"CommonPrefixes,omitempty"`
+	Contents       []ListedObjectV2     `json:"Contents,omitempty"`
 }
+
 type ListObjectVersionsInput struct {
 	Prefix          string `location:"query" locationName:"prefix"`
 	Delimiter       string `location:"query" locationName:"delimiter"`
@@ -402,6 +435,18 @@ type ListedObjectVersion struct {
 	HashCrc64ecma uint64 `json:"HashCrc64Ecma,omitempty"`
 }
 
+type ListedObjectVersionV2 struct {
+	Key           string
+	LastModified  time.Time
+	ETag          string
+	IsLatest      bool
+	Size          int64
+	Owner         Owner
+	StorageClass  enum.StorageClassType
+	VersionID     string
+	HashCrc64ecma uint64
+}
+
 type ListedDeleteMarkerEntry struct {
 	IsLatest     bool   `json:"IsLatest,omitempty"`
 	Key          string `json:"Key,omitempty"`
@@ -420,19 +465,19 @@ type ListedDeleteMarker struct {
 
 type ListObjectVersionsV2Output struct {
 	RequestInfo         `json:"-"`
-	Name                string                `json:"Name,omitempty"` // bucket name
-	Prefix              string                `json:"Prefix,omitempty"`
-	KeyMarker           string                `json:"KeyMarker,omitempty"`
-	VersionIDMarker     string                `json:"VersionIdMarker,omitempty"`
-	Delimiter           string                `json:"Delimiter,omitempty"`
-	EncodingType        string                `json:"EncodingType,omitempty"`
-	MaxKeys             int64                 `json:"MaxKeys,omitempty"`
-	NextKeyMarker       string                `json:"NextKeyMarker,omitempty"`
-	NextVersionIDMarker string                `json:"NextVersionIdMarker,omitempty"`
-	IsTruncated         bool                  `json:"IsTruncated,omitempty"`
-	CommonPrefixes      []ListedCommonPrefix  `json:"CommonPrefixes,omitempty"`
-	Versions            []ListedObjectVersion `json:"Versions,omitempty"`
-	DeleteMarkers       []ListedDeleteMarker  `json:"DeleteMarkers,omitempty"`
+	Name                string                  `json:"Name,omitempty"` // bucket name
+	Prefix              string                  `json:"Prefix,omitempty"`
+	KeyMarker           string                  `json:"KeyMarker,omitempty"`
+	VersionIDMarker     string                  `json:"VersionIdMarker,omitempty"`
+	Delimiter           string                  `json:"Delimiter,omitempty"`
+	EncodingType        string                  `json:"EncodingType,omitempty"`
+	MaxKeys             int                     `json:"MaxKeys,omitempty"`
+	NextKeyMarker       string                  `json:"NextKeyMarker,omitempty"`
+	NextVersionIDMarker string                  `json:"NextVersionIdMarker,omitempty"`
+	IsTruncated         bool                    `json:"IsTruncated,omitempty"`
+	CommonPrefixes      []ListedCommonPrefix    `json:"CommonPrefixes,omitempty"`
+	Versions            []ListedObjectVersionV2 `json:"Versions,omitempty"`
+	DeleteMarkers       []ListedDeleteMarker    `json:"DeleteMarkers,omitempty"`
 }
 
 type ListObjectVersionsOutput struct {
@@ -489,8 +534,7 @@ type GetObjectV2Input struct {
 
 type GetObjectBasicOutput struct {
 	RequestInfo
-
-	ContentRange string
+	ContentRange string // don't move into ObjectMetaV2
 	ObjectMetaV2
 }
 
@@ -568,6 +612,13 @@ type Deleted struct {
 	DeleteMarkerVersionID string `json:"DeleteMarkerVersionId,omitempty"`
 }
 
+type DeletedV2 struct {
+	Key                   string `json:"Key,omitempty"`
+	VersionID             string `json:"VersionId,omitempty"`
+	DeleteMarker          bool   `json:"DeleteMarker,omitempty"`
+	DeleteMarkerVersionID string `json:"DeleteMarkerVersionId,omitempty"`
+}
+
 type DeleteError struct {
 	Code      string `json:"Code,omitempty"`
 	Message   string `json:"Message,omitempty"`
@@ -577,7 +628,7 @@ type DeleteError struct {
 
 type DeleteMultiObjectsOutput struct {
 	RequestInfo `json:"-"`
-	Deleted     []Deleted     `json:"Deleted,omitempty"` // 删除成功的Object列表
+	Deleted     []DeletedV2   `json:"Deleted,omitempty"` // 删除成功的Object列表
 	Error       []DeleteError `json:"Error,omitempty"`   // 删除失败的Object列表
 }
 
@@ -801,8 +852,10 @@ func (part *UploadedPart) uploadedPart() uploadedPart {
 }
 
 type UploadedPartV2 struct {
-	PartNumber int
-	ETag       string
+	PartNumber   int       `json:"PartNumber,omitempty"`   // Part编号
+	ETag         string    `json:"ETag,omitempty"`         // ETag
+	Size         int64     `json:"LastModified,omitempty"` // 最后一次修改时间
+	LastModified time.Time `json:"Size,omitempty"`         // Part大小
 }
 
 func (part UploadedPartV2) uploadedPart() uploadedPart {
@@ -964,7 +1017,7 @@ type ListPartsOutput struct {
 	NextPartNumberMarker int
 	StorageClass         enum.StorageClassType
 	Owner                Owner
-	Parts                []UploadedPart
+	Parts                []UploadedPartV2
 }
 
 type CancelHook interface {

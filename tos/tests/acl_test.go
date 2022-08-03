@@ -26,8 +26,8 @@ func TestObjectACLV2(t *testing.T) {
 	acl, err := client.PutObjectACL(context.Background(), &tos.PutObjectACLInput{
 		Bucket: bucket,
 		Key:    key,
-		Grants: []tos.Grant{{
-			Grantee: tos.Grantee{
+		Grants: []tos.GrantV2{{
+			GranteeV2: tos.GranteeV2{
 				ID:   ownerID,
 				Type: "CanonicalUser",
 			},
@@ -42,7 +42,7 @@ func TestObjectACLV2(t *testing.T) {
 	})
 	require.Nil(t, err)
 	require.Equal(t, 200, getAcl.StatusCode)
-	require.Equal(t, ownerID, getAcl.Grants[0].Grantee.ID)
+	require.Equal(t, ownerID, getAcl.Grants[0].GranteeV2.ID)
 	require.Equal(t, enum.PermissionRead, getAcl.Grants[0].Permission)
 }
 
@@ -72,5 +72,5 @@ func TestPutWithACLV2(t *testing.T) {
 	})
 	require.Nil(t, err)
 	require.Equal(t, 200, getAcl.StatusCode)
-	require.Equal(t, ownerID, getAcl.Grants[0].Grantee.ID)
+	require.Equal(t, ownerID, getAcl.Grants[0].GranteeV2.ID)
 }
