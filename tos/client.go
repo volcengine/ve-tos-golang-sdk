@@ -213,6 +213,14 @@ func (cli *Client) roundTripper(expectedCode int) roundTripper {
 	}
 }
 
+func (cli *Client) SetTransport(transport Transport) {
+	cli.transport = transport
+}
+
+func (cli *Client) GetEndpoint() string {
+	return cli.config.Endpoint
+}
+
 // PreSignedURL create a pre-signed URL
 //   httpMethod: HTTP method, {
 //     PutObject: http.MethodPut
