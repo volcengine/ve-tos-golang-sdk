@@ -60,6 +60,18 @@ type ClientV2 struct {
 	Client
 }
 
+func (cli *ClientV2) Close() {
+	if t, ok := cli.transport.(*DefaultTransport); ok {
+		if h, ok := t.client.Transport.(*http.Transport); ok {
+			h.CloseIdleConnections()
+		}
+	}
+}
+
+func (cli *ClientV2) SetHTTPTransport(transport http.RoundTripper) {
+	cli.transport = newDefaultTranposrtWithHTTPTransport(transport)
+}
+
 type ClientOption func(*Client)
 
 // WithCredentials set Credentials
