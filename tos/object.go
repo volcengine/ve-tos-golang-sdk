@@ -646,7 +646,7 @@ func (cli *ClientV2) ListObjectsV2(ctx context.Context, input *ListObjectsV2Inpu
 	}
 	defer res.Close()
 	output := ListObjectsV2Output{
-		ListObjectsOutput{RequestInfo: res.RequestInfo()},
+		RequestInfo: res.RequestInfo(),
 	}
 	if err = marshalOutput(output.RequestID, res.Body, &output); err != nil {
 		return nil, err

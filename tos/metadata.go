@@ -35,7 +35,6 @@ type ObjectMeta struct {
 }
 
 type ObjectMetaV2 struct {
-	ContentRange            string
 	ETag                    string
 	LastModified            time.Time
 	DeleteMarker            bool
@@ -99,7 +98,7 @@ func (om *ObjectMetaV2) fromResponseV2(res *Response) {
 	om.ObjectType = res.Header.Get(HeaderObjectType)
 	om.HashCrc64ecma = crc64
 	om.StorageClass = enum.StorageClassType(res.Header.Get(HeaderStorageClass))
-	om.Meta.m = userMetadata(res.Header)
+	om.Meta = &CustomMeta{m: userMetadata(res.Header)}
 	om.ContentLength = length
 	om.ContentType = res.Header.Get(HeaderContentType)
 	om.CacheControl = res.Header.Get(HeaderCacheControl)

@@ -15,20 +15,35 @@ import (
 	"github.com/volcengine/ve-tos-golang-sdk/v2/tos/enum"
 )
 
-type Metadata struct {
+type Metadata interface {
+	AllKeys() []string
+	Get(key string) (string, bool)
+	Range(f func(key, value string) bool)
+}
+
+type CustomMeta struct {
 	m map[string]string
 }
 
-func (md Metadata) AllKeys() []string {
-	keys := make([]string, 0, len(md.m))
-	for k := range md.m {
+func (c *CustomMeta) AllKeys() []string {
+	keys := make([]string, 0, len(c.m))
+	for k := range c.m {
 		keys = append(keys, k)
 	}
 	return keys
 }
 
-func (md Metadata) Get(key string) (val string) {
-	return md.m[strings.ToLower(key)]
+func (c *CustomMeta) Get(key string) (val string, ok bool) {
+	val, ok = c.m[strings.ToLower(key)]
+	return
+}
+
+func (c *CustomMeta) Range(f func(key, val string) bool) {
+	for k, v := range c.m {
+		if !f(k, v) {
+			break
+		}
+	}
 }
 
 type multipartUpload struct {
@@ -62,7 +77,7 @@ type deleteMultiObjectsInput struct {
 // only for Marshal
 type accessControlList struct {
 	Owner  Owner
-	Grants []Grant
+	Grants []GrantV2
 }
 
 type canceler struct {

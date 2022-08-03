@@ -24,6 +24,7 @@ You can also do this automatically with some open source tools like [mod](https:
 Following code shows how to migrate to v2 automatically with it.
   ```shell
   go install github.com/marwan-at-work/mod/cmd/mod@latest
+  cd your/project/dir
   mod upgrade --mod-name=github.com/volcengine/ve-tos-golang-sdk
   ```
 ## Use TOS Go SDK
