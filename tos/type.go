@@ -182,15 +182,7 @@ type ListedBucket struct {
 	IntranetEndpoint string `json:"IntranetEndpoint,omitempty"`
 }
 
-type ListBucketsV2Output struct {
-	RequestInfo `json:"-"`
-	Buckets     []ListedBucket `json:"Buckets,omitempty"`
-	Owner       Owner          `json:"Owner,omitempty"`
-}
-
 type ListBucketsInput struct{}
-
-type ListBucketsV2Input ListBucketsInput
 
 type PutObjectBasicInput struct {
 	Bucket             string
@@ -358,13 +350,13 @@ type ListObjectsInput struct {
 }
 
 type ListedObject struct {
-	Key           string `json:"Key,omitempty"`
-	LastModified  string `json:"LastModified,omitempty"`
-	ETag          string `json:"ETag,omitempty"`
-	Size          int64  `json:"Size,omitempty"`
-	Owner         Owner  `json:"Owner,omitempty"`
-	StorageClass  string `json:"StorageClass,omitempty"`
-	HashCrc64ecma uint64 `json:"HashCrc64Ecma,omitempty"`
+	Key          string `json:"Key,omitempty"`
+	LastModified string `json:"LastModified,omitempty"`
+	ETag         string `json:"ETag,omitempty"`
+	Size         int64  `json:"Size,omitempty"`
+	Owner        Owner  `json:"Owner,omitempty"`
+	StorageClass string `json:"StorageClass,omitempty"`
+	Type         string `json:"Type,omitempty"`
 }
 
 type ListedObjectV2 struct {
@@ -448,15 +440,27 @@ type ListObjectVersionsV2Input struct {
 }
 
 type ListedObjectVersion struct {
-	ETag          string `json:"ETag,omitempty"`
-	IsLatest      bool   `json:"IsLatest,omitempty"`
-	Key           string `json:"Key,omitempty"`
-	LastModified  string `json:"LastModified,omitempty"`
-	Owner         Owner  `json:"Owner,omitempty"`
-	Size          int64  `json:"Size,omitempty"`
-	StorageClass  string `json:"StorageClass,omitempty"`
-	VersionID     string `json:"VersionId,omitempty"`
-	HashCrc64ecma uint64 `json:"HashCrc64Ecma,omitempty"`
+	ETag         string `json:"ETag,omitempty"`
+	IsLatest     bool   `json:"IsLatest,omitempty"`
+	Key          string `json:"Key,omitempty"`
+	LastModified string `json:"LastModified,omitempty"`
+	Owner        Owner  `json:"Owner,omitempty"`
+	Size         int64  `json:"Size,omitempty"`
+	StorageClass string `json:"StorageClass,omitempty"`
+	Type         string `json:"Type,omitempty"`
+	VersionID    string `json:"VersionId,omitempty"`
+}
+
+type listedObjectVersionV2 struct {
+	Key           string
+	LastModified  time.Time
+	ETag          string
+	IsLatest      bool
+	Size          int64
+	Owner         Owner
+	StorageClass  enum.StorageClassType
+	VersionID     string
+	HashCrc64ecma string
 }
 
 type ListedObjectVersionV2 struct {
@@ -485,6 +489,23 @@ type ListedDeleteMarker struct {
 	IsLatest     bool
 	Owner        Owner
 	VersionID    string
+}
+
+type listObjectVersionsV2Output struct {
+	RequestInfo         `json:"-"`
+	Name                string                  `json:"Name,omitempty"` // bucket name
+	Prefix              string                  `json:"Prefix,omitempty"`
+	KeyMarker           string                  `json:"KeyMarker,omitempty"`
+	VersionIDMarker     string                  `json:"VersionIdMarker,omitempty"`
+	Delimiter           string                  `json:"Delimiter,omitempty"`
+	EncodingType        string                  `json:"EncodingType,omitempty"`
+	MaxKeys             int                     `json:"MaxKeys,omitempty"`
+	NextKeyMarker       string                  `json:"NextKeyMarker,omitempty"`
+	NextVersionIDMarker string                  `json:"NextVersionIdMarker,omitempty"`
+	IsTruncated         bool                    `json:"IsTruncated,omitempty"`
+	CommonPrefixes      []ListedCommonPrefix    `json:"CommonPrefixes,omitempty"`
+	Versions            []listedObjectVersionV2 `json:"Versions,omitempty"`
+	DeleteMarkers       []ListedDeleteMarker    `json:"DeleteMarkers,omitempty"`
 }
 
 type ListObjectVersionsV2Output struct {

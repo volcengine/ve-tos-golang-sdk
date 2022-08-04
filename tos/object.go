@@ -734,9 +734,53 @@ func (cli *ClientV2) ListObjectVersionsV2(
 	}
 	defer res.Close()
 
-	output := ListObjectVersionsV2Output{RequestInfo: res.RequestInfo()}
-	if err = marshalOutput(output.RequestID, res.Body, &output); err != nil {
+	temp := listObjectVersionsV2Output{RequestInfo: res.RequestInfo()}
+
+	if err = marshalOutput(temp.RequestID, res.Body, &temp); err != nil {
 		return nil, err
 	}
+	versions := make([]ListedObjectVersionV2, 0, len(temp.Versions))
+	for _, version := range temp.Versions {
+		var hashCrc uint64
+		if len(version.HashCrc64ecma) == 0 {
+			hashCrc = 0
+		} else {
+			hashCrc, err = strconv.ParseUint(version.HashCrc64ecma, 10, 64)
+			if err != nil {
+				return nil, &TosServerError{
+					TosError:    TosError{Message: "tos: server returned invalid HashCrc64Ecma"},
+					RequestInfo: RequestInfo{RequestID: temp.RequestID},
+				}
+			}
+		}
+		versions = append(versions, ListedObjectVersionV2{
+			Key:           version.Key,
+			LastModified:  version.LastModified,
+			ETag:          version.ETag,
+			IsLatest:      version.IsLatest,
+			Size:          version.Size,
+			Owner:         version.Owner,
+			StorageClass:  version.StorageClass,
+			VersionID:     version.VersionID,
+			HashCrc64ecma: hashCrc,
+		})
+	}
+	output := ListObjectVersionsV2Output{
+		RequestInfo:         temp.RequestInfo,
+		Name:                temp.Name,
+		Prefix:              temp.Prefix,
+		KeyMarker:           temp.KeyMarker,
+		VersionIDMarker:     temp.VersionIDMarker,
+		Delimiter:           temp.Delimiter,
+		EncodingType:        temp.EncodingType,
+		MaxKeys:             temp.MaxKeys,
+		NextKeyMarker:       temp.NextKeyMarker,
+		NextVersionIDMarker: temp.NextVersionIDMarker,
+		IsTruncated:         temp.IsTruncated,
+		CommonPrefixes:      temp.CommonPrefixes,
+		DeleteMarkers:       temp.DeleteMarkers,
+		Versions:            versions,
+	}
+
 	return &output, nil
 }
