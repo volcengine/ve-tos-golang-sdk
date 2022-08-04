@@ -401,7 +401,9 @@ func (cli *ClientV2) PutObjectV2(ctx context.Context, input *PutObjectV2Input) (
 	if contentLength <= 0 {
 		contentLength = tryResolveLength(content)
 	}
-	content = wrapReader(content, contentLength, input.DataTransferListener, input.RateLimiter, checker)
+	if content != nil {
+		content = wrapReader(content, contentLength, input.DataTransferListener, input.RateLimiter, checker)
+	}
 	var (
 		onRetry    func(req *Request) = nil
 		classifier classifier
@@ -528,7 +530,9 @@ func (cli *ClientV2) AppendObjectV2(ctx context.Context, input *AppendObjectV2In
 	if cli.enableCRC {
 		checker = NewCRC(DefaultCrcTable(), input.PreHashCrc64ecma)
 	}
-	content = wrapReader(content, contentLength, input.DataTransferListener, input.RateLimiter, checker)
+	if content != nil {
+		content = wrapReader(content, contentLength, input.DataTransferListener, input.RateLimiter, checker)
+	}
 	res, err := cli.newBuilder(input.Bucket, input.Key).
 		WithQuery("append", "").
 		WithParams(*input).
@@ -645,11 +649,48 @@ func (cli *ClientV2) ListObjectsV2(ctx context.Context, input *ListObjectsV2Inpu
 		return nil, err
 	}
 	defer res.Close()
-	output := ListObjectsV2Output{
+	temp := listObjectsV2Output{
 		RequestInfo: res.RequestInfo(),
 	}
-	if err = marshalOutput(output.RequestID, res.Body, &output); err != nil {
+	if err = marshalOutput(temp.RequestID, res.Body, &temp); err != nil {
 		return nil, err
+	}
+	contents := make([]ListedObjectV2, 0, len(temp.Contents))
+	for _, object := range temp.Contents {
+		var hashCrc uint64
+		if len(object.HashCrc64ecma) == 0 {
+			hashCrc = 0
+		} else {
+			hashCrc, err = strconv.ParseUint(object.HashCrc64ecma, 10, 64)
+			if err != nil {
+				return nil, &TosServerError{
+					TosError:    TosError{Message: "tos: server returned invalid HashCrc64Ecma"},
+					RequestInfo: RequestInfo{RequestID: temp.RequestID},
+				}
+			}
+		}
+		contents = append(contents, ListedObjectV2{
+			Key:           object.Key,
+			LastModified:  object.LastModified,
+			ETag:          object.ETag,
+			Size:          object.Size,
+			Owner:         object.Owner,
+			StorageClass:  object.StorageClass,
+			HashCrc64ecma: uint64(hashCrc),
+		})
+	}
+	output := ListObjectsV2Output{
+		RequestInfo:    temp.RequestInfo,
+		Name:           temp.Name,
+		Prefix:         temp.Prefix,
+		Marker:         temp.Marker,
+		MaxKeys:        temp.MaxKeys,
+		NextMarker:     temp.NextMarker,
+		Delimiter:      temp.Delimiter,
+		IsTruncated:    temp.IsTruncated,
+		EncodingType:   temp.EncodingType,
+		CommonPrefixes: temp.CommonPrefixes,
+		Contents:       contents,
 	}
 	return &output, nil
 }

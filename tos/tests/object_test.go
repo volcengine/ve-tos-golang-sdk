@@ -135,7 +135,6 @@ func TestPutEmptyObject(t *testing.T) {
 		env    = newTestEnv(t)
 		bucket = generateBucketName("put-empty-object")
 		key    = "key123"
-		value  = ""
 		client = env.prepareClient(bucket)
 	)
 	defer func() {
@@ -143,7 +142,7 @@ func TestPutEmptyObject(t *testing.T) {
 	}()
 	put, err := client.PutObjectV2(context.Background(), &tos.PutObjectV2Input{
 		PutObjectBasicInput: tos.PutObjectBasicInput{Bucket: bucket, Key: key},
-		Content:             strings.NewReader(value),
+		Content:             nil,
 	})
 	checkSuccess(t, put, err, 200)
 	get, err := client.GetObjectV2(context.Background(), &tos.GetObjectV2Input{
@@ -155,6 +154,43 @@ func TestPutEmptyObject(t *testing.T) {
 	require.Nil(t, err)
 	require.Equal(t, len(buffer), 0)
 	require.Nil(t, err)
+}
+
+func TestListObjects(t *testing.T) {
+	var (
+		env    = newTestEnv(t)
+		bucket = generateBucketName("list-objects")
+		key1   = "key1"
+		key2   = "key2"
+		key3   = "key3"
+		client = env.prepareClient(bucket)
+	)
+	defer func() {
+		cleanBucket(t, client, bucket)
+	}()
+	put, err := client.PutObjectV2(context.Background(), &tos.PutObjectV2Input{
+		PutObjectBasicInput: tos.PutObjectBasicInput{Bucket: bucket, Key: key1},
+		Content:             strings.NewReader(randomString(4096)),
+	})
+	checkSuccess(t, put, err, 200)
+	put, err = client.PutObjectV2(context.Background(), &tos.PutObjectV2Input{
+		PutObjectBasicInput: tos.PutObjectBasicInput{Bucket: bucket, Key: key2},
+		Content:             strings.NewReader(randomString(4096)),
+	})
+	checkSuccess(t, put, err, 200)
+	put, err = client.PutObjectV2(context.Background(), &tos.PutObjectV2Input{
+		PutObjectBasicInput: tos.PutObjectBasicInput{Bucket: bucket, Key: key3},
+		Content:             strings.NewReader(randomString(4096)),
+	})
+	objects, err := client.ListObjectsV2(context.Background(), &tos.ListObjectsV2Input{
+		Bucket: bucket,
+	})
+	checkSuccess(t, objects, err, 200)
+	require.Equal(t, 3, len(objects.Contents))
+	//handle, err := client.Bucket(bucket)
+	//require.Nil(t, err)
+	//objects1, err := handle.ListObjects(context.Background(), &tos.ListObjectsInput{})
+	//require.Equal(t, 3, len(objects1.Contents))
 }
 
 func TestCopyObject(t *testing.T) {
