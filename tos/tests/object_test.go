@@ -187,10 +187,39 @@ func TestListObjects(t *testing.T) {
 	})
 	checkSuccess(t, objects, err, 200)
 	require.Equal(t, 3, len(objects.Contents))
-	//handle, err := client.Bucket(bucket)
-	//require.Nil(t, err)
-	//objects1, err := handle.ListObjects(context.Background(), &tos.ListObjectsInput{})
-	//require.Equal(t, 3, len(objects1.Contents))
+}
+
+func TestListObjectVersions(t *testing.T) {
+	var (
+		env    = newTestEnv(t)
+		bucket = generateBucketName("list-objects")
+		key1   = "key1"
+		key2   = "key2"
+		key3   = "key3"
+		client = env.prepareClient(bucket)
+	)
+	defer func() {
+		cleanBucket(t, client, bucket)
+	}()
+	put, err := client.PutObjectV2(context.Background(), &tos.PutObjectV2Input{
+		PutObjectBasicInput: tos.PutObjectBasicInput{Bucket: bucket, Key: key1},
+		Content:             strings.NewReader(randomString(4096)),
+	})
+	checkSuccess(t, put, err, 200)
+	put, err = client.PutObjectV2(context.Background(), &tos.PutObjectV2Input{
+		PutObjectBasicInput: tos.PutObjectBasicInput{Bucket: bucket, Key: key2},
+		Content:             strings.NewReader(randomString(4096)),
+	})
+	checkSuccess(t, put, err, 200)
+	put, err = client.PutObjectV2(context.Background(), &tos.PutObjectV2Input{
+		PutObjectBasicInput: tos.PutObjectBasicInput{Bucket: bucket, Key: key3},
+		Content:             strings.NewReader(randomString(4096)),
+	})
+	objects, err := client.ListObjectVersionsV2(context.Background(), &tos.ListObjectVersionsV2Input{
+		Bucket: bucket,
+	})
+	checkSuccess(t, objects, err, 200)
+	require.Equal(t, 3, len(objects.Versions))
 }
 
 func TestCopyObject(t *testing.T) {

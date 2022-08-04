@@ -139,8 +139,8 @@ func (cli *Client) ListBuckets(ctx context.Context, _ *ListBucketsInput) (*ListB
 	return &output, nil
 }
 
-// ListBucketsV2 list the buckets that the AK can access
-func (cli *ClientV2) ListBucketsV2(ctx context.Context, _ *ListBucketsV2Input) (*ListBucketsV2Output, error) {
+// ListBuckets list the buckets that the AK can access
+func (cli *ClientV2) ListBuckets(ctx context.Context, _ *ListBucketsInput) (*ListBucketsOutput, error) {
 	res, err := cli.newBuilder("", "").
 		Request(ctx, http.MethodGet, nil, cli.roundTripper(http.StatusOK))
 	if err != nil {
@@ -148,7 +148,7 @@ func (cli *ClientV2) ListBucketsV2(ctx context.Context, _ *ListBucketsV2Input) (
 	}
 	defer res.Close()
 
-	output := ListBucketsV2Output{RequestInfo: res.RequestInfo()}
+	output := ListBucketsOutput{RequestInfo: res.RequestInfo()}
 	if err = marshalOutput(output.RequestID, res.Body, &output); err != nil {
 		return nil, err
 	}

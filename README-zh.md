@@ -6,7 +6,7 @@
 SDK 支持 Go 1.13+ 版本. 运行 `go version`查看你的 Go 版本。
 * 使用`go get`安装 Go SDK
   ```shell
-    go get -u https://github.com/volcengine/ve-tos-golang-sdk/v2
+    go get -u github.com/volcengine/ve-tos-golang-sdk/v2
   ```
 
 ## 从 v0.x/1.x 升级到 v2
