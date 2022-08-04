@@ -209,7 +209,15 @@ func cleanBucket(t *testing.T, client *tos.ClientV2, bucket string) {
 			ListObjectVersionsInput: tos.ListObjectVersionsInput{},
 		})
 		require.Nil(t, err)
-		willSleep := len(listMultiVersion.Versions) > 1
+		exist := map[string]struct{}{}
+		willSleep := false
+		for _, version := range listMultiVersion.Versions {
+			if _, ok := exist[version.Key]; ok {
+				willSleep = true
+				break
+			}
+			exist[version.Key] = struct{}{}
+		}
 		deleteMultiInput := tos.DeleteMultiObjectsInput{
 			Bucket:  bucket,
 			Objects: make([]tos.ObjectTobeDeleted, 0),

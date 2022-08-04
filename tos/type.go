@@ -377,6 +377,16 @@ type ListedObjectV2 struct {
 	HashCrc64ecma uint64
 }
 
+type listedObjectV2 struct {
+	Key           string
+	LastModified  time.Time
+	ETag          string
+	Size          int64
+	Owner         Owner
+	StorageClass  enum.StorageClassType
+	HashCrc64ecma string
+}
+
 type ListedCommonPrefix struct {
 	Prefix string `json:"Prefix,omitempty"`
 }
@@ -407,6 +417,20 @@ type ListObjectsV2Output struct {
 	EncodingType   string               `json:"EncodingType,omitempty"`
 	CommonPrefixes []ListedCommonPrefix `json:"CommonPrefixes,omitempty"`
 	Contents       []ListedObjectV2     `json:"Contents,omitempty"`
+}
+
+type listObjectsV2Output struct {
+	RequestInfo    `json:"-"`
+	Name           string               `json:"Name,omitempty"`
+	Prefix         string               `json:"Prefix,omitempty"`
+	Marker         string               `json:"Marker,omitempty"`
+	MaxKeys        int64                `json:"MaxKeys,omitempty"`
+	NextMarker     string               `json:"NextMarker,omitempty"`
+	Delimiter      string               `json:"Delimiter,omitempty"`
+	IsTruncated    bool                 `json:"IsTruncated,omitempty"`
+	EncodingType   string               `json:"EncodingType,omitempty"`
+	CommonPrefixes []ListedCommonPrefix `json:"CommonPrefixes,omitempty"`
+	Contents       []listedObjectV2     `json:"Contents,omitempty"`
 }
 
 type ListObjectVersionsInput struct {
