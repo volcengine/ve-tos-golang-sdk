@@ -505,7 +505,7 @@ func (bkt *Bucket) AppendObject(ctx context.Context, objectKey string, content i
 	nextOffset := res.Header.Get(HeaderNextAppendOffset)
 	appendOffset, err := strconv.ParseInt(nextOffset, 10, 64)
 	if err != nil {
-		return nil, fmt.Errorf("tos: server return unexptected Next-Append-Offset header %q", nextOffset)
+		return nil, fmt.Errorf("tos: server return unexpected Next-Append-Offset header %q", nextOffset)
 	}
 	return &AppendObjectOutput{
 		RequestInfo:      res.RequestInfo(),
@@ -548,7 +548,7 @@ func (cli *ClientV2) AppendObjectV2(ctx context.Context, input *AppendObjectV2In
 	appendOffset, err := strconv.ParseInt(nextOffset, 10, 64)
 	if err != nil {
 		return nil, &TosServerError{
-			TosError:    TosError{fmt.Sprintf("tos: server return unexptected Next-Append-Offset header %q", nextOffset)},
+			TosError:    TosError{fmt.Sprintf("tos: server return unexpected Next-Append-Offset header %q", nextOffset)},
 			RequestInfo: res.RequestInfo(),
 		}
 	}

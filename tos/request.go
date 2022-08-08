@@ -171,9 +171,7 @@ func (rb *requestBuilder) WithParams(input interface{}) *requestBuilder {
 		case "headers":
 			if headers, ok := v.Field(i).Interface().(map[string]string); ok {
 				for k, v := range headers {
-					if len(v) > 0 {
-						rb.Header.Set(HeaderMetaPrefix+urlEncodeChinese(k), urlEncodeChinese(v))
-					}
+					rb.Header.Set(HeaderMetaPrefix+urlEncodeChinese(k), urlEncodeChinese(v))
 				}
 				return rb
 			}
