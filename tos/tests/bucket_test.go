@@ -12,6 +12,20 @@ import (
 	"github.com/volcengine/ve-tos-golang-sdk/v2/tos/enum"
 )
 
+func TestHeadNonExistentBucket(t *testing.T) {
+	var (
+		env    = newTestEnv(t)
+		bucket = "non-existent-bucket"
+		client = env.prepareClient("")
+	)
+	head, err := client.HeadBucket(context.Background(), &tos.HeadBucketInput{Bucket: bucket})
+	require.NotNil(t, err)
+	require.Nil(t, head)
+	terr, ok := err.(*tos.TosServerError)
+	require.True(t, ok)
+	require.True(t, strings.Contains(terr.Message, "unexpected"))
+}
+
 func TestOnlyBucketNameV2(t *testing.T) {
 	var (
 		env    = newTestEnv(t)
@@ -86,7 +100,7 @@ func TestListBucketV2(t *testing.T) {
 		client = env.prepareClient("", tos.WithSocketTimeout(360*time.Second, 360*time.Second), tos.WithRequestTimeout(360*time.Second))
 	)
 
-	listed, err := client.ListBucketsV2(context.Background(), &tos.ListBucketsV2Input{})
+	listed, err := client.ListBuckets(context.Background(), &tos.ListBucketsInput{})
 	checkSuccess(t, listed, err, 200)
 	for _, bkt := range listed.Buckets {
 		if strings.HasPrefix(bkt.Name, testPrefix) {
@@ -103,7 +117,7 @@ func TestListBucketV2(t *testing.T) {
 	defer func() {
 		cleanBucket(t, client, bucket)
 	}()
-	listed, err = client.ListBucketsV2(context.Background(), &tos.ListBucketsV2Input{})
+	listed, err = client.ListBuckets(context.Background(), &tos.ListBucketsInput{})
 	var testBucket []tos.ListedBucket
 	for _, bkt := range listed.Buckets {
 		if strings.HasPrefix(bkt.Name, testPrefix) {

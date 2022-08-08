@@ -20,7 +20,28 @@ import (
 	"github.com/volcengine/ve-tos-golang-sdk/v2/tos/enum"
 )
 
-func TestGetNotExistObject(t *testing.T) {
+func TestHeadNoneExistentObject(t *testing.T) {
+	var (
+		env    = newTestEnv(t)
+		bucket = generateBucketName("put-basic")
+		client = env.prepareClient(bucket)
+		key    = "none-exist-key"
+	)
+	defer func() {
+		cleanBucket(t, client, bucket)
+	}()
+	head, err := client.HeadObjectV2(context.Background(), &tos.HeadObjectV2Input{
+		Bucket: bucket,
+		Key:    key,
+	})
+	require.NotNil(t, err)
+	require.Nil(t, head)
+	terr, ok := err.(*tos.TosServerError)
+	require.True(t, ok)
+	require.True(t, strings.Contains(terr.Message, "unexpected"))
+}
+
+func TestGetNoneExistentObject(t *testing.T) {
 	var (
 		env    = newTestEnv(t)
 		bucket = generateBucketName("put-basic")

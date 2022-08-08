@@ -147,7 +147,7 @@ func (us *UnexpectedStatusCodeError) GoString() string {
 }
 
 func (us *UnexpectedStatusCodeError) Error() string {
-	return fmt.Sprintf("tos: unexptected status code error: StatusCode=%d, ExpectedCodes=%v, RequestID=%s",
+	return fmt.Sprintf("tos: unexpected status code error: StatusCode=%d, ExpectedCodes=%v, RequestID=%s",
 		us.StatusCode, us.ExpectedCodes, us.RequestID)
 }
 
@@ -171,7 +171,7 @@ func (se *SerializeError) Error() string {
 	return fmt.Sprintf("tos: serialize error: RequestID=%s, Message=%q", se.RequestID, se.Message)
 }
 
-func checkError(res *Response, okCode int, okCodes ...int) error {
+func checkError(res *Response, readBody bool, okCode int, okCodes ...int) error {
 	if res.StatusCode == okCode {
 		return nil
 	}
@@ -181,7 +181,7 @@ func checkError(res *Response, okCode int, okCodes ...int) error {
 		}
 	}
 	defer res.Close()
-	if res.StatusCode >= http.StatusBadRequest && res.Body != nil {
+	if readBody && res.StatusCode >= http.StatusBadRequest && res.Body != nil {
 		return newTosServerError(res)
 		// fall through
 	}

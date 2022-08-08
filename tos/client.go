@@ -354,7 +354,8 @@ func (cli *Client) roundTrip(ctx context.Context, req *Request, expectedCode int
 	if err != nil {
 		return nil, err
 	}
-	if err = checkError(res, expectedCode, expectedCodes...); err != nil {
+	readBody := req.Method != http.MethodHead
+	if err = checkError(res, readBody, expectedCode, expectedCodes...); err != nil {
 		return nil, err
 	}
 	return res, nil
