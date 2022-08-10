@@ -899,8 +899,8 @@ func (part *UploadedPart) uploadedPart() uploadedPart {
 type UploadedPartV2 struct {
 	PartNumber   int       `json:"PartNumber,omitempty"`   // Part编号
 	ETag         string    `json:"ETag,omitempty"`         // ETag
-	Size         int64     `json:"LastModified,omitempty"` // 最后一次修改时间
-	LastModified time.Time `json:"Size,omitempty"`         // Part大小
+	LastModified time.Time `json:"LastModified,omitempty"` // 最后一次修改时间
+	Size         int64     `json:"Size,omitempty"`         // Part大小
 }
 
 func (part UploadedPartV2) uploadedPart() uploadedPart {
