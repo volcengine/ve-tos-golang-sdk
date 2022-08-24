@@ -8,6 +8,8 @@ import (
 	"net/http"
 )
 
+var InputIsNilClientError = newTosClientError("input is nil. ", nil)
+
 type TosError struct {
 	Message string
 }

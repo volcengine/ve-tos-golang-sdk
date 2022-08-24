@@ -70,7 +70,9 @@ const (
 	// MetadataDirectiveCopy copy source object metadata when calling CopyObject
 	MetadataDirectiveCopy = "COPY"
 )
-
+const (
+	QueryPartNumber = "partNumber"
+)
 const (
 	HeaderUserAgent                   = "User-Agent"
 	HeaderContentLength               = "Content-Length"

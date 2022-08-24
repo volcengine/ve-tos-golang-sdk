@@ -151,7 +151,7 @@ func (cli *ClientV2) HeadObjectV2(ctx context.Context, input *HeadObjectV2Input)
 
 func expectedCode(rb *requestBuilder) int {
 	okCode := http.StatusOK
-	if rb.Range != nil {
+	if rb.Range != nil || rb.Query.Get(QueryPartNumber) != "" {
 		okCode = http.StatusPartialContent
 	}
 	return okCode

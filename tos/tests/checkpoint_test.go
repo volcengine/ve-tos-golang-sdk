@@ -62,7 +62,7 @@ func TestUploadFile(t *testing.T) {
 		PartSize:         5 * 1024 * 1024,
 		TaskNum:          4,
 		EnableCheckpoint: false,
-		//DataTransferListener: &dataTransferListenerTest{},
+		// DataTransferListener: &dataTransferListenerTest{},
 	})
 	checkSuccess(t, upload, err, 200)
 	get, err := client.GetObjectV2(context.Background(), &tos.GetObjectV2Input{
@@ -70,6 +70,13 @@ func TestUploadFile(t *testing.T) {
 		Key:    key,
 	})
 	checkSuccess(t, get, err, 200)
+
+	get, err = client.GetObjectV2(context.Background(), &tos.GetObjectV2Input{
+		Bucket:     bucket,
+		Key:        key,
+		PartNumber: 1,
+	})
+	checkSuccess(t, get, err, 206)
 }
 
 func TestUploadFileWithCheckpoint(t *testing.T) {
