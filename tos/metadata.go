@@ -114,7 +114,11 @@ func userMetadata(header http.Header) map[string]string {
 	for key := range header {
 		if strings.HasPrefix(key, HeaderMetaPrefix) {
 			kk, _ := url.QueryUnescape(key[len(HeaderMetaPrefix):])
-			meta[strings.ToLower(kk)], _ = url.QueryUnescape(header.Get(key))
+			var err error
+			meta[strings.ToLower(kk)], err = url.QueryUnescape(header.Get(key))
+			if err != nil {
+				meta[strings.ToLower(kk)] = header.Get(key)
+			}
 		}
 	}
 	return meta

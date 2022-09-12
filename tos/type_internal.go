@@ -3,7 +3,9 @@ package tos
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"hash"
+	"hash/crc64"
 	"io"
 	"io/ioutil"
 	"os"
@@ -14,6 +16,8 @@ import (
 
 	"github.com/volcengine/ve-tos-golang-sdk/v2/tos/enum"
 )
+
+const DefaultProgressCallbackSize = 512 * 1024
 
 type Metadata interface {
 	AllKeys() []string
@@ -149,6 +153,16 @@ type downloadCheckpoint struct {
 	PartsInfo     []downloadPartInfo `json:"PartsInfo,omitempty"`
 }
 
+func (c *downloadCheckpoint) UpdatePartsInfo(result interface{}) {
+	part := result.(downloadPartInfo)
+	c.PartsInfo[part.PartNumber-1] = part
+
+}
+
+func (c *downloadCheckpoint) GetCheckPointFilePath() string {
+	return c.checkpointPath
+}
+
 func (c *downloadCheckpoint) WriteToFile() error {
 	buffer, err := json.Marshal(c)
 	if err != nil {
@@ -177,10 +191,6 @@ func (c *downloadCheckpoint) Valid(input *DownloadFileInput, head *HeadObjectV2O
 		return false
 	}
 	return true
-}
-
-func (c *downloadCheckpoint) UpdatePartsInfo(part downloadPartInfo) {
-	c.PartsInfo[part.PartNumber-1] = part
 }
 
 type fileInfo struct {
@@ -213,6 +223,16 @@ type uploadCheckpoint struct {
 	PartsInfo      []uploadPartInfo `json:"PartsInfo,omitempty"`
 }
 
+func (u *uploadCheckpoint) UpdatePartsInfo(result interface{}) {
+	part := result.(uploadPartInfo)
+	u.PartsInfo[part.PartNumber-1] = part
+
+}
+
+func (u *uploadCheckpoint) GetCheckPointFilePath() string {
+	return u.FilePath
+}
+
 func (u *uploadCheckpoint) Valid(uploadFileStat os.FileInfo, bucketName, key, uploadFile string) bool {
 	if u.UploadID == "" || u.Bucket != bucketName || u.Key != key || u.FilePath != uploadFile {
 		return false
@@ -234,10 +254,6 @@ func (u *uploadCheckpoint) GetParts() []UploadedPartV2 {
 	return parts
 }
 
-func (u *uploadCheckpoint) UpdatePartsInfo(part uploadPartInfo) {
-	u.PartsInfo[part.PartNumber-1] = part
-}
-
 func (u *uploadCheckpoint) WriteToFile() error {
 	result, err := json.Marshal(u)
 	if err != nil {
@@ -250,102 +266,141 @@ func (u *uploadCheckpoint) WriteToFile() error {
 	return nil
 }
 
-/*
-   taskManager basic usage
-   manager:=newTaskManager(n)
-   // call taskManager.run before adding tasks
-   manager.run()
-   manger.addTask(tasks)
-   // call taskManager.finishAdd once you finish adding tasks
-   manager.finishAdd()
-*/
-
-type task interface {
-	do() (interface{}, error)
-	getBaseInput() interface{}
+type downloadEvent struct {
+	input *DownloadFileInput
 }
 
-//type downloadTask struct {
-//	cli        *ClientV2
-//	ctx        context.Context
-//	input      *DownloadFileInput
-//	consumed   *int64
-//	total      int64
-//	mutex      *sync.Mutex
-//	PartNumber int
-//	RangeStart int64
-//	RangeEnd   int64
-//}
-//
-//// Do the downloadTask, and return downloadPartInfo
-//func (t *downloadTask) do() (result interface{}, err error) {
-//	input := t.getBaseInput().(GetObjectV2Input)
-//	output, err := t.cli.GetObjectV2(t.ctx, &input)
-//	if err != nil {
-//		return nil, err
-//	}
-//	file, err := os.OpenFile(t.input.tempFile, os.O_RDWR, 0)
-//	if err != nil {
-//		return nil, err
-//	}
-//	defer func(file *os.File) {
-//		_ = file.Close()
-//	}(file)
-//	var wrapped = output.Content
-//	if t.input.DataTransferListener != nil {
-//		wrapped = &parallelReadCloserWithListener{
-//			listener: t.input.DataTransferListener,
-//			base:     wrapped,
-//			consumed: t.consumed,
-//			total:    t.total,
-//			m:        t.mutex,
-//		}
-//	}
-//	if t.input.RateLimiter != nil {
-//		wrapped = &ReadCloserWithLimiter{
-//			limiter: t.input.RateLimiter,
-//			base:    wrapped,
-//		}
-//	}
-//	_, err = file.Seek(t.RangeStart, io.SeekStart)
-//	if err != nil {
-//		return nil, err
-//	}
-//	written, err := io.Copy(file, wrapped)
-//	if err != nil {
-//		return nil, err
-//	}
-//	if written != (t.RangeEnd - t.RangeStart + 1) {
-//		return nil, err
-//	}
-//	return downloadPartInfo{
-//		PartNumber:    t.PartNumber,
-//		RangeStart:    t.RangeStart,
-//		RangeEnd:      t.RangeEnd,
-//		HashCrc64ecma: output.HashCrc64ecma,
-//		IsCompleted:   true,
-//	}, nil
-//}
-//
-//func (t *downloadTask) getBaseInput() interface{} {
-//	return GetObjectV2Input{
-//		Bucket:            t.input.Bucket,
-//		Key:               t.input.Key,
-//		VersionID:         t.input.VersionID,
-//		IfMatch:           t.input.IfMatch,
-//		IfModifiedSince:   t.input.IfModifiedSince,
-//		IfNoneMatch:       t.input.IfNoneMatch,
-//		IfUnmodifiedSince: t.input.IfUnmodifiedSince,
-//		SSECAlgorithm:     t.input.SSECAlgorithm,
-//		SSECKey:           t.input.SSECKey,
-//		SSECKeyMD5:        t.input.SSECKeyMD5,
-//		RangeStart:        t.RangeStart,
-//		RangeEnd:          t.RangeEnd,
-//		// we want to Sent parallel Listener on output, so explicitly set listener of GetObjectV2Input nil here.
-//		DataTransferListener: nil,
-//		RateLimiter:          nil,
-//	}
-//}
+func (d downloadEvent) PostEvent(eventType int, result interface{}, taskErr error) {
+	switch eventType {
+	case EventPartSucceed:
+		part, ok := result.(downloadPartInfo)
+		if !ok {
+			return
+		}
+		d.postDownloadEvent(d.newDownloadPartSucceedEvent(part))
+	case EventPartFailed:
+		d.postDownloadEvent(d.newFailedEvent(taskErr, enum.DownloadEventDownloadPartFailed))
+	case EventPartAborted:
+		d.postDownloadEvent(d.newFailedEvent(taskErr, enum.DownloadEventDownloadPartAborted))
+	default:
+	}
+}
+
+type downloadTask struct {
+	cli         *ClientV2
+	ctx         context.Context
+	input       *DownloadFileInput
+	consumed    *int64
+	subtotal    *int64
+	total       int64
+	partNumber  int
+	rangeStart  int64
+	rangeEnd    int64
+	enableCRC64 bool
+}
+
+// Do the downloadTask, and return downloadPartInfo
+func (t *downloadTask) do() (result interface{}, err error) {
+	input := t.getBaseInput().(GetObjectV2Input)
+	output, err := t.cli.GetObjectV2(t.ctx, &input)
+	if err != nil {
+		return nil, err
+	}
+	file, err := os.OpenFile(t.input.tempFile, os.O_RDWR, DefaultFilePerm)
+	if err != nil {
+		return nil, err
+	}
+	defer func(file *os.File) {
+		_ = file.Close()
+	}(file)
+	var wrapped = output.Content
+	if t.input.DataTransferListener != nil {
+		wrapped = &parallelReadCloserWithListener{
+			listener: t.input.DataTransferListener,
+			base:     wrapped,
+			consumed: t.consumed,
+			total:    t.total,
+			subtotal: t.subtotal,
+		}
+	}
+	if t.input.RateLimiter != nil {
+		wrapped = &ReadCloserWithLimiter{
+			limiter: t.input.RateLimiter,
+			base:    wrapped,
+		}
+	}
+	var checker hash.Hash64
+	if t.enableCRC64 {
+		checker = crc64.New(crc64.MakeTable(crc64.ECMA))
+		wrapped = &readCloserWithCRC{
+			checker: checker,
+			base:    wrapped,
+		}
+	}
+
+	_, err = file.Seek(t.rangeStart, io.SeekStart)
+	if err != nil {
+		return nil, err
+	}
+	written, err := io.Copy(file, wrapped)
+	if err != nil {
+		return nil, err
+	}
+	if written != (t.rangeEnd - t.rangeStart + 1) {
+		return nil, fmt.Errorf("io copy want length %d but get %d. ", t.rangeEnd-t.rangeStart+1, written)
+	}
+	part := downloadPartInfo{
+		PartNumber:  t.partNumber,
+		RangeStart:  t.rangeStart,
+		RangeEnd:    t.rangeEnd,
+		IsCompleted: true,
+	}
+	if t.enableCRC64 {
+		part.HashCrc64ecma = checker.Sum64()
+	}
+	return part, nil
+}
+
+func (t *downloadTask) getBaseInput() interface{} {
+	return GetObjectV2Input{
+		Bucket:            t.input.Bucket,
+		Key:               t.input.Key,
+		VersionID:         t.input.VersionID,
+		IfMatch:           t.input.IfMatch,
+		IfModifiedSince:   t.input.IfModifiedSince,
+		IfNoneMatch:       t.input.IfNoneMatch,
+		IfUnmodifiedSince: t.input.IfUnmodifiedSince,
+		SSECAlgorithm:     t.input.SSECAlgorithm,
+		SSECKey:           t.input.SSECKey,
+		SSECKeyMD5:        t.input.SSECKeyMD5,
+		RangeStart:        t.rangeStart,
+		RangeEnd:          t.rangeEnd,
+		// we want to Sent parallel Listener on output, so explicitly set listener of GetObjectV2Input nil here.
+		DataTransferListener: nil,
+		RateLimiter:          nil,
+	}
+}
+
+type uploadPostEvent struct {
+	input      *UploadFileInput
+	checkPoint *uploadCheckpoint
+}
+
+func (u *uploadPostEvent) PostEvent(eventType int, result interface{}, taskErr error) {
+	switch eventType {
+	case EventPartSucceed:
+		partInfo, ok := result.(uploadPartInfo)
+		if !ok {
+			return
+		}
+		u.postUploadEvent(u.newUploadPartSucceedEvent(u.input, partInfo))
+	case EventPartFailed:
+		u.postUploadEvent(u.newUploadPartFailedEvent(u.input, u.checkPoint.UploadID, taskErr))
+	case EventPartAborted:
+		u.postUploadEvent(u.newUploadPartAbortedEvent(u.input, u.checkPoint.UploadID, taskErr))
+
+	}
+}
 
 type uploadTask struct {
 	cli        *ClientV2
@@ -546,7 +601,6 @@ type parallelReadCloserWithListener struct {
 	consumed *int64
 	subtotal *int64
 	total    int64
-	m        *sync.Mutex
 }
 
 func (r *parallelReadCloserWithListener) Read(p []byte) (n int, err error) {
@@ -560,25 +614,31 @@ func (r *parallelReadCloserWithListener) Read(p []byte) (n int, err error) {
 	if n <= 0 {
 		return
 	}
-	consumed := atomic.AddInt64(r.consumed, int64(n))
 	subtotal := atomic.AddInt64(r.subtotal, int64(n))
-	if subtotal >= 4*1024*1024 {
+	consumed := atomic.AddInt64(r.consumed, int64(n))
+
+	if subtotal >= DefaultProgressCallbackSize && atomic.CompareAndSwapInt64(r.subtotal, subtotal, 0) {
 		postDataTransferStatus(r.listener, &DataTransferStatus{
 			Type:          enum.DataTransferRW,
 			RWOnceBytes:   subtotal,
 			ConsumedBytes: consumed,
 			TotalBytes:    r.total,
 		})
-		atomic.StoreInt64(r.subtotal, 0)
 	}
+
 	if consumed == r.total {
-		if subtotal < 4*1024*1024 {
-			postDataTransferStatus(r.listener, &DataTransferStatus{
-				Type:          enum.DataTransferRW,
-				RWOnceBytes:   subtotal,
-				ConsumedBytes: consumed,
-				TotalBytes:    r.total,
-			})
+		for subtotal != 0 {
+			if atomic.CompareAndSwapInt64(r.subtotal, subtotal, 0) {
+				postDataTransferStatus(r.listener, &DataTransferStatus{
+					Type:          enum.DataTransferRW,
+					RWOnceBytes:   subtotal,
+					ConsumedBytes: consumed,
+					TotalBytes:    r.total,
+				})
+				break
+			} else {
+				subtotal = atomic.LoadInt64(r.subtotal)
+			}
 		}
 		postDataTransferStatus(r.listener, &DataTransferStatus{
 			Type:          enum.DataTransferSucceed,
@@ -598,6 +658,7 @@ type readCloserWithListener struct {
 	listener DataTransferListener
 	base     io.ReadCloser
 	consumed int64
+	subtotal int64
 	total    int64
 }
 
@@ -618,13 +679,27 @@ func (r *readCloserWithListener) Read(p []byte) (n int, err error) {
 		return
 	}
 	r.consumed += int64(n)
-	postDataTransferStatus(r.listener, &DataTransferStatus{
-		Type:          enum.DataTransferRW,
-		RWOnceBytes:   int64(n),
-		ConsumedBytes: r.consumed,
-		TotalBytes:    r.total,
-	})
+	r.subtotal += int64(n)
+	if r.subtotal >= DefaultProgressCallbackSize {
+		postDataTransferStatus(r.listener, &DataTransferStatus{
+			Type:          enum.DataTransferRW,
+			RWOnceBytes:   r.subtotal,
+			ConsumedBytes: r.consumed,
+			TotalBytes:    r.total,
+		})
+		r.subtotal = 0
+	}
+
 	if r.consumed == r.total {
+		if r.subtotal != 0 {
+			postDataTransferStatus(r.listener, &DataTransferStatus{
+				Type:          enum.DataTransferRW,
+				RWOnceBytes:   r.subtotal,
+				ConsumedBytes: r.consumed,
+				TotalBytes:    r.total,
+			})
+			r.subtotal = 0
+		}
 		postDataTransferStatus(r.listener, &DataTransferStatus{
 			Type:          enum.DataTransferSucceed,
 			ConsumedBytes: r.consumed,

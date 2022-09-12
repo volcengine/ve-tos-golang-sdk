@@ -268,7 +268,6 @@ func (rb *requestBuilder) Request(ctx context.Context, method string,
 		}
 		return res, err
 	}
-
 	res, err = roundTripper(ctx, req)
 
 	return res, err

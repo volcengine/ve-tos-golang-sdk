@@ -1,11 +1,13 @@
 package tests
 
 import (
+	"bytes"
 	"context"
 	"crypto/aes"
 	"encoding/base64"
 	"encoding/hex"
 	"io/ioutil"
+	"net/http"
 	"os"
 	"sort"
 	"strconv"
@@ -963,6 +965,7 @@ func TestMultiVersion(t *testing.T) {
 	var putted = make([]*tos.PutObjectV2Output, 0)
 	map1 := make(map[string]string)
 	map2 := make(map[string]string)
+	time.Sleep(time.Minute)
 	// put multi version objects
 	for i := 0; i < 3; i++ {
 		put, err := client.PutObjectV2(context.Background(), &tos.PutObjectV2Input{
@@ -1003,4 +1006,127 @@ func TestMultiVersion(t *testing.T) {
 		require.Nil(t, err)
 		require.Equal(t, md5s(string(content)), md5Sums[i])
 	}
+}
+
+func TestPutWithMeta(t *testing.T) {
+	var (
+		env    = newTestEnv(t)
+		bucket = generateBucketName("put-with-meta")
+		key    = "key123"
+		client = env.prepareClient(bucket)
+		value  = randomString(4 * 1024)
+	)
+	defer func() {
+		cleanBucket(t, client, bucket)
+	}()
+	metaValue := "abc=*%()%2f^!@#$%^&*_+"
+
+	_, err := client.PutObjectV2(context.Background(), &tos.PutObjectV2Input{
+		PutObjectBasicInput: tos.PutObjectBasicInput{Bucket: bucket, Key: key, Meta: map[string]string{"key": metaValue}, ContentDisposition: "attachment; filename=\"中文.txt\""},
+		Content:             bytes.NewBufferString(value),
+	})
+
+	require.Nil(t, err)
+	output, err := client.HeadObjectV2(context.Background(), &tos.HeadObjectV2Input{Bucket: bucket, Key: key})
+	require.Nil(t, err)
+	metaResValue, ok := output.Meta.Get("key")
+	require.True(t, ok)
+	require.Equal(t, metaResValue, metaValue)
+}
+
+func TestGetWithModify(t *testing.T) {
+	var (
+		env    = newTestEnv(t)
+		bucket = generateBucketName("get-with-modify")
+		key    = "key123"
+		client = env.prepareClient(bucket)
+		value  = randomString(4 * 1024)
+	)
+	defer func() {
+		cleanBucket(t, client, bucket)
+	}()
+	_, err := client.PutObjectV2(context.Background(), &tos.PutObjectV2Input{
+		PutObjectBasicInput: tos.PutObjectBasicInput{Bucket: bucket, Key: key},
+		Content:             bytes.NewBufferString(value),
+	})
+	require.Nil(t, err)
+	_, err = client.GetObjectV2(context.Background(), &tos.GetObjectV2Input{
+		Bucket:          bucket,
+		Key:             key,
+		IfModifiedSince: time.Now(),
+	})
+	require.NotNil(t, err)
+	tosErr := err.(*tos.TosServerError)
+	require.Equal(t, tosErr.StatusCode, http.StatusNotModified)
+}
+func checkDataListener(t *testing.T, listener *dataTransferListenerTest) {
+	require.Equal(t, listener.TotalBytes, listener.CurBytes)
+	require.Equal(t, listener.TotalBytes, listener.AlreadyConsumer)
+	require.Equal(t, listener.StartedTime, int64(1))
+	require.Equal(t, listener.SuccessTime, int64(1))
+	require.True(t, listener.TotalBytes != 0)
+}
+
+func TestWithDataListener(t *testing.T) {
+	var (
+		env    = newTestEnv(t)
+		bucket = generateBucketName("data-with-listener")
+		key    = "key123"
+		client = env.prepareClient(bucket)
+		value  = randomString(4 * 1024)
+		ctx    = context.Background()
+	)
+	defer func() {
+		cleanBucket(t, client, bucket)
+	}()
+	listener := &dataTransferListenerTest{}
+	_, err := client.PutObjectV2(ctx, &tos.PutObjectV2Input{
+		PutObjectBasicInput: tos.PutObjectBasicInput{Bucket: bucket, Key: key, DataTransferListener: listener},
+		Content:             bytes.NewBufferString(value),
+	})
+	require.Nil(t, err)
+	checkDataListener(t, listener)
+
+	listener = &dataTransferListenerTest{}
+	getRes, err := client.GetObjectV2(ctx, &tos.GetObjectV2Input{
+		Bucket:               bucket,
+		Key:                  key,
+		DataTransferListener: listener,
+	})
+	require.Nil(t, err)
+	_, _ = ioutil.ReadAll(getRes.Content)
+	checkDataListener(t, listener)
+
+	uploadRes, err := client.CreateMultipartUploadV2(ctx, &tos.CreateMultipartUploadV2Input{
+		Bucket: bucket,
+		Key:    "upload" + key,
+	})
+	require.Nil(t, err)
+	listener = &dataTransferListenerTest{}
+	defer func() {
+		client.AbortMultipartUpload(ctx, &tos.AbortMultipartUploadInput{
+			Bucket:   bucket,
+			Key:      uploadRes.Key,
+			UploadID: uploadRes.UploadID,
+		})
+	}()
+	_, err = client.UploadPartV2(ctx, &tos.UploadPartV2Input{
+		UploadPartBasicInput: tos.UploadPartBasicInput{
+			Bucket:               bucket,
+			UploadID:             uploadRes.UploadID,
+			PartNumber:           1,
+			Key:                  key,
+			DataTransferListener: listener,
+		}, Content: bytes.NewBufferString(value),
+	})
+	checkDataListener(t, listener)
+	listener = &dataTransferListenerTest{}
+
+	_, _ = client.AppendObjectV2(ctx, &tos.AppendObjectV2Input{
+		Bucket:               bucket,
+		Key:                  key,
+		Content:              bytes.NewBufferString(value),
+		DataTransferListener: listener,
+	})
+	checkDataListener(t, listener)
 }

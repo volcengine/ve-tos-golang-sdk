@@ -2,10 +2,12 @@ package tests
 
 import (
 	"context"
-	"github.com/stretchr/testify/require"
-	"github.com/volcengine/ve-tos-golang-sdk/v2/tos"
 	"os"
 	"testing"
+
+	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/require"
+	"github.com/volcengine/ve-tos-golang-sdk/v2/tos"
 )
 
 type testEnv struct {
@@ -27,10 +29,13 @@ func newTestEnv(t *testing.T) *testEnv {
 }
 
 func (e testEnv) prepareClient(bucketName string, extraOptions ...tos.ClientOption) *tos.ClientV2 {
+	log := logrus.New()
+	log.Level = logrus.DebugLevel
 	options := []tos.ClientOption{
 		tos.WithRegion(e.region),
 		tos.WithCredentials(tos.NewStaticCredentials(e.accessKey, e.secretKey)),
 		tos.WithEnableVerifySSL(false),
+		tos.WithLogger(log),
 	}
 	options = append(options, extraOptions...)
 	client, err := tos.NewClientV2(e.endpoint, options...)

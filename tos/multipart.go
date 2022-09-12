@@ -133,6 +133,11 @@ func (cli *ClientV2) UploadPartV2(ctx context.Context, input *UploadPartV2Input)
 		content       = input.Content
 		contentLength = input.ContentLength
 	)
+
+	if input == nil || input.PartNumber == 0 || input.UploadID == "" {
+		return nil, InputInvalidClientError
+	}
+
 	if contentLength == 0 {
 		contentLength = tryResolveLength(content)
 	}
@@ -143,7 +148,9 @@ func (cli *ClientV2) UploadPartV2(ctx context.Context, input *UploadPartV2Input)
 		onRetry    func(req *Request) = nil
 		classifier classifier
 	)
-	content = wrapReader(content, contentLength, input.DataTransferListener, input.RateLimiter, checker)
+	if content != nil {
+		content = wrapReader(content, contentLength, input.DataTransferListener, input.RateLimiter, checker)
+	}
 	classifier = StatusCodeClassifier{}
 	if seeker, ok := content.(io.Seeker); ok {
 		start, err := seeker.Seek(0, io.SeekCurrent)

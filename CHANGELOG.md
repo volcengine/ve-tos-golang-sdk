@@ -1,16 +1,24 @@
 # ChangeLog of TOS SDK for Go
 
-## 版本号：v2.1.2 日期：2022-8-2
-### 变更内容
-- 新增：Client.SetHTTPTransport 设置 http.Client.Transport
-- 修复：读取 Meta 不使用 map
+## 版本号 v2.2.0 日期: 2022-9-9
+- 新增: 断点续传 DownloadFile 接口
+- 新增：支持自定义 Log
+- 新增：支持 Cors 规则接口
+- 新增：关闭重定向机制
+- 新增：引入请求重试
+- 新增：支持设置请求重试数量
+- 新增：上传/下载支持进度条
 
-## 版本号：v2.1.1 日期：2022-7-28
-### 变更内容
-- 新增：初始化选项 WithHTTPTransport 设置 http.Client.Transport
-- 修复：读取 Meta 不使用 map
 
-## 版本号：v2.1.0 日期：2022-7-11
+## 版本号 v2.1.7 日期：2022-8-9
+- 修复：修复了 上传类接口无法传值 nil 的 io.Reader 的问题
+- 修复：修复了 ListParts 无法正确读取 Parts 字段的问题
+
+## 版本号：v2.1.6 日期：2022-8-6
+- 修复：修正了 head 类请求遇到错误时的错误信息
+- 修改：允许设置 value 为空的自定义 HTTP Header 
+
+## 版本号：v2.1.5 日期：2022-8-2
 ### 变更内容
 - 弃用：不再使用 Bucket Handle 调用API，改为使用新增的ClientV2客户端调用API
 - 弃用：不再使用 WithXXX 设置调用 API 时的参数，改为填写 XXXInput 相应字段
@@ -23,3 +31,5 @@
 - 新增：从文件上传分片对象 UploadPartFromFile 接口
 - 新增：下载对象到文件 GetObjectToFile 接口
 - 新增：断点续传 UploadFile 接口
+- 新增：初始化选项 WithHTTPTransport 设置 http.Client.Transport
+- 修复：读取 Meta 不使用 map

@@ -2,10 +2,11 @@ package tos
 
 import (
 	"context"
-	"github.com/volcengine/ve-tos-golang-sdk/v2/tos/enum"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/volcengine/ve-tos-golang-sdk/v2/tos/enum"
 )
 
 // initUploadPartsInfo initialize parts info from file stat,return TosClientError if failed
@@ -34,7 +35,7 @@ func initUploadPartsInfo(uploadFileStat os.FileInfo, partSize int64) ([]uploadPa
 }
 
 // initUploadCheckpoint initialize checkpoint file, return TosClientError if failed
-func initUploadCheckpoint(input *UploadFileInput, created *CreateMultipartUploadV2Output) (*uploadCheckpoint, error) {
+func initUploadCheckpoint(input *UploadFileInput) (*uploadCheckpoint, error) {
 	stat, err := os.Stat(input.FilePath)
 	if err != nil {
 		return nil, newTosClientError(err.Error(), err)
@@ -45,7 +46,6 @@ func initUploadCheckpoint(input *UploadFileInput, created *CreateMultipartUpload
 	}
 	checkPoint := &uploadCheckpoint{
 		checkpointPath: input.CheckpointFile,
-		UploadID:       created.UploadID,
 		PartsInfo:      parts,
 		Bucket:         input.Bucket,
 		Key:            input.Key,
@@ -99,9 +99,9 @@ func validateUploadInput(input *UploadFileInput) error {
 	return nil
 }
 
-func postUploadEvent(listener UploadEventListener, event *UploadEvent) {
-	if listener != nil {
-		listener.EventChange(event)
+func (u *uploadPostEvent) postUploadEvent(event *UploadEvent) {
+	if u.input.UploadEventListener != nil {
+		u.input.UploadEventListener.EventChange(event)
 	}
 }
 
@@ -113,6 +113,7 @@ func getUploadCheckpoint(enabled bool, checkpointPath string,
 		_, err = os.Stat(checkpointPath)
 		// if err is not empty, assume checkpoint not exists
 		if err == nil {
+			checkpoint = &uploadCheckpoint{}
 			loadCheckPoint(checkpointPath, checkpoint)
 			if checkpoint != nil {
 				return
@@ -155,41 +156,52 @@ func bindCancelHookWithCleaner(hook CancelHook, cleaner func()) {
 func (cli *ClientV2) UploadFile(ctx context.Context, input *UploadFileInput) (output *UploadFileOutput, err error) {
 	// avoid modifying on origin pointer
 	input = &(*input)
+
 	if err = validateUploadInput(input); err != nil {
 		return nil, err
 	}
-	// create multipart upload task
-	created, err := cli.CreateMultipartUploadV2(ctx, &input.CreateMultipartUploadV2Input)
-	if err != nil {
-		postUploadEvent(input.UploadEventListener, &UploadEvent{
-			Type:           enum.UploadEventCreateMultipartUploadFailed,
-			Err:            err,
-			Bucket:         input.Bucket,
-			Key:            input.Key,
-			CheckpointFile: &input.CheckpointFile,
-		})
-		return nil, err
-	}
-	postUploadEvent(input.UploadEventListener, &UploadEvent{
-		Type:           enum.UploadEventCreateMultipartUploadSucceed,
-		Bucket:         input.Bucket,
-		Key:            input.Key,
-		UploadID:       &created.UploadID,
-		CheckpointFile: &input.CheckpointFile,
-	})
+
 	init := func() (*uploadCheckpoint, error) {
-		return initUploadCheckpoint(input, created)
+		return initUploadCheckpoint(input)
 	}
 	// if the checkpoint file not exist, here we will create it
 	checkpoint, err := getUploadCheckpoint(input.EnableCheckpoint, input.CheckpointFile, init)
 	if err != nil {
 		return nil, err
 	}
+	event := &uploadPostEvent{
+		input:      input,
+		checkPoint: checkpoint,
+	}
+	if checkpoint.UploadID == "" {
+		// create multipart upload task
+		created, err := cli.CreateMultipartUploadV2(ctx, &input.CreateMultipartUploadV2Input)
+		if err != nil {
+			event.postUploadEvent(&UploadEvent{
+				Type:           enum.UploadEventCreateMultipartUploadFailed,
+				Err:            err,
+				Bucket:         input.Bucket,
+				Key:            input.Key,
+				CheckpointFile: &input.CheckpointFile,
+			})
+			return nil, err
+		}
+		event.postUploadEvent(&UploadEvent{
+			Type:           enum.UploadEventCreateMultipartUploadSucceed,
+			Bucket:         input.Bucket,
+			Key:            input.Key,
+			UploadID:       &created.UploadID,
+			CheckpointFile: &input.CheckpointFile,
+		})
+		checkpoint.UploadID = created.UploadID
+	}
+
 	cleaner := func() {
 		_ = os.Remove(input.CheckpointFile)
 	}
+	event.checkPoint = checkpoint
 	bindCancelHookWithCleaner(input.CancelHook, cleaner)
-	return cli.uploadPart(ctx, checkpoint, input)
+	return cli.uploadPart(ctx, checkpoint, input, event)
 }
 
 func prepareUploadTasks(cli *ClientV2, ctx context.Context, checkpoint *uploadCheckpoint, input *UploadFileInput) []task {
@@ -215,7 +227,7 @@ func prepareUploadTasks(cli *ClientV2, ctx context.Context, checkpoint *uploadCh
 	return tasks
 }
 
-func newUploadPartSucceedEvent(input *UploadFileInput, part uploadPartInfo) *UploadEvent {
+func (u *uploadPostEvent) newUploadPartSucceedEvent(input *UploadFileInput, part uploadPartInfo) *UploadEvent {
 	return &UploadEvent{
 		Type:           enum.UploadEventUploadPartSucceed,
 		Bucket:         input.Bucket,
@@ -232,7 +244,7 @@ func newUploadPartSucceedEvent(input *UploadFileInput, part uploadPartInfo) *Upl
 	}
 }
 
-func newUploadPartAbortedEvent(input *UploadFileInput, uploadID string, err error) *UploadEvent {
+func (u *uploadPostEvent) newUploadPartAbortedEvent(input *UploadFileInput, uploadID string, err error) *UploadEvent {
 	return &UploadEvent{
 		Type:           enum.UploadEventUploadPartAborted,
 		Err:            err,
@@ -243,7 +255,7 @@ func newUploadPartAbortedEvent(input *UploadFileInput, uploadID string, err erro
 	}
 }
 
-func newUploadPartFailedEvent(input *UploadFileInput, uploadID string, err error) *UploadEvent {
+func (u *uploadPostEvent) newUploadPartFailedEvent(input *UploadFileInput, uploadID string, err error) *UploadEvent {
 	return &UploadEvent{
 		Type:           enum.UploadEventUploadPartFailed,
 		Err:            err,
@@ -254,7 +266,7 @@ func newUploadPartFailedEvent(input *UploadFileInput, uploadID string, err error
 	}
 }
 
-func newCompleteMultipartUploadFailedEvent(input *UploadFileInput, uploadID string, err error) *UploadEvent {
+func (u *uploadPostEvent) newCompleteMultipartUploadFailedEvent(input *UploadFileInput, uploadID string, err error) *UploadEvent {
 	return &UploadEvent{
 		Type:           enum.UploadEventCompleteMultipartUploadFailed,
 		Err:            err,
@@ -275,39 +287,10 @@ func newCompleteMultipartUploadSucceedEvent(input *UploadFileInput, uploadID str
 	}
 }
 
-// checkFileCrc64 check if crc64 checksum of file is expected. Return TosClientError if open file failed, or return
-// TosServerError if check sum mismatch
-//func checkFileCrc64(filepath string, want uint64) error {
-//	fd, err := os.Open(filepath)
-//	if err != nil {
-//		return newTosClientError(err.Error(), err)
-//	}
-//	defer fd.Close()
-//	crc := crc64.New(DefaultCrcTable())
-//	_, err = io.Copy(crc, fd)
-//	if err != nil {
-//		return err
-//	}
-//	if crc.Sum64() != want {
-//		// data returned by server is invalid, or we encounter a bug in sdk
-//		return &TosServerError{
-//			TosError: TosError{"tos: crc of entire file mismatch."},
-//		}
-//	}
-//	return nil
-//}
-
 func postDataTransferStatus(listener DataTransferListener, status *DataTransferStatus) {
 	if listener != nil {
 		listener.DataTransferStatusChange(status)
 	}
-}
-
-func min(a int, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }
 
 func getCancelHandle(hook CancelHook) chan struct{} {
@@ -315,6 +298,17 @@ func getCancelHandle(hook CancelHook) chan struct{} {
 		return c.cancelHandle
 	}
 	return make(chan struct{})
+}
+
+func combineCRCInDownload(parts []downloadPartInfo) uint64 {
+	if len(parts) == 0 {
+		return 0
+	}
+	crc := parts[0].HashCrc64ecma
+	for i := 1; i < len(parts); i++ {
+		crc = CRC64Combine(crc, parts[i].HashCrc64ecma, uint64(parts[i].RangeEnd-parts[i].RangeStart+1))
+	}
+	return crc
 }
 
 // combineCRCInParts calculates the total CRC of continuous parts
@@ -329,55 +323,14 @@ func combineCRCInParts(parts []uploadPartInfo) uint64 {
 	return crc
 }
 
-func (cli *ClientV2) uploadPart(ctx context.Context, checkpoint *uploadCheckpoint, input *UploadFileInput) (*UploadFileOutput, error) {
+func (cli *ClientV2) uploadPart(ctx context.Context, checkpoint *uploadCheckpoint, input *UploadFileInput, event *uploadPostEvent) (*UploadFileOutput, error) {
 	// prepare tasks
 	// if amount of tasks >= 10000, err "tos: part count too many" will be raised.
 	tasks := prepareUploadTasks(cli, ctx, checkpoint, input)
 	routinesNum := min(input.TaskNum, len(tasks))
-	taskBufferSize := min(routinesNum, DefaultTaskBufferSize)
-	tasksCh := make(chan task, taskBufferSize)
-	resultsCh := make(chan uploadPartInfo)
-	errCh := make(chan error)
 	cancelHandle := getCancelHandle(input.CancelHook)
-	abortHandle := make(chan struct{})
-	worker := func() {
-		for {
-			select {
-			case <-cancelHandle:
-				return
-			case <-abortHandle:
-				return
-			case t, ok := <-tasksCh:
-				if !ok {
-					return
-				}
-				result, err := t.do()
-				if err != nil {
-					errCh <- err
-				}
-				if part, ok := result.(uploadPartInfo); ok {
-					resultsCh <- part
-				}
-			}
-		}
-	}
-	scheduler := func() {
-		func() {
-			for _, t := range tasks {
-				select {
-				case <-cancelHandle:
-					return
-				case <-abortHandle:
-					return
-				default:
-					tasksCh <- t
-				}
-			}
-		}()
-		close(tasksCh)
-	}
-
-	aborter := func() error {
+	tg := newTaskGroup(cancelHandle, routinesNum, checkpoint, event, input.EnableCheckpoint, tasks)
+	abort := func() error {
 		_, err := cli.AbortMultipartUpload(ctx,
 			&AbortMultipartUploadInput{
 				Bucket:   input.Bucket,
@@ -385,50 +338,22 @@ func (cli *ClientV2) uploadPart(ctx context.Context, checkpoint *uploadCheckpoin
 				UploadID: checkpoint.UploadID})
 		return err
 	}
-	bindCancelHookWithAborter(input.CancelHook, aborter)
+	bindCancelHookWithAborter(input.CancelHook, abort)
 
-	// start running workers
-	for i := 0; i < routinesNum; i++ {
-		go worker()
-	}
+	tg.RunWorker()
 	// start adding tasks
 	postDataTransferStatus(input.DataTransferListener, &DataTransferStatus{
 		TotalBytes: checkpoint.FileInfo.Size,
 		Type:       enum.DataTransferStarted,
 	})
-	go scheduler()
-	success := 0
-	fails := 0
-	// processing tasks
-Loop:
-	for success+fails < len(tasks) {
-		select {
-		case <-abortHandle:
-			break Loop
-		case <-cancelHandle:
-			break Loop
-		case part := <-resultsCh:
-			success++
-			checkpoint.UpdatePartsInfo(part)
-			if input.EnableCheckpoint {
-				checkpoint.WriteToFile()
-			}
-			postUploadEvent(input.UploadEventListener, newUploadPartSucceedEvent(input, part))
-		case taskErr := <-errCh:
-			if StatusCode(taskErr) == 403 || StatusCode(taskErr) == 404 || StatusCode(taskErr) == 405 {
-				close(abortHandle)
-				_ = os.Remove(input.CheckpointFile)
-				if err := aborter(); err != nil {
-					// TODO: log abort err
-					return nil, taskErr
-				}
-				postUploadEvent(input.UploadEventListener, newUploadPartAbortedEvent(input, checkpoint.UploadID, taskErr))
-				break Loop
-			} else {
-				postUploadEvent(input.UploadEventListener, newUploadPartFailedEvent(input, checkpoint.UploadID, taskErr))
-				fails++
-			}
+
+	tg.Scheduler()
+	success, taskErr := tg.Wait()
+	if taskErr != nil {
+		if err := abort(); err != nil {
+			return nil, err
 		}
+		return nil, taskErr
 	}
 	// handle results
 	if success < len(tasks) {
@@ -441,15 +366,13 @@ Loop:
 		Parts:    checkpoint.GetParts(),
 	})
 	if err != nil {
-		postUploadEvent(input.UploadEventListener, newCompleteMultipartUploadFailedEvent(input, checkpoint.UploadID, err))
+		event.postUploadEvent(event.newCompleteMultipartUploadFailedEvent(input, checkpoint.UploadID, err))
 		return nil, err
 	}
-	postUploadEvent(input.UploadEventListener, newCompleteMultipartUploadSucceedEvent(input, checkpoint.UploadID))
+	event.postUploadEvent(newCompleteMultipartUploadSucceedEvent(input, checkpoint.UploadID))
 
-	if combineCRCInParts(checkpoint.PartsInfo) != complete.HashCrc64ecma {
-		return nil, &TosServerError{
-			TosError: TosError{"tos: crc of entire file mismatch."},
-		}
+	if cli.enableCRC && complete.HashCrc64ecma != 0 && combineCRCInParts(checkpoint.PartsInfo) != complete.HashCrc64ecma {
+		return nil, newTosClientError("tos: crc of entire file mismatch.", nil)
 
 	}
 	_ = os.Remove(input.CheckpointFile)

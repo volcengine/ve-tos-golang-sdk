@@ -26,7 +26,7 @@ func cleanBucketV1(t *testing.T, client *tos.Client, bucket string) {
 		// delete all objects
 		handle, err := client.Bucket(bucket)
 		require.Nil(t, err)
-		list, err := handle.ListObjects(context.Background(), &tos.ListObjectsInput{})
+		list, err := handle.ListObjects(context.Background(), &tos.ListObjectsInput{MaxKeys: 1000})
 		require.Nil(t, err)
 		for _, object := range list.Contents {
 			del, err := handle.DeleteObject(context.Background(), object.Key)
