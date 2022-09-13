@@ -93,10 +93,14 @@ func TestPreSignedURL(t *testing.T) {
 	require.Nil(t, err)
 	json.Unmarshal(jsonBytes, &output)
 	// upload 3 parts
-	type Parts struct {
-		Parts []tos.UploadedPartV2
+	type Part struct {
+		PartNumber int
+		ETag       string
 	}
-	var parts Parts
+	type Parts struct {
+		Parts []Part
+	}
+	parts := make([]Part, 0, 3)
 	for i := 1; i <= 3; i++ {
 		url, err = cli.PreSignedURL(&tos.PreSignedURLInput{
 			HTTPMethod: http.MethodPut,
@@ -109,20 +113,20 @@ func TestPreSignedURL(t *testing.T) {
 		res, err = client.Do(req)
 		require.Nil(t, err)
 		require.Equal(t, 200, res.StatusCode)
-		parts.Parts = append(parts.Parts, tos.UploadedPartV2{
+		parts = append(parts, Part{
 			PartNumber: i,
 			ETag:       res.Header.Get("ETag"),
 		})
 	}
-	// complete multipart upload
 	url, err = cli.PreSignedURL(&tos.PreSignedURLInput{
 		HTTPMethod: http.MethodPost,
 		Bucket:     bucket,
 		Key:        "multipart",
 		Query:      map[string]string{"uploadId": output.UploadID},
 	})
+	//cli.CompleteMultipartUploadV2()
 	require.Nil(t, err)
-	partsBytes, err := json.Marshal(parts)
+	partsBytes, err := json.Marshal(Parts{Parts: parts})
 	require.Nil(t, err)
 	req, _ = http.NewRequest(http.MethodPost, url.SignedUrl, bytes.NewReader(partsBytes))
 	res, err = client.Do(req)

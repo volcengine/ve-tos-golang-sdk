@@ -5,7 +5,10 @@ import (
 	"crypto/tls"
 	"net"
 	"net/http"
+	"net/http/httptrace"
 	"time"
+
+	"github.com/sirupsen/logrus"
 )
 
 type TransportConfig struct {
@@ -50,17 +53,20 @@ type Transport interface {
 
 type DefaultTransport struct {
 	client http.Client
+	logger logrus.FieldLogger
+}
+
+func (d *DefaultTransport) WithDefaultTransportLogger(logger logrus.FieldLogger) {
+	d.logger = logger
 }
 
 // NewDefaultTransport create a DefaultTransport with config
 func NewDefaultTransport(config *TransportConfig) *DefaultTransport {
 	return &DefaultTransport{
 		client: http.Client{
-			// TODO: uncomment this in v2.2.0
-			// Prohibit redirection
-			// CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			// 	return http.ErrUseLastResponse
-			// },
+			CheckRedirect: func(req *http.Request, via []*http.Request) error {
+				return http.ErrUseLastResponse
+			},
 			Transport: &http.Transport{
 				DialContext: (&TimeoutDialer{
 					Dialer: net.Dialer{
@@ -87,11 +93,9 @@ func NewDefaultTransport(config *TransportConfig) *DefaultTransport {
 func newDefaultTranposrtWithHTTPTransport(transport http.RoundTripper) *DefaultTransport {
 	return &DefaultTransport{
 		client: http.Client{
-			// TODO: uncomment this in v2.2.0
-			// Prohibit redirection
-			// CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			// 	return http.ErrUseLastResponse
-			// },
+			CheckRedirect: func(req *http.Request, via []*http.Request) error {
+				return http.ErrUseLastResponse
+			},
 			Transport: transport,
 		},
 	}
@@ -116,7 +120,19 @@ func (dt *DefaultTransport) RoundTrip(ctx context.Context, req *Request) (*Respo
 		hr.Header[key] = values
 	}
 
+	var accessLog *accessLogRequest
+	if dt.logger != nil {
+		var trace *httptrace.ClientTrace
+		trace, accessLog = getClientTrace(GetUnixTimeMs())
+		ctx = httptrace.WithClientTrace(ctx, trace)
+		hr = hr.WithContext(ctx)
+	}
 	res, err := dt.client.Do(hr)
+
+	if accessLog != nil {
+		accessLog.PrintAccessLog(dt.logger, hr, res)
+	}
+
 	if err != nil {
 		return nil, newTosClientError(err.Error(), err)
 	}

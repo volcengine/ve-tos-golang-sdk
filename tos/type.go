@@ -147,6 +147,40 @@ type HeadBucketOutput struct {
 	StorageClass enum.StorageClassType `json:"StorageClass,omitempty"`
 }
 
+type GetBucketCORSInput struct {
+	Bucket string
+}
+
+type CorsRule struct {
+	AllowedOrigin []string `json:"AllowedOrigins,omitempty"`
+	AllowedMethod []string `json:"AllowedMethods,omitempty"`
+	AllowedHeader []string `json:"AllowedHeaders,omitempty"`
+	ExposeHeader  []string `json:"ExposeHeaders,omitempty"`
+	MaxAgeSeconds int      `json:"MaxAgeSeconds,omitempty"`
+}
+
+type GetBucketCORSOutput struct {
+	RequestInfo `json:"-"`
+	CORSRules   []CorsRule `json:"CORSRules,omitempty"`
+}
+
+type PutBucketCORSInput struct {
+	Bucket    string     `json:"-"`
+	CORSRules []CorsRule `json:"CORSRules,omitempty"`
+}
+
+type PutBucketCORSOutput struct {
+	RequestInfo `json:"-"`
+}
+
+type DeleteBucketCORSInput struct {
+	Bucket string
+}
+
+type DeleteBucketCORSOutput struct {
+	RequestInfo `json:"-"`
+}
+
 type HeadBucketInput struct {
 	Bucket string
 }
@@ -550,9 +584,10 @@ type GetObjectOutput struct {
 }
 
 type GetObjectV2Input struct {
-	Bucket    string
-	Key       string
-	VersionID string `location:"query" locationName:"versionId"`
+	Bucket     string
+	Key        string
+	VersionID  string `location:"query" locationName:"versionId"`
+	PartNumber int    `location:"query" locationName:"partNumber"`
 
 	IfMatch           string    `location:"header" locationName:"If-Match"`
 	IfModifiedSince   time.Time `location:"header" locationName:"If-Modified-Since"`
@@ -899,8 +934,8 @@ func (part *UploadedPart) uploadedPart() uploadedPart {
 type UploadedPartV2 struct {
 	PartNumber   int       `json:"PartNumber,omitempty"`   // Part编号
 	ETag         string    `json:"ETag,omitempty"`         // ETag
-	Size         int64     `json:"LastModified,omitempty"` // 最后一次修改时间
-	LastModified time.Time `json:"Size,omitempty"`         // Part大小
+	LastModified time.Time `json:"LastModified,omitempty"` // 最后一次修改时间
+	Size         int64     `json:"Size,omitempty"`         // Part大小
 }
 
 func (part UploadedPartV2) uploadedPart() uploadedPart {
@@ -1133,7 +1168,7 @@ type UploadFileInput struct {
 	CancelHook CancelHook
 }
 
-func NewUploadCancelHook() CancelHook {
+func NewCancelHook() CancelHook {
 	return &canceler{
 		cancelHandle: make(chan struct{}),
 	}
@@ -1187,12 +1222,10 @@ type DataTransferStatus struct {
 
 type DataTransferListener interface {
 	DataTransferStatusChange(status *DataTransferStatus)
-	internal()
 }
 
 type RateLimiter interface {
 	// Acquire try to get a token.
 	// If ok, caller can read want bytes, else wait timeToWait and try again.
 	Acquire(want int64) (ok bool, timeToWait time.Duration)
-	internal()
 }

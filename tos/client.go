@@ -9,6 +9,8 @@ import (
 	"runtime"
 	"strings"
 	"time"
+
+	"github.com/sirupsen/logrus"
 )
 
 // Client TOS Client
@@ -40,6 +42,7 @@ type Client struct {
 	dnsCacheTime time.Duration // milliseconds
 	enableCRC    bool
 	proxy        *Proxy
+	logger       logrus.FieldLogger
 }
 
 // ClientV2 TOS ClientV2
@@ -99,6 +102,15 @@ func WithRequestTimeout(timeout time.Duration) ClientOption {
 	}
 }
 
+//
+// WithLogger sets the tos sdk logger
+//
+func WithLogger(logger *logrus.Logger) ClientOption {
+	return func(client *Client) {
+		client.logger = logger
+	}
+}
+
 // WithConnectionTimeout set timeout for constructing connection
 func WithConnectionTimeout(timeout time.Duration) ClientOption {
 	return func(client *Client) {
@@ -147,20 +159,20 @@ func WithUserAgentSuffix(suffix string) ClientOption {
 
 // WithEnableCRC set if check crc after uploading object.
 // Checking crc is enabled by default.
-// func WithEnableCRC(enableCRC bool) ClientOption {
-// 	return func(client *Client) {
-// 		client.enableCRC = enableCRC
-// 	}
-// }
+func WithEnableCRC(enableCRC bool) ClientOption {
+	return func(client *Client) {
+		client.enableCRC = enableCRC
+	}
+}
 
 // // WithMaxRetryCount set MaxRetryCount
-// func WithMaxRetryCount(retryCount int) ClientOption {
-// 	return func(client *Client) {
-// 		if client.retry != nil {
-// 			client.retry.SetBackoff(retryer.exponentialBackoff(retryCount, retryer.DefaultRetryBackoffBase))
-// 		}
-// 	}
-// }
+func WithMaxRetryCount(retryCount int) ClientOption {
+	return func(client *Client) {
+		if client.retry != nil {
+			client.retry.SetBackoff(exponentialBackoff(retryCount, DefaultRetryBackoffBase))
+		}
+	}
+}
 
 // WithTransport set Transport
 //
@@ -250,7 +262,7 @@ func schemeHost(endpoint string) (scheme string, host string, urlMode urlMode) {
 		scheme = "http"
 		host = endpoint[len("http://"):]
 	} else {
-		scheme = "http"
+		scheme = "https"
 		host = endpoint
 	}
 	urlMode = urlModeDefault
@@ -267,13 +279,17 @@ func initClient(client *Client, endpoint string, options ...ClientOption) error 
 	}
 	client.scheme, client.host, client.urlMode = schemeHost(client.config.Endpoint)
 	if client.transport == nil {
-		client.transport = NewDefaultTransport(&client.config.TransportConfig)
+		transport := NewDefaultTransport(&client.config.TransportConfig)
+		transport.WithDefaultTransportLogger(client.logger)
+		client.transport = transport
 	}
 	if cred := client.credentials; cred != nil && client.signer == nil {
 		if len(client.config.Region) == 0 {
 			return newTosClientError("tos: missing Region option", nil)
 		}
-		client.signer = NewSignV4(cred, client.config.Region)
+		signer := NewSignV4(cred, client.config.Region)
+		signer.WithSignLogger(client.logger)
+		client.signer = signer
 	}
 	return nil
 }
@@ -306,6 +322,9 @@ func NewClient(endpoint string, options ...ClientOption) (*Client, error) {
 //     WithSocketTimeout set read-write timeout
 //     WithTransportConfig set TransportConfig
 //     WithTransport set self-defined Transport
+//     WithLogger set self-defined Logger
+//     WithEnableCRC set CRC switch.
+//     WithMaxRetryCount  set Max Retry Count
 func NewClientV2(endpoint string, options ...ClientOption) (*ClientV2, error) {
 	client := ClientV2{
 		Client: Client{
@@ -313,8 +332,7 @@ func NewClientV2(endpoint string, options ...ClientOption) (*ClientV2, error) {
 			config:     defaultConfig(),
 			retry:      newRetryer([]time.Duration{}),
 			userAgent:  fmt.Sprintf("tos-go-sdk/%s (%s/%s;%s)", Version, runtime.GOOS, runtime.GOARCH, runtime.Version()),
-			// TODO: uncomment this in 2.2.0
-			// enableCRC:  true,
+			enableCRC:  true,
 		},
 	}
 	client.retry.SetJitter(0.25)
@@ -363,7 +381,16 @@ func (cli *Client) roundTrip(ctx context.Context, req *Request, expectedCode int
 
 func (cli *Client) roundTripper(expectedCode int) roundTripper {
 	return func(ctx context.Context, req *Request) (*Response, error) {
-		return cli.roundTrip(ctx, req, expectedCode)
+		start := time.Now()
+		resp, err := cli.roundTrip(ctx, req, expectedCode)
+		if cli.logger != nil {
+			if err != nil {
+				cli.logger.Infof("[tos] http error:%s.", err.Error())
+			} else {
+				cli.logger.Infof("[tos] Response StatusCode:%d, RequestId:%s, Cost:%d ms", resp.StatusCode, resp.RequestInfo().RequestID, time.Since(start).Milliseconds())
+			}
+		}
+		return resp, err
 	}
 }
 

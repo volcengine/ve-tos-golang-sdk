@@ -2,6 +2,7 @@ package tos
 
 import (
 	"hash/crc64"
+	"os"
 )
 
 const (
@@ -10,7 +11,7 @@ const (
 )
 
 const TempFileSuffix = ".temp"
-const DefaultFilePerm = 0644
+const DefaultFilePerm = os.FileMode(0644)
 
 var DefaultCrcTable = func() *crc64.Table {
 	return crc64.MakeTable(crc64.ECMA)
@@ -70,7 +71,9 @@ const (
 	// MetadataDirectiveCopy copy source object metadata when calling CopyObject
 	MetadataDirectiveCopy = "COPY"
 )
-
+const (
+	QueryPartNumber = "partNumber"
+)
 const (
 	HeaderUserAgent                   = "User-Agent"
 	HeaderContentLength               = "Content-Length"

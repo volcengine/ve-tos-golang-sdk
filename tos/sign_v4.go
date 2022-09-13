@@ -12,6 +12,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -66,12 +68,38 @@ type SignV4 struct {
 	signingQuery  func(key string) bool
 	now           func() time.Time
 	signingKey    func(*SigningKeyInfo) []byte
+	logger        logrus.FieldLogger
+}
+
+type signedRes struct {
+	CanonicalString string
+	StringToSign    string
+	Sign            string
+}
+
+type signedHeader struct {
+	CanonicalString string
+	StringToSign    string
+	Header          http.Header
+}
+
+type signedQuery struct {
+	CanonicalString string
+	StringToSign    string
+	Query           url.Values
+}
+
+type SignV4Option func(*SignV4)
+
+func (sv *SignV4) WithSignLogger(logger logrus.FieldLogger) {
+	sv.logger = logger
 }
 
 // NewSignV4 create SignV4
 // use WithSignKey to set self-defined sign-key generator
+// use WithSignLogger to set logger
 func NewSignV4(credentials Credentials, region string) *SignV4 {
-	return &SignV4{
+	signV4 := &SignV4{
 		credentials:   credentials,
 		region:        region,
 		signingHeader: defaultSigningHeaderV4,
@@ -79,6 +107,7 @@ func NewSignV4(credentials Credentials, region string) *SignV4 {
 		now:           UTCNow,
 		signingKey:    SigningKey,
 	}
+	return signV4
 }
 
 // WithSigningKey for self-defined sign-key generator
@@ -116,7 +145,7 @@ func (sv *SignV4) signedQuery(query url.Values, extra url.Values) KVs {
 	return signed
 }
 
-func (sv *SignV4) canonicalRequest(method, path, contentSha256 string, header, query KVs) []byte {
+func (sv *SignV4) canonicalRequest(method, path, contentSha256 string, header, query KVs) string {
 	const split = byte('\n')
 	var buf bytes.Buffer
 	buf.Grow(512)
@@ -153,7 +182,7 @@ func (sv *SignV4) canonicalRequest(method, path, contentSha256 string, header, q
 	} else {
 		buf.WriteString(emptySHA256)
 	}
-	return buf.Bytes()
+	return buf.String()
 }
 
 func SigningKey(info *SigningKeyInfo) []byte {
@@ -163,10 +192,10 @@ func SigningKey(info *SigningKeyInfo) []byte {
 	return hmacSHA256(service, []byte("request"))
 }
 
-func (sv *SignV4) doSign(method, path, contentSha256 string, header, query KVs, now time.Time, cred *Credential) string {
+func (sv *SignV4) doSign(method, path, contentSha256 string, header, query KVs, now time.Time, cred *Credential) signedRes {
 	const split = byte('\n')
 
-	req := sv.canonicalRequest(method, path, contentSha256, header, query)
+	canonicalStr := sv.canonicalRequest(method, path, contentSha256, header, query)
 
 	var buf bytes.Buffer
 	buf.Grow(len(signPrefix) + 128)
@@ -185,12 +214,17 @@ func (sv *SignV4) doSign(method, path, contentSha256 string, header, query KVs, 
 	buf.WriteString("/tos/request")
 	buf.WriteByte(split)
 
-	sum := sha256.Sum256(req)
+	sum := sha256.Sum256([]byte(canonicalStr))
 	buf.WriteString(hex.EncodeToString(sum[:]))
 
 	signK := sv.signingKey(&SigningKeyInfo{Date: date, Region: sv.region, Credential: cred})
 	sign := hmacSHA256(signK, buf.Bytes())
-	return hex.EncodeToString(sign)
+	return signedRes{
+		CanonicalString: canonicalStr,
+		StringToSign:    buf.String(),
+		Sign:            hex.EncodeToString(sign),
+	}
+
 }
 
 func (sv *SignV4) SignHeader(req *Request) http.Header {
@@ -217,13 +251,17 @@ func (sv *SignV4) SignHeader(req *Request) http.Header {
 	sort.Sort(signedHeader)
 	signedQuery := sv.signedQuery(req.Query, nil)
 
-	sign := sv.doSign(req.Method, req.Path, contentSha256, signedHeader, signedQuery, now, &cred)
+	signRes := sv.doSign(req.Method, req.Path, contentSha256, signedHeader, signedQuery, now, &cred)
 	credential := fmt.Sprintf("%s/%s/%s/tos/request", cred.AccessKeyID, now.Format(yyMMdd), sv.region)
-	auth := fmt.Sprintf("TOS4-HMAC-SHA256 Credential=%s,SignedHeaders=%s,Signature=%s", credential, joinKeys(signedHeader), sign)
+	auth := fmt.Sprintf("TOS4-HMAC-SHA256 Credential=%s,SignedHeaders=%s,Signature=%s", credential, joinKeys(signedHeader), signRes.Sign)
 
 	signed.Set(authorization, auth)
 	signed.Set(v4Date, date)
 	signed.Set("Date", date)
+	if sv.logger != nil {
+		sv.logger.Debug("[tos] CanonicalString:" + "\n" + signRes.CanonicalString + "\n")
+		sv.logger.Debug("[tos] StringToSign:" + "\n" + signRes.StringToSign + "\n")
+	}
 	return signed
 }
 
@@ -251,9 +289,12 @@ func (sv *SignV4) SignQuery(req *Request, ttl time.Duration) url.Values {
 	extra.Add(v4SignedHeaders, joinKeys(signedHeader))
 	signedQuery := sv.signedQuery(query, extra)
 
-	sign := sv.doSign(req.Method, req.Path, unsignedPayload, signedHeader, signedQuery, now, &cred)
-	extra.Add(v4Signature, sign)
-
+	signRes := sv.doSign(req.Method, req.Path, unsignedPayload, signedHeader, signedQuery, now, &cred)
+	extra.Add(v4Signature, signRes.Sign)
+	if sv.logger != nil {
+		sv.logger.Debug("[tos] CanonicalString:" + "\n" + signRes.CanonicalString + "\n")
+		sv.logger.Debug("[tos] StringToSign:" + "\n" + signRes.StringToSign + "\n")
+	}
 	return extra
 }
 
