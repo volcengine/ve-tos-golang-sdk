@@ -122,6 +122,8 @@ func WithConnectionTimeout(timeout time.Duration) ClientOption {
 func WithMaxConnections(max int) ClientOption {
 	return func(client *Client) {
 		client.config.TransportConfig.MaxIdleConns = max
+		client.config.TransportConfig.MaxIdleConnsPerHost = max
+		client.config.TransportConfig.MaxConnsPerHost = max
 	}
 
 }

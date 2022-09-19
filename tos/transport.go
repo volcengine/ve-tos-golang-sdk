@@ -13,8 +13,14 @@ import (
 
 type TransportConfig struct {
 
-	// MaxIdleConns same as http.Transport MaxIdleConns
+	// MaxIdleConns same as http.Transport MaxIdleConns. Default is 1024.
 	MaxIdleConns int
+
+	// MaxIdleConnsPerHost same as http.Transport MaxIdleConnsPerHost. Default is 1024.
+	MaxIdleConnsPerHost int
+
+	// MaxConnsPerHost same as http.Transport MaxConnsPerHost. Default is no limit.
+	MaxConnsPerHost int
 
 	// RequestTimeout same as http.Client Timeout
 	RequestTimeout time.Duration
@@ -77,6 +83,8 @@ func NewDefaultTransport(config *TransportConfig) *DefaultTransport {
 					WriteTimeout: config.WriteTimeout,
 				}).DialContext,
 				MaxIdleConns:          config.MaxIdleConns,
+				MaxIdleConnsPerHost:   config.MaxIdleConnsPerHost,
+				MaxConnsPerHost:       config.MaxConnsPerHost,
 				IdleConnTimeout:       config.IdleConnTimeout,
 				TLSHandshakeTimeout:   config.TLSHandshakeTimeout,
 				ResponseHeaderTimeout: config.ResponseHeaderTimeout,
