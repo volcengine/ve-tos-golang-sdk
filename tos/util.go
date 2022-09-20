@@ -114,19 +114,21 @@ func (t *taskGroupImpl) RunWorker() {
 }
 
 func (t *taskGroupImpl) Scheduler() {
-
-	for _, task := range t.tasks {
-		select {
-		case <-t.cancelHandle:
-			return
-		case <-t.abortHandle:
-			return
-		default:
-			t.tasksCh <- task
+	go func() {
+		for _, task := range t.tasks {
+			select {
+			case <-t.cancelHandle:
+				return
+			case <-t.abortHandle:
+				return
+			default:
+				t.tasksCh <- task
+			}
 		}
-	}
 
-	close(t.tasksCh)
+		close(t.tasksCh)
+	}()
+
 }
 
 func (t *taskGroupImpl) worker() {

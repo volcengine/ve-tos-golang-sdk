@@ -17,6 +17,8 @@ func defaultConfig() Config {
 func DefaultTransportConfig() TransportConfig {
 	return TransportConfig{
 		MaxIdleConns:          1024,
+		MaxIdleConnsPerHost:   1024,
+		MaxConnsPerHost:       1024,
 		DialTimeout:           10 * time.Second,
 		KeepAlive:             30 * time.Second,
 		IdleConnTimeout:       60 * time.Second,
