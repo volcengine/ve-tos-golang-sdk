@@ -31,6 +31,7 @@ func newTestEnv(t *testing.T) *testEnv {
 func (e testEnv) prepareClient(bucketName string, extraOptions ...tos.ClientOption) *tos.ClientV2 {
 	log := logrus.New()
 	log.Level = logrus.DebugLevel
+	log.Formatter = &logrus.TextFormatter{DisableQuote: true}
 	options := []tos.ClientOption{
 		tos.WithRegion(e.region),
 		tos.WithCredentials(tos.NewStaticCredentials(e.accessKey, e.secretKey)),

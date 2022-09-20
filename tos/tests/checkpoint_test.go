@@ -435,7 +435,7 @@ func TestLargeFile(t *testing.T) {
 			Key:    key,
 		},
 		PartSize:             5 * 1024 * 1024,
-		TaskNum:              100,
+		TaskNum:              20,
 		FilePath:             fileName + ".file", // xxx.file.file
 		EnableCheckpoint:     true,
 		DataTransferListener: transferListener,
