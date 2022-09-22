@@ -36,15 +36,15 @@ func isValidNames(bucket string, key string, keys ...string) error {
 // validKey validate single key, return TosClientError if failed
 func validKey(key string) error {
 	if len(key) < 1 || len(key) > 696 {
-		return newTosClientError("tos: invalid object name, the length must be [1, 696]", nil)
+		return newTosClientError("tos: invalid object key, the length must be [1, 696]", nil)
 	}
 	if key[0] == '/' || key[0] == '\\' {
-		return newTosClientError("tos: invalid object name, the object name can not start with '/' or '\\' ", nil)
+		return newTosClientError("tos: invalid object key, the object name can not start with '/' or '\\' ", nil)
 	}
 	bytes := []byte(key)
 	ok := utf8.Valid(bytes)
 	if !ok {
-		return newTosClientError("tos: invalid object name, the character set is illegal", nil)
+		return newTosClientError("tos: invalid object key, the character set is illegal", nil)
 	}
 	for _, r := range []rune(key) {
 		if (r >= 0 && r < 32) || (r > 127 && r < 256) {
