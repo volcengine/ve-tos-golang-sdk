@@ -57,7 +57,7 @@ func WithRegion(region string) Option {
 }
 
 // WithLogger set logger
-func WithLogger(logger *logrus.Logger) Option {
+func WithLogger(logger logrus.FieldLogger) Option {
 	return func(session *Session) {
 		session.logger = logger
 	}

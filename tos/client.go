@@ -105,7 +105,7 @@ func WithRequestTimeout(timeout time.Duration) ClientOption {
 //
 // WithLogger sets the tos sdk logger
 //
-func WithLogger(logger *logrus.Logger) ClientOption {
+func WithLogger(logger logrus.FieldLogger) ClientOption {
 	return func(client *Client) {
 		client.logger = logger
 	}
@@ -268,9 +268,11 @@ func schemeHost(endpoint string) (scheme string, host string, urlMode urlMode) {
 		host = endpoint
 	}
 	urlMode = urlModeDefault
-	if net.ParseIP(host) != nil {
+	hostWithoutPort, _, _ := net.SplitHostPort(host)
+	if net.ParseIP(host) != nil || net.ParseIP(hostWithoutPort) != nil {
 		urlMode = urlModePath
 	}
+
 	return scheme, host, urlMode
 }
 
