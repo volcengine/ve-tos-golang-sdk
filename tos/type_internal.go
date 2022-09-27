@@ -166,7 +166,7 @@ func (c *downloadCheckpoint) GetCheckPointFilePath() string {
 func (c *downloadCheckpoint) WriteToFile() error {
 	buffer, err := json.Marshal(c)
 	if err != nil {
-		return newTosClientError(err.Error(), err)
+		return InvalidMarshal
 	}
 	err = ioutil.WriteFile(c.checkpointPath, buffer, 0666)
 	if err != nil {
@@ -257,7 +257,7 @@ func (u *uploadCheckpoint) GetParts() []UploadedPartV2 {
 func (u *uploadCheckpoint) WriteToFile() error {
 	result, err := json.Marshal(u)
 	if err != nil {
-		return newTosClientError(err.Error(), err)
+		return InvalidMarshal
 	}
 	err = ioutil.WriteFile(u.checkpointPath, result, 0666)
 	if err != nil {

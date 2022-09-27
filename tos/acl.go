@@ -50,14 +50,35 @@ func (cli *ClientV2) PutObjectACL(ctx context.Context, input *PutObjectACLInput)
 	if err := isValidKey(input.Key); err != nil {
 		return nil, err
 	}
+
+	if len(input.ACL) != 0 {
+		if err := isValidACL(input.ACL); err != nil {
+			return nil, err
+		}
+	}
+
 	var content io.Reader
 	if len(input.Grants) != 0 {
+
+		for _, grants := range input.Grants {
+			if err := isValidGrantee(grants.GranteeV2.Type); len(grants.GranteeV2.Type) != 0 && err != nil {
+				return nil, err
+			}
+			if err := isValidCannedType(grants.GranteeV2.Canned); len(grants.GranteeV2.Canned) != 0 && err != nil {
+				return nil, err
+			}
+
+			if err := isValidPermission(grants.Permission); len(grants.Permission) != 0 && err != nil {
+				return nil, err
+			}
+		}
+
 		data, err := json.Marshal(&accessControlList{
 			Owner:  input.Owner,
 			Grants: input.Grants,
 		})
 		if err != nil {
-			return nil, newTosClientError("tos: marshal BucketAcl Ruels failed", err)
+			return nil, InvalidMarshal
 		}
 		content = bytes.NewReader(data)
 	}

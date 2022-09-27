@@ -8,8 +8,28 @@ import (
 	"net/http"
 )
 
-var InputIsNilClientError = newTosClientError("input is nil. ", nil)
-var InputInvalidClientError = newTosClientError("input data is invalid. ", nil)
+var (
+	InputIsNilClientError             = newTosClientError("input is nil. ", nil)
+	InputInvalidClientError           = newTosClientError("input data is invalid. ", nil)
+	InvalidBucketNameLength           = newTosClientError("invalid bucket name, the length must be [3, 63]", nil)
+	InvalidBucketNameCharacter        = newTosClientError("invalid bucket name, the character set is illegal", nil)
+	InvalidBucketNameStartingOrEnding = newTosClientError("invalid bucket name, the bucket name can be neither starting with '-' nor ending with '-'", nil)
+	InvalidObjectNameLength           = newTosClientError("invalid object name, the length must be [1, 696]", nil)
+	InvalidObjectNameStartingOrEnding = newTosClientError("invalid object name, the object name can not start with '/' or '\\'", nil)
+	InvalidObjectNameCharacterSet     = newTosClientError("invalid object name, the character set is illegal", nil)
+	InvalidACL                        = newTosClientError("invalid acl type", nil)
+	InvalidStorageClass               = newTosClientError("invalid storage class", nil)
+	InvalidGrantee                    = newTosClientError("invalid grantee type", nil)
+	InvalidCanned                     = newTosClientError("invalid canned type", nil)
+	InvalidAzRedundancy               = newTosClientError("invalid az redundancy type", nil)
+	InvalidMetadataDirective          = newTosClientError("invalid metadata directive type", nil)
+	InvalidPermission                 = newTosClientError("invalid permission type", nil)
+	InvalidSSECAlgorithm              = newTosClientError("invalid encryption-decryption algorithm", nil)
+	InvalidPartSize                   = newTosClientError("invalid part size, the size must be [5242880, 5368709120]", nil)
+	InvalidSrcFilePath                = newTosClientError("invalid file path, the file does not exist", nil)
+	InvalidFilePartNum                = newTosClientError("unsupported part number, the maximum is 10000", nil)
+	InvalidMarshal                    = newTosClientError("unable to do serialization/deserialization", nil)
+)
 
 type TosError struct {
 	Message string
@@ -198,7 +218,7 @@ func checkError(res *Response, readBody bool, okCode int, okCodes ...int) error 
 
 // StatusCodeClassifier classifies Errors.
 // If the error is nil, it returns NoRetry;
-// if the error is TimeoutException or can be interpreted as TosServerError, and the StatusCode is 5xx or 529, it returns Retry;
+// if the error is TimeoutException or can be interpreted as TosServerError, and the StatusCode is 5xx or 429, it returns Retry;
 // otherwise, it returns NoRetry.
 type StatusCodeClassifier struct{}
 

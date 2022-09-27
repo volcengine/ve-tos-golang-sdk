@@ -1,7 +1,6 @@
 package session
 
 import (
-	"github.com/sirupsen/logrus"
 	"github.com/volcengine/ve-tos-golang-sdk/v2/tos"
 )
 
@@ -9,7 +8,7 @@ type Session struct {
 	transport   tos.Transport
 	credentials tos.Credentials
 	region      string
-	logger      logrus.FieldLogger
+	logger      tos.Logger
 }
 
 type Option func(*Session)
@@ -57,7 +56,7 @@ func WithRegion(region string) Option {
 }
 
 // WithLogger set logger
-func WithLogger(logger logrus.FieldLogger) Option {
+func WithLogger(logger tos.Logger) Option {
 	return func(session *Session) {
 		session.logger = logger
 	}
