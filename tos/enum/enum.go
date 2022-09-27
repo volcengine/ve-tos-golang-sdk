@@ -102,3 +102,8 @@ const (
 	DownloadEventRenameTempFileSucceed DownloadEventType = 6
 	DownloadEventRenameTempFileFailed  DownloadEventType = 7
 )
+
+const (
+	SSETosAlg = "AES256"
+	SSEKMS    = "kms"
+)

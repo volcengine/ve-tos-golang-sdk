@@ -9,15 +9,15 @@ import (
 // IsValidBucketName validate bucket name, return TosClientError if failed
 func IsValidBucketName(name string) error {
 	if length := len(name); length < 3 || length > 63 {
-		return newTosClientError("tos: invalid bucket name, the length must be [3, 63]", nil)
+		return InvalidBucketNameLength
 	}
 	for i := range name {
 		if char := name[i]; !(('a' <= char && char <= 'z') || ('0' <= char && char <= '9') || char == '-') {
-			return newTosClientError("tos: bucket name can consist only of lowercase letters, numbers, and '-' ", nil)
+			return InvalidBucketNameCharacter
 		}
 	}
 	if name[0] == '-' || name[len(name)-1] == '-' {
-		return newTosClientError("tos: invalid bucket name, the bucket name can be neither starting with '-' nor ending with '-'", nil)
+		return InvalidBucketNameStartingOrEnding
 	}
 	return nil
 }
@@ -36,19 +36,19 @@ func isValidNames(bucket string, key string, keys ...string) error {
 // validKey validate single key, return TosClientError if failed
 func validKey(key string) error {
 	if len(key) < 1 || len(key) > 696 {
-		return newTosClientError("tos: invalid object name, the length must be [1, 696]", nil)
+		return InvalidObjectNameLength
 	}
 	if key[0] == '/' || key[0] == '\\' {
-		return newTosClientError("tos: invalid object name, the object name can not start with '/' or '\\' ", nil)
+		return InvalidObjectNameStartingOrEnding
 	}
 	bytes := []byte(key)
 	ok := utf8.Valid(bytes)
 	if !ok {
-		return newTosClientError("tos: invalid object name, the character set is illegal", nil)
+		return InvalidObjectNameCharacterSet
 	}
 	for _, r := range []rune(key) {
 		if (r >= 0 && r < 32) || (r > 127 && r < 256) {
-			return newTosClientError("tos: object key is not allowed to contain invisible characters except space", nil)
+			return InvalidObjectNameCharacterSet
 		}
 	}
 	return nil
@@ -70,9 +70,64 @@ func isValidKey(key string, keys ...string) error {
 // isValidACL validate aclType, return TosClientError if failed
 func isValidACL(aclType enum.ACLType) error {
 	if aclType == enum.ACLPrivate || aclType == enum.ACLPublicRead || aclType == enum.ACLPublicReadWrite ||
-		aclType == enum.ACLAuthRead || aclType == enum.ACLBucketOwnerRead || aclType == enum.ACLBucketOwnerFullControl {
+		aclType == enum.ACLAuthRead || aclType == enum.ACLBucketOwnerRead ||
+		aclType == enum.ACLBucketOwnerFullControl || aclType == enum.ACLLogDeliveryWrite {
 		return nil
 	}
 
-	return newTosClientError("tos: invalid ACL", nil)
+	return InvalidACL
+}
+
+// isValidStorageClass validate Storage Class, return TosClientError if failed
+func isValidStorageClass(storageClass enum.StorageClassType) error {
+
+	if storageClass == enum.StorageClassIa || storageClass == enum.StorageClassStandard {
+		return nil
+	}
+
+	return InvalidStorageClass
+}
+
+func isValidGrantee(granteeType enum.GranteeType) error {
+	if granteeType == enum.GranteeUser || granteeType == enum.GranteeGroup {
+		return nil
+	}
+	return InvalidGrantee
+}
+
+func isValidCannedType(cannedType enum.CannedType) error {
+	if cannedType == enum.CannedAllUsers || cannedType == enum.CannedAuthenticatedUsers {
+		return nil
+	}
+	return InvalidCanned
+}
+
+func isValidAzRedundancy(redundancyType enum.AzRedundancyType) error {
+	if redundancyType == enum.AzRedundancySingleAz || redundancyType == enum.AzRedundancyMultiAz {
+		return nil
+	}
+	return InvalidAzRedundancy
+}
+
+func isValidMetadataDirective(directiveType enum.MetadataDirectiveType) error {
+	if directiveType == enum.MetadataDirectiveCopy || directiveType == enum.MetadataDirectiveReplace {
+		return nil
+	}
+	return InvalidMetadataDirective
+}
+
+func isValidPermission(permissionType enum.PermissionType) error {
+	if permissionType == enum.PermissionRead || permissionType == enum.PermissionReadAcp ||
+		permissionType == enum.PermissionWriteAcp || permissionType == enum.PermissionWrite ||
+		permissionType == enum.PermissionFullControl {
+		return nil
+	}
+	return InvalidPermission
+}
+
+func isValidSSECAlgorithm(algorithm string) error {
+	if algorithm == enum.SSETosAlg || algorithm == enum.SSEKMS {
+		return nil
+	}
+	return InvalidSSECAlgorithm
 }

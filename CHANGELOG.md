@@ -1,5 +1,14 @@
 # ChangeLog of TOS SDK for Go
 
+## 版本号 v2.3.0 日期：2022-09-22
+- 新增：PreSignedURL 增加 AlternativeEndpoint 参数
+- 新增：域名缓存机制
+- 新增：支持通过代理访问服务端
+
+## 版本号 v2.2.2 日期：2022-9-20
+- 优化：默认 transport 参数
+- 修复：DownloadFile 可能出现的阻塞
+
 ## 版本号 v2.2.0 日期: 2022-9-9
 - 新增: 断点续传 DownloadFile 接口
 - 新增：支持自定义 Log

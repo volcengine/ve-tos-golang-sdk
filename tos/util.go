@@ -80,7 +80,6 @@ Loop:
 				t.postEvent.PostEvent(EventPartAborted, nil, taskErr)
 
 				return successNum, fmt.Errorf("status code not service error, err:%s. ", taskErr.Error())
-
 			}
 			t.postEvent.PostEvent(EventPartFailed, nil, taskErr)
 			failNum++

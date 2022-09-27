@@ -17,7 +17,7 @@ func initUploadPartsInfo(uploadFileStat os.FileInfo, partSize int64) ([]uploadPa
 		partCount++
 	}
 	if partCount > 10000 {
-		return nil, newTosClientError("tos: part count too many", nil)
+		return nil, InvalidFilePartNum
 	}
 	parts := make([]uploadPartInfo, 0, partCount)
 	for i := int64(0); i < partCount; i++ {
@@ -71,11 +71,11 @@ func validateUploadInput(input *UploadFileInput) error {
 		input.PartSize = MinPartSize
 	}
 	if input.PartSize < MinPartSize || input.PartSize > MaxPartSize {
-		return newTosClientError("tos: the input part size is invalid, please set it range from 5MB to 5GB.", nil)
+		return InvalidPartSize
 	}
 	stat, err := os.Stat(input.FilePath)
 	if err != nil {
-		return newTosClientError("tos: stat file to upload failed", err)
+		return InvalidSrcFilePath
 	}
 	if stat.IsDir() {
 		return newTosClientError("tos: does not support directory, please specific your file path.", nil)

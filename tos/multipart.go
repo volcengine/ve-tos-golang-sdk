@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"hash"
 	"io"
 	"net/http"
@@ -65,6 +64,15 @@ func (cli *ClientV2) CreateMultipartUploadV2(
 		return nil, err
 	}
 	if err := isValidKey(input.Key); err != nil {
+		return nil, err
+	}
+	if err := isValidSSECAlgorithm(input.SSECAlgorithm); len(input.SSECAlgorithm) != 0 && err != nil {
+		return nil, err
+	}
+	if err := isValidACL(input.ACL); len(input.ACL) != 0 && err != nil {
+		return nil, err
+	}
+	if err := isValidStorageClass(input.StorageClass); len(input.StorageClass) != 0 && err != nil {
 		return nil, err
 	}
 
@@ -128,6 +136,10 @@ func (cli *ClientV2) UploadPartV2(ctx context.Context, input *UploadPartV2Input)
 	if err := isValidNames(input.Bucket, input.Key); err != nil {
 		return nil, err
 	}
+	if err := isValidSSECAlgorithm(input.SSECAlgorithm); len(input.SSECAlgorithm) != 0 && err != nil {
+		return nil, err
+	}
+
 	var (
 		checker       hash.Hash64
 		content       = input.Content
@@ -145,30 +157,35 @@ func (cli *ClientV2) UploadPartV2(ctx context.Context, input *UploadPartV2Input)
 		checker = NewCRC(DefaultCrcTable(), 0)
 	}
 	var (
-		onRetry    func(req *Request) = nil
+		onRetry    func(req *Request) error = nil
 		classifier classifier
 	)
 	if content != nil {
 		content = wrapReader(content, contentLength, input.DataTransferListener, input.RateLimiter, checker)
 	}
-	classifier = StatusCodeClassifier{}
+	classifier = NoRetryClassifier{}
 	if seeker, ok := content.(io.Seeker); ok {
 		start, err := seeker.Seek(0, io.SeekCurrent)
 		if err != nil {
 			return nil, err
 		}
-		onRetry = func(req *Request) {
+		onRetry = func(req *Request) error {
 			// PutObject/UploadPartV2 can be treated as an idempotent semantics if the request message body
 			// supports a reset operation. e.g. the request message body is a string,
 			// a local file handle, binary data in memory
 			if seeker, ok := req.Content.(io.Seeker); ok {
-				seeker.Seek(start, io.SeekStart)
+				_, err := seeker.Seek(start, io.SeekStart)
+				if err != nil {
+					return err
+				}
+			} else {
+				return newTosClientError("Io Reader not support retry", nil)
 			}
+			return nil
 		}
+		classifier = StatusCodeClassifier{}
 	}
-	if onRetry == nil {
-		classifier = ServerErrorClassifier{}
-	}
+
 	res, err := cli.newBuilder(input.Bucket, input.Key).
 		WithParams(*input).
 		WithContentLength(input.ContentLength).
@@ -232,7 +249,7 @@ func (bkt *Bucket) CompleteMultipartUpload(ctx context.Context, input *CompleteM
 	sort.Sort(multipart.Parts)
 	data, err := json.Marshal(&multipart)
 	if err != nil {
-		return nil, fmt.Errorf("tos: marshal uploadParts err: %s", err.Error())
+		return nil, InvalidMarshal
 	}
 
 	res, err := bkt.client.newBuilder(bkt.name, input.Key, options...).
@@ -264,7 +281,7 @@ func (cli *ClientV2) CompleteMultipartUploadV2(
 	sort.Sort(multipart.Parts)
 	data, err := json.Marshal(&multipart)
 	if err != nil {
-		return nil, newTosClientError("tos: marshal uploadParts", err)
+		return nil, InvalidMarshal
 	}
 
 	res, err := cli.newBuilder(input.Bucket, input.Key).

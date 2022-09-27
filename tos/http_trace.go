@@ -6,8 +6,6 @@ import (
 	"net/http"
 	"net/http/httptrace"
 	"sync/atomic"
-
-	"github.com/sirupsen/logrus"
 )
 
 type accessLogRequest struct {
@@ -32,7 +30,7 @@ func newAccessLogRequest(actionStartMs int64) *accessLogRequest {
 	}
 }
 
-func (r *accessLogRequest) PrintAccessLog(logger logrus.FieldLogger, req *http.Request, response *http.Response) {
+func (r *accessLogRequest) PrintAccessLog(logger Logger, req *http.Request, response *http.Response) {
 	if logger == nil {
 		return
 	}
@@ -43,12 +41,12 @@ func (r *accessLogRequest) PrintAccessLog(logger logrus.FieldLogger, req *http.R
 	}
 	prefix := buildPrefix(requestId)
 	if req != nil {
-		logger.Debugf("%s, method: %s, host: %s, request uri: %s, dns cost: %d ms, dial cost: %d ms, tls handshake cost: %d ms, send headers and body cost: %d ms, wait response cost: %d ms, request cost: %d ms",
+		logger.Debug(fmt.Sprintf("%s, method: %s, host: %s, request uri: %s, dns cost: %d ms, dial cost: %d ms, tls handshake cost: %d ms, send headers and body cost: %d ms, wait response cost: %d ms, request cost: %d ms",
 			prefix, req.Method, req.URL.Host, req.URL.EscapedPath(), r.clientDnsCost, r.clientDialCost, r.clientTlsHandShakeCost,
-			r.clientSendHeadersAndBodyCost, r.clientWaitResponseCost, r.clientSendRequestCost)
+			r.clientSendHeadersAndBodyCost, r.clientWaitResponseCost, r.clientSendRequestCost))
 	} else {
-		logger.Debugf("%s, dns cost: %d ms, dial cost: %d ms, tls handshake cost: %d ms, send headers and body cost: %d ms, wait response cost: %d ms, request cost: %d ms",
-			prefix, r.clientDnsCost, r.clientDialCost, r.clientTlsHandShakeCost, r.clientSendHeadersAndBodyCost, r.clientWaitResponseCost, r.clientSendRequestCost)
+		logger.Debug(fmt.Sprintf("%s, dns cost: %d ms, dial cost: %d ms, tls handshake cost: %d ms, send headers and body cost: %d ms, wait response cost: %d ms, request cost: %d ms",
+			prefix, r.clientDnsCost, r.clientDialCost, r.clientTlsHandShakeCost, r.clientSendHeadersAndBodyCost, r.clientWaitResponseCost, r.clientSendRequestCost))
 	}
 }
 

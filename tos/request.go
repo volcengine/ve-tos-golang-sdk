@@ -78,16 +78,16 @@ type requestBuilder struct {
 	Query         url.Values
 	Header        http.Header
 	Retry         *retryer
-	OnRetry       func(req *Request)
+	OnRetry       func(req *Request) error
 	Classifier    classifier
 	CopySource    *CopySource
 	// CheckETag  bool
 	// CheckCRC32 bool
 }
 
-func (rb *requestBuilder) WithRetry(onRetry func(req *Request), classifier classifier) *requestBuilder {
+func (rb *requestBuilder) WithRetry(onRetry func(req *Request) error, classifier classifier) *requestBuilder {
 	if onRetry == nil {
-		rb.OnRetry = func(req *Request) {}
+		rb.OnRetry = func(req *Request) error { return nil }
 	} else {
 		rb.OnRetry = onRetry
 	}
@@ -258,7 +258,10 @@ func (rb *requestBuilder) Request(ctx context.Context, method string,
 
 	if rb.Retry != nil {
 		work := func() (err error) {
-			rb.OnRetry(req)
+			err = rb.OnRetry(req)
+			if err != nil {
+				return err
+			}
 			res, err = roundTripper(ctx, req)
 			return err
 		}
@@ -346,7 +349,7 @@ func marshalOutput(requestID string, reader io.Reader, output interface{}) error
 func marshalInput(name string, input interface{}) ([]byte, string, error) {
 	data, err := json.Marshal(input)
 	if err != nil {
-		return nil, "", newTosClientError(fmt.Sprintf("marshal %s failed", name), err)
+		return nil, "", InvalidMarshal
 	}
 
 	sum := md5.Sum(data)
