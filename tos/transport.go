@@ -3,12 +3,11 @@ package tos
 import (
 	"context"
 	"crypto/tls"
+	"math/rand"
 	"net"
 	"net/http"
 	"net/http/httptrace"
 	"time"
-
-	"github.com/sirupsen/logrus"
 )
 
 type TransportConfig struct {
@@ -23,6 +22,7 @@ type TransportConfig struct {
 	MaxConnsPerHost int
 
 	// RequestTimeout same as http.Client Timeout
+	// Deprecated: use ReadTimeout or WriteTimeout instead
 	RequestTimeout time.Duration
 
 	// DialTimeout same as net.Dialer Timeout
@@ -51,6 +51,12 @@ type TransportConfig struct {
 
 	// InsecureSkipVerify set tls.Config InsecureSkipVerify
 	InsecureSkipVerify bool
+
+	// DNSCacheTime Set Dns Cache Time.
+	DNSCacheTime time.Duration
+
+	// Proxy Set http proxy for http client.
+	Proxy *Proxy
 }
 
 type Transport interface {
@@ -59,40 +65,53 @@ type Transport interface {
 
 type DefaultTransport struct {
 	client http.Client
-	logger logrus.FieldLogger
+	logger Logger
 }
 
-func (d *DefaultTransport) WithDefaultTransportLogger(logger logrus.FieldLogger) {
+func (d *DefaultTransport) WithDefaultTransportLogger(logger Logger) {
 	d.logger = logger
 }
 
 // NewDefaultTransport create a DefaultTransport with config
 func NewDefaultTransport(config *TransportConfig) *DefaultTransport {
+	var r *resolver
+
+	if config.DNSCacheTime >= time.Minute {
+		r = newResolver(config.DNSCacheTime)
+	}
+
+	transport := &http.Transport{
+		DialContext: (&TimeoutDialer{
+			Dialer: net.Dialer{
+				Timeout:   config.DialTimeout,
+				KeepAlive: config.KeepAlive,
+			},
+			resolver:     r,
+			ReadTimeout:  config.ReadTimeout,
+			WriteTimeout: config.WriteTimeout,
+		}).DialContext,
+		MaxIdleConns:          config.MaxIdleConns,
+		MaxIdleConnsPerHost:   config.MaxIdleConnsPerHost,
+		MaxConnsPerHost:       config.MaxConnsPerHost,
+		IdleConnTimeout:       config.IdleConnTimeout,
+		TLSHandshakeTimeout:   config.TLSHandshakeTimeout,
+		ResponseHeaderTimeout: config.ResponseHeaderTimeout,
+		ExpectContinueTimeout: config.ExpectContinueTimeout,
+		DisableCompression:    true,
+		// #nosec G402
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: config.InsecureSkipVerify},
+	}
+
+	if config.Proxy != nil && config.Proxy.proxyHost != "" {
+		transport.Proxy = http.ProxyURL(config.Proxy.Url())
+	}
+
 	return &DefaultTransport{
 		client: http.Client{
 			CheckRedirect: func(req *http.Request, via []*http.Request) error {
 				return http.ErrUseLastResponse
 			},
-			Transport: &http.Transport{
-				DialContext: (&TimeoutDialer{
-					Dialer: net.Dialer{
-						Timeout:   config.DialTimeout,
-						KeepAlive: config.KeepAlive,
-					},
-					ReadTimeout:  config.ReadTimeout,
-					WriteTimeout: config.WriteTimeout,
-				}).DialContext,
-				MaxIdleConns:          config.MaxIdleConns,
-				MaxIdleConnsPerHost:   config.MaxIdleConnsPerHost,
-				MaxConnsPerHost:       config.MaxConnsPerHost,
-				IdleConnTimeout:       config.IdleConnTimeout,
-				TLSHandshakeTimeout:   config.TLSHandshakeTimeout,
-				ResponseHeaderTimeout: config.ResponseHeaderTimeout,
-				ExpectContinueTimeout: config.ExpectContinueTimeout,
-				DisableCompression:    true,
-				// #nosec G402
-				TLSClientConfig: &tls.Config{InsecureSkipVerify: config.InsecureSkipVerify},
-			},
+			Transport: transport,
 		},
 	}
 }
@@ -196,11 +215,37 @@ func (tc *TimeoutConn) Write(b []byte) (n int, err error) {
 
 type TimeoutDialer struct {
 	net.Dialer
+	resolver     *resolver
 	ReadTimeout  time.Duration
 	WriteTimeout time.Duration
 }
 
 func (d *TimeoutDialer) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
+	if d.resolver != nil {
+		host, port, err := net.SplitHostPort(address)
+		if err != nil {
+			return nil, err
+		}
+		ipList, err := d.resolver.GetIpList(ctx, host)
+		if err != nil {
+			return nil, err
+		}
+
+		// 随机打乱 IP List
+		rand.Shuffle(len(ipList), func(i, j int) {
+			ipList[i], ipList[j] = ipList[j], ipList[i]
+		})
+
+		for _, ip := range ipList {
+			conn, err := d.Dialer.DialContext(ctx, network, ip+":"+port)
+			if err == nil {
+				return NewTimeoutConn(conn, d.ReadTimeout, d.WriteTimeout), nil
+			} else {
+				d.resolver.Remove(address, ip)
+			}
+		}
+	}
+
 	conn, err := d.Dialer.DialContext(ctx, network, address)
 	if err != nil {
 		return nil, err

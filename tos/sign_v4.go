@@ -12,8 +12,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -68,7 +66,7 @@ type SignV4 struct {
 	signingQuery  func(key string) bool
 	now           func() time.Time
 	signingKey    func(*SigningKeyInfo) []byte
-	logger        logrus.FieldLogger
+	logger        Logger
 }
 
 type signedRes struct {
@@ -91,7 +89,7 @@ type signedQuery struct {
 
 type SignV4Option func(*SignV4)
 
-func (sv *SignV4) WithSignLogger(logger logrus.FieldLogger) {
+func (sv *SignV4) WithSignLogger(logger Logger) {
 	sv.logger = logger
 }
 

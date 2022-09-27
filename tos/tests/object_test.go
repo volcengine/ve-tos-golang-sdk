@@ -486,7 +486,7 @@ func TestUnsupportedSSEC(t *testing.T) {
 		Content: strings.NewReader(value),
 	})
 	require.Nil(t, put)
-	require.Equal(t, 400, tos.StatusCode(err))
+	require.Equal(t, tos.InvalidSSECAlgorithm, err)
 }
 
 func TestDeleteMultiObjects(t *testing.T) {
@@ -1129,4 +1129,33 @@ func TestWithDataListener(t *testing.T) {
 		DataTransferListener: listener,
 	})
 	checkDataListener(t, listener)
+}
+
+type CiIoReader struct {
+	buff *bytes.Buffer
+}
+
+func (c CiIoReader) Read(p []byte) (n int, err error) {
+	return c.buff.Read(p)
+}
+
+func TestObjectWithIoReader(t *testing.T) {
+	var (
+		env    = newTestEnv(t)
+		bucket = generateBucketName("put-basic-io-reader")
+		client = env.prepareClient(bucket)
+		key    = "key123"
+	)
+	defer func() {
+		cleanBucket(t, client, bucket)
+	}()
+	ioReader := CiIoReader{buff: bytes.NewBufferString(randomString(4 * 1024 * 1024))}
+	_, err := client.PutObjectV2(context.Background(), &tos.PutObjectV2Input{
+		PutObjectBasicInput: tos.PutObjectBasicInput{
+			Bucket: bucket,
+			Key:    key,
+		},
+		Content: ioReader,
+	})
+	require.Nil(t, err)
 }

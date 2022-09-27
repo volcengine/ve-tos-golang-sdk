@@ -97,12 +97,13 @@ type PutObjectACLOutput struct {
 }
 
 type PreSignedURLInput struct {
-	HTTPMethod enum.HttpMethodType
-	Bucket     string
-	Key        string
-	Expires    int64 // Expiration time in seconds, default 3600 seconds, max 7 days, range [1, 604800]
-	Header     map[string]string
-	Query      map[string]string
+	HTTPMethod          enum.HttpMethodType
+	Bucket              string
+	Key                 string
+	Expires             int64 // Expiration time in seconds, default 3600 seconds, max 7 days, range [1, 604800]
+	Header              map[string]string
+	Query               map[string]string
+	AlternativeEndpoint string
 }
 
 type PreSignedURLOutput struct {
@@ -145,6 +146,7 @@ type HeadBucketOutput struct {
 	RequestInfo  `json:"-"`
 	Region       string                `json:"Region,omitempty"`
 	StorageClass enum.StorageClassType `json:"StorageClass,omitempty"`
+	AzRedundancy enum.AzRedundancyType `json:"AzRedundancy"`
 }
 
 type GetBucketCORSInput struct {

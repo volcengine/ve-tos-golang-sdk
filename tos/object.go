@@ -390,6 +390,18 @@ func (cli *ClientV2) PutObjectV2(ctx context.Context, input *PutObjectV2Input) (
 	if err := isValidNames(input.Bucket, input.Key); err != nil {
 		return nil, err
 	}
+	if err := isValidSSECAlgorithm(input.SSECAlgorithm); len(input.SSECAlgorithm) != 0 && err != nil {
+		return nil, err
+	}
+
+	if err := isValidACL(input.ACL); len(input.ACL) != 0 && err != nil {
+		return nil, err
+	}
+
+	if err := isValidStorageClass(input.StorageClass); len(input.StorageClass) != 0 && err != nil {
+		return nil, err
+	}
+
 	var (
 		checker       hash.Hash64
 		content       = input.Content
@@ -405,27 +417,32 @@ func (cli *ClientV2) PutObjectV2(ctx context.Context, input *PutObjectV2Input) (
 		content = wrapReader(content, contentLength, input.DataTransferListener, input.RateLimiter, checker)
 	}
 	var (
-		onRetry    func(req *Request) = nil
+		onRetry    func(req *Request) error = nil
 		classifier classifier
 	)
-	classifier = StatusCodeClassifier{}
+	classifier = NoRetryClassifier{}
 	if seeker, ok := content.(io.Seeker); ok {
 		start, err := seeker.Seek(0, io.SeekCurrent)
 		if err != nil {
 			return nil, err
 		}
-		onRetry = func(req *Request) {
+		onRetry = func(req *Request) error {
 			// PutObject/UploadPart can be treated as an idempotent semantics if the request message body
 			// supports a reset operation. e.g. the request message body is a string,
 			// a local file handle, binary data in memory
 			if seeker, ok := req.Content.(io.Seeker); ok {
-				seeker.Seek(start, io.SeekStart)
+				_, err := seeker.Seek(start, io.SeekStart)
+				if err != nil {
+					return err
+				}
+			} else {
+				return newTosClientError("Io Reader not support retry", nil)
 			}
+			return nil
 		}
+		classifier = StatusCodeClassifier{}
 	}
-	if onRetry == nil {
-		classifier = ServerErrorClassifier{}
-	}
+
 	rb := cli.newBuilder(input.Bucket, input.Key).
 		WithContentLength(contentLength).
 		WithParams(*input).

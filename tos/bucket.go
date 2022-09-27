@@ -51,15 +51,21 @@ func (cli *ClientV2) CreateBucketV2(ctx context.Context, input *CreateBucketV2In
 	}
 
 	// TODO: ACL和Grant不能同时设置，可以在sdk校验
-	if len(input.ACL) != 0 {
-		if err := isValidACL(input.ACL); err != nil {
-			return nil, err
-		}
+	if err := isValidACL(input.ACL); len(input.ACL) != 0 && err != nil {
+		return nil, err
+	}
+
+	if err := isValidStorageClass(input.StorageClass); len(input.StorageClass) != 0 && err != nil {
+		return nil, err
+	}
+
+	if err := isValidAzRedundancy(input.AzRedundancy); len(input.AzRedundancy) != 0 && err != nil {
+		return nil, err
 	}
 
 	res, err := cli.newBuilder(input.Bucket, "").
 		WithParams(*input).
-		WithRetry(func(req *Request) {}, ServerErrorClassifier{}).
+		WithRetry(func(req *Request) error { return nil }, ServerErrorClassifier{}).
 		Request(ctx, http.MethodPut, nil, cli.roundTripper(http.StatusOK))
 	if err != nil {
 		return nil, err
@@ -89,6 +95,7 @@ func (cli *Client) HeadBucket(ctx context.Context, bucket string) (*HeadBucketOu
 		RequestInfo:  res.RequestInfo(),
 		Region:       res.Header.Get(HeaderBucketRegion),
 		StorageClass: enum.StorageClassType(res.Header.Get(HeaderStorageClass)),
+		AzRedundancy: enum.AzRedundancyType(res.Header.Get(HeaderAzRedundancy)),
 	}, nil
 }
 

@@ -9,8 +9,6 @@ import (
 	"runtime"
 	"strings"
 	"time"
-
-	"github.com/sirupsen/logrus"
 )
 
 // Client TOS Client
@@ -41,8 +39,7 @@ type Client struct {
 	retry        *retryer
 	dnsCacheTime time.Duration // milliseconds
 	enableCRC    bool
-	proxy        *Proxy
-	logger       logrus.FieldLogger
+	logger       Logger
 }
 
 // ClientV2 TOS ClientV2
@@ -105,7 +102,7 @@ func WithRequestTimeout(timeout time.Duration) ClientOption {
 //
 // WithLogger sets the tos sdk logger
 //
-func WithLogger(logger *logrus.Logger) ClientOption {
+func WithLogger(logger Logger) ClientOption {
 	return func(client *Client) {
 		client.logger = logger
 	}
@@ -115,6 +112,13 @@ func WithLogger(logger *logrus.Logger) ClientOption {
 func WithConnectionTimeout(timeout time.Duration) ClientOption {
 	return func(client *Client) {
 		client.config.TransportConfig.DialTimeout = timeout
+	}
+}
+
+// WithProxy set http Proxy for tos client
+func WithProxy(proxy *Proxy) ClientOption {
+	return func(client *Client) {
+		client.config.TransportConfig.Proxy = proxy
 	}
 }
 
@@ -142,22 +146,12 @@ func WithUserAgentSuffix(suffix string) ClientOption {
 	}
 }
 
-// // WithProxy set Proxy
-// //
-// // see StaticProxy
-// func WithProxy(proxy *Proxy) ClientV2Option {
-//	return func(client *ClientV2) {
-//		client.proxy = proxy
-//	}
-// }
-//
-// // WithDNSCacheTime set dnsCacheTime in milliseconds
-// func WithDNSCacheTime(dnsCacheTime int) ClientV2Option {
-//	return func(client *ClientV2) {
-//		client.dnsCacheTime = dnsCacheTime * time.Milliseconds
-//	}
-// }
-//
+// WithDNSCacheTime set dnsCacheTime in Minute
+func WithDNSCacheTime(dnsCacheTime int) ClientOption {
+	return func(client *Client) {
+		client.config.TransportConfig.DNSCacheTime = time.Minute * time.Duration(dnsCacheTime)
+	}
+}
 
 // WithEnableCRC set if check crc after uploading object.
 // Checking crc is enabled by default.
@@ -268,9 +262,11 @@ func schemeHost(endpoint string) (scheme string, host string, urlMode urlMode) {
 		host = endpoint
 	}
 	urlMode = urlModeDefault
-	if net.ParseIP(host) != nil {
+	hostWithoutPort, _, _ := net.SplitHostPort(host)
+	if net.ParseIP(host) != nil || net.ParseIP(hostWithoutPort) != nil {
 		urlMode = urlModePath
 	}
+
 	return scheme, host, urlMode
 }
 
@@ -355,7 +351,7 @@ func (cli *Client) newBuilder(bucket, object string, options ...Option) *request
 		URLMode:    cli.urlMode,
 		Query:      make(url.Values),
 		Header:     make(http.Header),
-		OnRetry:    func(req *Request) {},
+		OnRetry:    func(req *Request) error { return nil },
 		Classifier: StatusCodeClassifier{},
 	}
 	rb.Header.Set(HeaderUserAgent, cli.userAgent)
@@ -387,9 +383,9 @@ func (cli *Client) roundTripper(expectedCode int) roundTripper {
 		resp, err := cli.roundTrip(ctx, req, expectedCode)
 		if cli.logger != nil {
 			if err != nil {
-				cli.logger.Infof("[tos] http error:%s.", err.Error())
+				cli.logger.Info(fmt.Sprintf("[tos] http error:%s.", err.Error()))
 			} else {
-				cli.logger.Infof("[tos] Response StatusCode:%d, RequestId:%s, Cost:%d ms", resp.StatusCode, resp.RequestInfo().RequestID, time.Since(start).Milliseconds())
+				cli.logger.Info(fmt.Sprintf("[tos] Response StatusCode:%d, RequestId:%s, Cost:%d ms", resp.StatusCode, resp.RequestInfo().RequestID, time.Since(start).Milliseconds()))
 			}
 		}
 		return resp, err
@@ -422,6 +418,11 @@ func (cli *ClientV2) PreSignedURL(input *PreSignedURLInput) (*PreSignedURLOutput
 		return nil, err
 	}
 	rb := cli.newBuilder(input.Bucket, input.Key)
+
+	if input.AlternativeEndpoint != "" {
+		_, host, _ := schemeHost(input.AlternativeEndpoint)
+		rb.Host = host
+	}
 	for k, v := range input.Header {
 		rb.WithHeader(k, v)
 	}
