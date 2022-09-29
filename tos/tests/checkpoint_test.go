@@ -1,8 +1,11 @@
 package tests
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"hash"
+	"hash/crc64"
 	"io"
 	"io/ioutil"
 	"os"
@@ -81,6 +84,9 @@ func TestUploadFile(t *testing.T) {
 		Key:    key,
 	})
 	checkSuccess(t, get, err, 200)
+	data, err := ioutil.ReadAll(get.Content)
+	require.Nil(t, err)
+	require.Equal(t, md5s(string(data)), md5s(value1))
 
 	get, err = client.GetObjectV2(context.Background(), &tos.GetObjectV2Input{
 		Bucket:     bucket,
@@ -130,17 +136,25 @@ func TestUploadFileWithCheckpoint(t *testing.T) {
 }
 
 type uploadFileListenerTest struct {
-	count  int
-	cancel tos.CancelHook
+	count   int
+	cancel  tos.CancelHook
+	maxTime int
 }
 
 func (l *uploadFileListenerTest) EventChange(event *tos.UploadEvent) {
 	if event.Type == enum.UploadEventUploadPartSucceed {
 		l.count++
 	}
-	if l.count == 2 {
+	if l.count == l.maxTime {
 		l.cancel.Cancel(false)
 	}
+}
+
+func getCrc(value string) uint64 {
+	var checker hash.Hash64
+	checker = crc64.New(crc64.MakeTable(crc64.ECMA))
+	checker.Write([]byte(value))
+	return checker.Sum64()
 }
 
 func TestUploadFileCancelHook(t *testing.T) {
@@ -149,12 +163,14 @@ func TestUploadFileCancelHook(t *testing.T) {
 		bucket   = generateBucketName("upload-file-cancel-hook")
 		key      = "key123"
 		value1   = randomString(22 * 1024 * 1024)
+		md5sum   = md5s(value1)
 		client   = env.prepareClient(bucket, LongTimeOutClientOption...)
 		fileName = randomString(16) + ".file"
 	)
 	defer func() {
 		cleanBucket(t, client, bucket)
 		cleanTestFile(t, fileName)
+		cleanTestFile(t, fileName+".checkpoint")
 	}()
 	file, err := os.Create(fileName)
 	require.Nil(t, err)
@@ -175,8 +191,9 @@ func TestUploadFileCancelHook(t *testing.T) {
 		CancelHook:       hook,
 	}
 	listener := &uploadFileListenerTest{
-		count:  0,
-		cancel: hook,
+		count:   0,
+		cancel:  hook,
+		maxTime: 2,
 	}
 	input.UploadEventListener = listener
 	upload, err := client.UploadFile(context.Background(), input)
@@ -188,14 +205,97 @@ func TestUploadFileCancelHook(t *testing.T) {
 	require.Equal(t, 2, listener.count)
 
 	input.CancelHook = tos.NewCancelHook()
+	listener.maxTime = 3
 	upload, err = client.UploadFile(context.Background(), input)
 	require.Nil(t, err)
+	require.Equal(t, upload.HashCrc64ecma, getCrc(value1))
 
 	get, err := client.GetObjectV2(context.Background(), &tos.GetObjectV2Input{
 		Bucket: bucket,
 		Key:    key,
 	})
 	checkSuccess(t, get, err, 200)
+
+	data, err := ioutil.ReadAll(get.Content)
+	require.Nil(t, err)
+	require.Equal(t, md5sum, md5s(string(data)))
+	_ = os.Remove(stat.Name())
+	require.Equal(t, 5, listener.count)
+
+}
+
+func TestUploadFileUpdate(t *testing.T) {
+	var (
+		env      = newTestEnv(t)
+		bucket   = generateBucketName("upload-file-cancel-hook")
+		key      = "key123"
+		value1   = randomString(22 * 1024 * 1024)
+		client   = env.prepareClient(bucket, LongTimeOutClientOption...)
+		fileName = randomString(16) + ".file"
+	)
+	defer func() {
+		cleanBucket(t, client, bucket)
+		cleanTestFile(t, fileName)
+		cleanTestFile(t, fileName+".checkpoint")
+	}()
+	file, err := os.Create(fileName)
+	require.Nil(t, err)
+	n, err := file.Write([]byte(value1))
+	require.Nil(t, err)
+	require.Equal(t, len(value1), n)
+	defer file.Close()
+	hook := tos.NewCancelHook()
+	input := &tos.UploadFileInput{
+		CreateMultipartUploadV2Input: tos.CreateMultipartUploadV2Input{
+			Bucket: bucket,
+			Key:    key,
+		},
+		FilePath:         fileName,
+		PartSize:         5 * 1024 * 1024,
+		TaskNum:          4,
+		EnableCheckpoint: true,
+		CancelHook:       hook,
+	}
+	listener := &uploadFileListenerTest{
+		count:   0,
+		cancel:  hook,
+		maxTime: 2,
+	}
+	input.UploadEventListener = listener
+	upload, err := client.UploadFile(context.Background(), input)
+	require.Nil(t, upload)
+	require.NotNil(t, err)
+	// checkpoint file still exist
+	stat, err := os.Stat(strings.Join([]string{fileName, bucket, key, "upload"}, "."))
+	require.Nil(t, err)
+	require.Equal(t, 2, listener.count)
+
+	value1 = randomString(22 * 1024 * 1024)
+	md5sum := md5s(value1)
+
+	file, err = os.Create(fileName)
+	require.Nil(t, err)
+	n, err = file.Write([]byte(value1))
+	require.Nil(t, err)
+	require.Equal(t, len(value1), n)
+	defer file.Close()
+
+	input.CancelHook = tos.NewCancelHook()
+	listener.count = 0
+	listener.maxTime = 5
+	upload, err = client.UploadFile(context.Background(), input)
+	require.Nil(t, err)
+	require.Equal(t, upload.HashCrc64ecma, getCrc(value1))
+
+	get, err := client.GetObjectV2(context.Background(), &tos.GetObjectV2Input{
+		Bucket: bucket,
+		Key:    key,
+	})
+	checkSuccess(t, get, err, 200)
+
+	data, err := ioutil.ReadAll(get.Content)
+	require.Nil(t, err)
+	require.Equal(t, md5sum, md5s(string(data)))
 	_ = os.Remove(stat.Name())
 	require.Equal(t, 5, listener.count)
 
@@ -311,15 +411,16 @@ func TestDownloadFileWithCheckpoint(t *testing.T) {
 }
 
 type DownloadListenerTest struct {
-	count int
-	input *tos.DownloadFileInput
+	count   int
+	input   *tos.DownloadFileInput
+	maxTime int
 }
 
 func (l *DownloadListenerTest) EventChange(event *tos.DownloadEvent) {
 	if event.Type == enum.DownloadEventDownloadPartSucceed {
 		l.count++
 	}
-	if l.count == 2 {
+	if l.count == l.maxTime {
 		l.input.CancelHook.Cancel(false)
 	}
 }
@@ -339,6 +440,8 @@ func TestDownloadCancelHook(t *testing.T) {
 		cleanBucket(t, client, bucket)
 		cleanTestFile(t, fileName)
 		cleanTestFile(t, fileName+".file")
+		cleanTestFile(t, fileName+".checkpoint")
+		cleanTestFile(t, fileName+".file.temp")
 	}()
 	file, err := os.Create(fileName)
 	require.Nil(t, err)
@@ -364,29 +467,31 @@ func TestDownloadCancelHook(t *testing.T) {
 		PartSize:         5 * 1024 * 1024,
 		TaskNum:          4,
 		FilePath:         fileName + ".file", // xxx.file.file
+		CheckpointFile:   fileName + ".checkpoint",
 		EnableCheckpoint: true,
 		CancelHook:       hook,
 	}
-	listener := DownloadListenerTest{
-		count: 0,
-		input: input,
+	listener := &DownloadListenerTest{
+		count:   0,
+		input:   input,
+		maxTime: 2,
 	}
-	input.DownloadEventListener = &listener
+	input.DownloadEventListener = listener
 	_, err = client.DownloadFile(context.Background(), input)
 	require.Equal(t, 2, listener.count)
 
 	stat, err := os.Stat(fileName + ".file" + ".temp")
 	require.Nil(t, err)
 	input.CancelHook = tos.NewCancelHook()
+
+	listener.input = input
+	listener.maxTime = 5
 	_, err = client.DownloadFile(context.Background(), input)
 	require.Nil(t, err)
 	file, err = os.Open(fileName + ".file")
 	buffer, err := ioutil.ReadAll(file)
 	require.Nil(t, err)
 	require.Equal(t, md5Sum, md5s(string(buffer)))
-	_ = os.Remove(stat.Name())
-	stat, err = os.Stat(strings.Join([]string{fileName + ".file", bucket, key, "download"}, "."))
-	require.Nil(t, err)
 	_ = os.Remove(stat.Name())
 	require.Equal(t, 5, listener.count)
 }
@@ -448,4 +553,81 @@ func TestLargeFile(t *testing.T) {
 	buffer, err := ioutil.ReadAll(file)
 	require.Nil(t, err)
 	require.Equal(t, md5Sum, md5s(string(buffer)))
+}
+
+func TestDownloadFileWithUpdate(t *testing.T) {
+	var (
+		env      = newTestEnv(t)
+		bucket   = generateBucketName("download-file-with-checkpoint")
+		key      = "key123"
+		value1   = randomString(20 * 1024 * 1024)
+		client   = env.prepareClient(bucket)
+		fileName = randomString(16) + ".file"
+	)
+	defer func() {
+		cleanBucket(t, client, bucket)
+		cleanTestFile(t, fileName)
+		cleanTestFile(t, fileName+".file")
+		cleanTestFile(t, fileName+".file"+".temp")
+		cleanTestFile(t, fileName+".checkpoint")
+		cleanTestFile(t, strings.Join([]string{fileName + ".file", bucket, key, "download"}, "."))
+	}()
+	file, err := os.Create(fileName)
+	require.Nil(t, err)
+	n, err := file.Write([]byte(value1))
+	require.Nil(t, err)
+	require.Equal(t, len(value1), n)
+	defer file.Close()
+
+	upload, err := client.PutObjectFromFile(context.Background(), &tos.PutObjectFromFileInput{
+		PutObjectBasicInput: tos.PutObjectBasicInput{
+			Bucket: bucket,
+			Key:    key,
+		},
+		FilePath: fileName,
+	})
+	checkSuccess(t, upload, err, 200)
+	hook := tos.NewCancelHook()
+	input := &tos.DownloadFileInput{
+		HeadObjectV2Input: tos.HeadObjectV2Input{
+			Bucket: bucket,
+			Key:    key,
+		},
+		PartSize:         5 * 1024 * 1024,
+		TaskNum:          4,
+		FilePath:         fileName + ".file", // xxx.file.file
+		CheckpointFile:   fileName + ".checkpoint",
+		EnableCheckpoint: true,
+		CancelHook:       hook,
+	}
+	listener := DownloadListenerTest{
+		count:   0,
+		input:   input,
+		maxTime: 2,
+	}
+	input.DownloadEventListener = &listener
+	_, err = client.DownloadFile(context.Background(), input)
+	require.Equal(t, 2, listener.count)
+
+	// 重现上传新文件
+	value1 = randomString(20 * 1024 * 1024)
+	_, err = client.PutObjectV2(context.Background(), &tos.PutObjectV2Input{
+		PutObjectBasicInput: tos.PutObjectBasicInput{
+			Bucket: bucket,
+			Key:    key,
+		},
+		Content: bytes.NewBufferString(value1),
+	})
+	require.Nil(t, err)
+
+	hook = tos.NewCancelHook()
+	input.CancelHook = hook
+	input.DownloadEventListener = nil
+	download, err := client.DownloadFile(context.Background(), input)
+	checkSuccess(t, download, err, 200)
+	file, err = os.Open(fileName + ".file")
+	require.Nil(t, err)
+	buffer, err := ioutil.ReadAll(file)
+	require.Nil(t, err)
+	require.Equal(t, md5s(value1), md5s(string(buffer)))
 }

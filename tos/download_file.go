@@ -11,32 +11,34 @@ import (
 	"github.com/volcengine/ve-tos-golang-sdk/v2/tos/enum"
 )
 
-func getDownloadCheckpoint(enabled bool, checkpointPath string, init func(input *HeadObjectV2Output) (*downloadCheckpoint, error), output *HeadObjectV2Output) (checkpoint *downloadCheckpoint, err error) {
-	if enabled {
-		_, err = os.Stat(checkpointPath)
-		// if err is not empty, assume checkpoint not exists
-		if err == nil {
-			checkpoint = &downloadCheckpoint{}
-			loadCheckPoint(checkpointPath, checkpoint)
-			if checkpoint != nil && checkpoint.ObjectInfo.Etag == output.ETag {
-				return
-			}
-		}
-		_, err = os.Create(checkpointPath)
-		if err != nil {
-			return nil, newTosClientError(err.Error(), err)
-		}
+func getDownloadCheckpoint(input *DownloadFileInput, init func(input *HeadObjectV2Output) (*downloadCheckpoint, error), output *HeadObjectV2Output) (checkpoint *downloadCheckpoint, err error) {
+	enabled := input.EnableCheckpoint
+	checkpointPath := input.CheckpointFile
+	if !enabled {
+		return init(output)
 	}
+
+	checkpoint = &downloadCheckpoint{}
+	loadCheckPoint(checkpointPath, checkpoint)
+	if checkpoint.Valid(input, output) {
+		return
+	}
+
+	_, err = os.Create(checkpointPath)
+	if err != nil {
+		return nil, newTosClientError(err.Error(), err)
+	}
+
 	checkpoint, err = init(output)
 	if err != nil {
 		return nil, err
 	}
-	if enabled {
-		err = checkpoint.WriteToFile()
-		if err != nil {
-			return nil, err
-		}
+
+	err = checkpoint.WriteToFile()
+	if err != nil {
+		return nil, err
 	}
+
 	return
 }
 
@@ -57,7 +59,7 @@ func (cli *ClientV2) DownloadFile(ctx context.Context, input *DownloadFileInput)
 		}
 		return initDownloadCheckpoint(input, headOutput)
 	}
-	checkpoint, err := getDownloadCheckpoint(input.EnableCheckpoint, input.CheckpointFile, init, headOutput)
+	checkpoint, err := getDownloadCheckpoint(input, init, headOutput)
 	if err != nil {
 		return nil, err
 	}

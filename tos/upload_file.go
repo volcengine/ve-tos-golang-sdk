@@ -35,11 +35,7 @@ func initUploadPartsInfo(uploadFileStat os.FileInfo, partSize int64) ([]uploadPa
 }
 
 // initUploadCheckpoint initialize checkpoint file, return TosClientError if failed
-func initUploadCheckpoint(input *UploadFileInput) (*uploadCheckpoint, error) {
-	stat, err := os.Stat(input.FilePath)
-	if err != nil {
-		return nil, newTosClientError(err.Error(), err)
-	}
+func initUploadCheckpoint(input *UploadFileInput, stat os.FileInfo) (*uploadCheckpoint, error) {
 	parts, err := initUploadPartsInfo(stat, input.PartSize)
 	if err != nil {
 		return nil, err
@@ -63,7 +59,7 @@ func initUploadCheckpoint(input *UploadFileInput) (*uploadCheckpoint, error) {
 }
 
 // validateUploadInput validate upload input, return TosClientError failed
-func validateUploadInput(input *UploadFileInput) error {
+func validateUploadInput(input *UploadFileInput, stat os.FileInfo) error {
 	if err := isValidNames(input.Bucket, input.Key); err != nil {
 		return err
 	}
@@ -73,10 +69,7 @@ func validateUploadInput(input *UploadFileInput) error {
 	if input.PartSize < MinPartSize || input.PartSize > MaxPartSize {
 		return InvalidPartSize
 	}
-	stat, err := os.Stat(input.FilePath)
-	if err != nil {
-		return InvalidSrcFilePath
-	}
+
 	if stat.IsDir() {
 		return newTosClientError("tos: does not support directory, please specific your file path.", nil)
 	}
@@ -105,35 +98,55 @@ func (u *uploadPostEvent) postUploadEvent(event *UploadEvent) {
 	}
 }
 
-// getUploadCheckpoint get struct checkpoint from checkpoint file if checkpointPath is valid,
-// or initialize from scratch with function init
-func getUploadCheckpoint(enabled bool, checkpointPath string,
-	init func() (*uploadCheckpoint, error)) (checkpoint *uploadCheckpoint, err error) {
-	if enabled {
-		_, err = os.Stat(checkpointPath)
-		// if err is not empty, assume checkpoint not exists
-		if err == nil {
-			checkpoint = &uploadCheckpoint{}
-			loadCheckPoint(checkpointPath, checkpoint)
-			if checkpoint != nil {
-				return
-			}
-		}
-		_, err = os.Create(checkpointPath)
-		if err != nil {
-			return nil, newTosClientError("tos: create checkpoint file failed", err)
+func loadExistUploadCheckPoint(ctx context.Context, cli *ClientV2, input *UploadFileInput, srcFile os.FileInfo) (*uploadCheckpoint, bool) {
+	checkpoint := &uploadCheckpoint{}
+	var err error
+	loadCheckPoint(input.CheckpointFile, checkpoint)
+	if checkpoint.Valid(srcFile, input.Bucket, input.Key, input.FilePath) {
+		return checkpoint, true
+	} else if checkpoint.Bucket != "" && checkpoint.Key != "" && checkpoint.UploadID != "" {
+		// 尝试去 abort
+		_, err = cli.AbortMultipartUpload(ctx,
+			&AbortMultipartUploadInput{
+				Bucket:   checkpoint.Bucket,
+				Key:      checkpoint.Key,
+				UploadID: checkpoint.UploadID})
+		if err != nil && cli.logger != nil {
+			cli.logger.Debug("fail to abort upload task: %s, err:%s", checkpoint.UploadID, err.Error())
 		}
 	}
+	return nil, false
+}
+
+// getUploadCheckpoint get struct checkpoint from checkpoint file if checkpointPath is valid,
+// or initialize from scratch with function init
+func getUploadCheckpoint(ctx context.Context, cli *ClientV2, input *UploadFileInput, srcFile os.FileInfo, init func() (*uploadCheckpoint, error)) (checkpoint *uploadCheckpoint, err error) {
+
+	if !input.EnableCheckpoint {
+		return init()
+	}
+
+	checkpoint, exist := loadExistUploadCheckPoint(ctx, cli, input, srcFile)
+
+	if exist {
+		return checkpoint, nil
+	}
+
+	_, err = os.Create(input.CheckpointFile)
+	if err != nil {
+		return nil, newTosClientError("tos: create checkpoint file failed", err)
+	}
+
 	checkpoint, err = init()
 	if err != nil {
 		return nil, err
 	}
-	if enabled {
-		err = checkpoint.WriteToFile()
-		if err != nil {
-			return nil, err
-		}
+
+	err = checkpoint.WriteToFile()
+	if err != nil {
+		return nil, err
 	}
+
 	return
 }
 
@@ -157,18 +170,25 @@ func (cli *ClientV2) UploadFile(ctx context.Context, input *UploadFileInput) (ou
 	// avoid modifying on origin pointer
 	input = &(*input)
 
-	if err = validateUploadInput(input); err != nil {
+	stat, err := os.Stat(input.FilePath)
+	if err != nil {
+		return nil, InvalidSrcFilePath
+	}
+
+	if err = validateUploadInput(input, stat); err != nil {
 		return nil, err
 	}
 
 	init := func() (*uploadCheckpoint, error) {
-		return initUploadCheckpoint(input)
+		return initUploadCheckpoint(input, stat)
 	}
+
 	// if the checkpoint file not exist, here we will create it
-	checkpoint, err := getUploadCheckpoint(input.EnableCheckpoint, input.CheckpointFile, init)
+	checkpoint, err := getUploadCheckpoint(ctx, cli, input, stat, init)
 	if err != nil {
 		return nil, err
 	}
+
 	event := &uploadPostEvent{
 		input:      input,
 		checkPoint: checkpoint,

@@ -1,5 +1,8 @@
 # ChangeLog of TOS SDK for Go
 
+## 版本号 v2.3.1 日期：2022-09-28
+- 修复：UploadFile 可能出现无法正确断点续传的情况
+
 ## 版本号 v2.3.0 日期：2022-09-22
 - 新增：PreSignedURL 增加 AlternativeEndpoint 参数
 - 新增：域名缓存机制
