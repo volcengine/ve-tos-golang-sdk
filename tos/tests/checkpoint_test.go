@@ -12,6 +12,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -150,10 +151,10 @@ func (l *uploadFileListenerTest) EventChange(event *tos.UploadEvent) {
 	}
 }
 
-func getCrc(value string) uint64 {
+func getCrc(value []byte) uint64 {
 	var checker hash.Hash64
 	checker = crc64.New(crc64.MakeTable(crc64.ECMA))
-	checker.Write([]byte(value))
+	checker.Write(value)
 	return checker.Sum64()
 }
 
@@ -202,13 +203,16 @@ func TestUploadFileCancelHook(t *testing.T) {
 	// checkpoint file still exist
 	stat, err := os.Stat(strings.Join([]string{fileName, bucket, key, "upload"}, "."))
 	require.Nil(t, err)
-	require.Equal(t, 2, listener.count)
+	require.True(t, listener.count >= 2)
 
 	input.CancelHook = tos.NewCancelHook()
 	listener.maxTime = 3
 	upload, err = client.UploadFile(context.Background(), input)
 	require.Nil(t, err)
-	require.Equal(t, upload.HashCrc64ecma, getCrc(value1))
+	file, err = os.Open(fileName)
+	require.Nil(t, err)
+	fileData, err := ioutil.ReadAll(file)
+	require.Equal(t, upload.HashCrc64ecma, getCrc(fileData))
 
 	get, err := client.GetObjectV2(context.Background(), &tos.GetObjectV2Input{
 		Bucket: bucket,
@@ -227,7 +231,7 @@ func TestUploadFileCancelHook(t *testing.T) {
 func TestUploadFileUpdate(t *testing.T) {
 	var (
 		env      = newTestEnv(t)
-		bucket   = generateBucketName("upload-file-cancel-hook")
+		bucket   = generateBucketName("upload-file-checkpoint-update")
 		key      = "key123"
 		value1   = randomString(22 * 1024 * 1024)
 		client   = env.prepareClient(bucket, LongTimeOutClientOption...)
@@ -238,9 +242,11 @@ func TestUploadFileUpdate(t *testing.T) {
 		cleanTestFile(t, fileName)
 		cleanTestFile(t, fileName+".checkpoint")
 	}()
+
 	file, err := os.Create(fileName)
 	require.Nil(t, err)
 	n, err := file.Write([]byte(value1))
+	file.Sync()
 	require.Nil(t, err)
 	require.Equal(t, len(value1), n)
 	defer file.Close()
@@ -254,6 +260,7 @@ func TestUploadFileUpdate(t *testing.T) {
 		PartSize:         5 * 1024 * 1024,
 		TaskNum:          4,
 		EnableCheckpoint: true,
+		CheckpointFile:   fileName + ".checkpoint",
 		CancelHook:       hook,
 	}
 	listener := &uploadFileListenerTest{
@@ -266,26 +273,29 @@ func TestUploadFileUpdate(t *testing.T) {
 	require.Nil(t, upload)
 	require.NotNil(t, err)
 	// checkpoint file still exist
-	stat, err := os.Stat(strings.Join([]string{fileName, bucket, key, "upload"}, "."))
+	stat, err := os.Stat(fileName + ".checkpoint")
 	require.Nil(t, err)
-	require.Equal(t, 2, listener.count)
+	require.True(t, listener.count >= 2)
 
-	value1 = randomString(22 * 1024 * 1024)
+	value1 = randomString(23 * 1024 * 1024)
 	md5sum := md5s(value1)
 
+	os.Remove(fileName)
 	file, err = os.Create(fileName)
 	require.Nil(t, err)
 	n, err = file.Write([]byte(value1))
 	require.Nil(t, err)
 	require.Equal(t, len(value1), n)
+	file.Sync()
 	defer file.Close()
 
+	time.Sleep(time.Second)
 	input.CancelHook = tos.NewCancelHook()
 	listener.count = 0
 	listener.maxTime = 5
+	listener.cancel = input.CancelHook
 	upload, err = client.UploadFile(context.Background(), input)
 	require.Nil(t, err)
-	require.Equal(t, upload.HashCrc64ecma, getCrc(value1))
 
 	get, err := client.GetObjectV2(context.Background(), &tos.GetObjectV2Input{
 		Bucket: bucket,
@@ -478,7 +488,7 @@ func TestDownloadCancelHook(t *testing.T) {
 	}
 	input.DownloadEventListener = listener
 	_, err = client.DownloadFile(context.Background(), input)
-	require.Equal(t, 2, listener.count)
+	require.True(t, listener.count >= 2)
 
 	stat, err := os.Stat(fileName + ".file" + ".temp")
 	require.Nil(t, err)
@@ -607,7 +617,10 @@ func TestDownloadFileWithUpdate(t *testing.T) {
 	}
 	input.DownloadEventListener = &listener
 	_, err = client.DownloadFile(context.Background(), input)
-	require.Equal(t, 2, listener.count)
+	require.True(t, listener.count >= 2)
+	// Checkpoint 文件还存在
+	_, err = os.Stat(fileName + ".checkpoint")
+	require.Nil(t, err)
 
 	// 重现上传新文件
 	value1 = randomString(20 * 1024 * 1024)

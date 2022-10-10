@@ -299,7 +299,6 @@ func TestInvalidObjectKey(t *testing.T) {
 	)
 	testInvalidObjectKey(t, client, "	key")
 	testInvalidObjectKey(t, client, randomString(1001))
-	testInvalidObjectKey(t, client, "/key")
 	testInvalidObjectKey(t, client, "\\key")
 	key1 := make([]byte, 5)
 	for i := 0; i < len(key1); i++ {
@@ -604,17 +603,24 @@ func TestCAS(t *testing.T) {
 		Content: strings.NewReader(value + "123"),
 	})
 	checkSuccess(t, put, err, 200)
+
+	headObject, err := client.HeadObjectV2(context.Background(), &tos.HeadObjectV2Input{
+		Bucket: bucket,
+		Key:    key,
+	})
+	require.Nil(t, err)
+
 	get, err = client.GetObjectV2(context.Background(), &tos.GetObjectV2Input{
 		Bucket:            bucket,
 		Key:               key,
-		IfUnmodifiedSince: now,
+		IfUnmodifiedSince: headObject.LastModified.Add(-1 * time.Second),
 	})
 	checkFail(t, get, err, 412)
 
 	get, err = client.GetObjectV2(context.Background(), &tos.GetObjectV2Input{
 		Bucket:          bucket,
 		Key:             key,
-		IfModifiedSince: now,
+		IfModifiedSince: headObject.LastModified.Add(-1 * time.Second),
 	})
 	checkSuccess(t, get, err, 200)
 }
@@ -1158,4 +1164,35 @@ func TestObjectWithIoReader(t *testing.T) {
 		Content: ioReader,
 	})
 	require.Nil(t, err)
+}
+
+func TestObjectWithRootPath(t *testing.T) {
+	var (
+		env    = newTestEnv(t)
+		bucket = generateBucketName("put-object-with-root")
+		client = env.prepareClient(bucket)
+		key    = "/key123"
+	)
+	defer func() {
+		cleanBucket(t, client, bucket)
+	}()
+	value := randomString(4 * 1024 * 1024)
+	md5 := md5s(value)
+	ioReader := CiIoReader{buff: bytes.NewBufferString(value)}
+	_, err := client.PutObjectV2(context.Background(), &tos.PutObjectV2Input{
+		PutObjectBasicInput: tos.PutObjectBasicInput{
+			Bucket: bucket,
+			Key:    key,
+		},
+		Content: ioReader,
+	})
+	require.Nil(t, err)
+	out, err := client.GetObjectV2(context.Background(), &tos.GetObjectV2Input{
+		Bucket: bucket,
+		Key:    key,
+	})
+	require.Nil(t, err)
+	data, err := ioutil.ReadAll(out.Content)
+	require.Nil(t, err)
+	require.Equal(t, md5s(string(data)), md5)
 }

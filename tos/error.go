@@ -15,7 +15,7 @@ var (
 	InvalidBucketNameCharacter        = newTosClientError("invalid bucket name, the character set is illegal", nil)
 	InvalidBucketNameStartingOrEnding = newTosClientError("invalid bucket name, the bucket name can be neither starting with '-' nor ending with '-'", nil)
 	InvalidObjectNameLength           = newTosClientError("invalid object name, the length must be [1, 696]", nil)
-	InvalidObjectNameStartingOrEnding = newTosClientError("invalid object name, the object name can not start with '/' or '\\'", nil)
+	InvalidObjectNameStartingOrEnding = newTosClientError("invalid object name, the object name can not start with '\\'", nil)
 	InvalidObjectNameCharacterSet     = newTosClientError("invalid object name, the character set is illegal", nil)
 	InvalidACL                        = newTosClientError("invalid acl type", nil)
 	InvalidStorageClass               = newTosClientError("invalid storage class", nil)
