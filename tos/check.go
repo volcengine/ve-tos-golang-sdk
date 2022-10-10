@@ -38,7 +38,7 @@ func validKey(key string) error {
 	if len(key) < 1 || len(key) > 696 {
 		return InvalidObjectNameLength
 	}
-	if key[0] == '/' || key[0] == '\\' {
+	if key[0] == '\\' {
 		return InvalidObjectNameStartingOrEnding
 	}
 	bytes := []byte(key)
