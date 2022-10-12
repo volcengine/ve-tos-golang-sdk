@@ -7,7 +7,7 @@ import (
 
 const (
 	// Version tos-go-sdk version
-	Version = "v2.3.1"
+	Version = "v2.3.3"
 )
 
 const TempFileSuffix = ".temp"
@@ -26,6 +26,11 @@ func SupportedRegion() map[string]string {
 		"cn-shanghai":  "tos-cn-shanghai.volces.com",
 	}
 }
+
+const (
+	defaultPreSignedURLExpires = 3600
+	maxPreSignedURLExpires     = 604800
+)
 
 const (
 	MaxPartSize = 5 * 1024 * 1024 * 1024

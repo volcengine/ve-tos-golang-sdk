@@ -9,11 +9,70 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/volcengine/ve-tos-golang-sdk/v2/tos"
 )
+
+func TestPreSignedURLWithExpires(t *testing.T) {
+	var (
+		env    = newTestEnv(t)
+		bucket = generateBucketName("pre-signed-url-expires")
+		cli    = env.prepareClient("")
+		client = &http.Client{}
+	)
+	defer cleanBucket(t, cli, bucket)
+
+	url, err := cli.PreSignedURL(&tos.PreSignedURLInput{
+		HTTPMethod: http.MethodPut,
+		Bucket:     bucket,
+		Expires:    1000,
+	})
+	require.Nil(t, err)
+	req, _ := http.NewRequest(http.MethodPut, url.SignedUrl, nil)
+	res, err := client.Do(req)
+	require.Nil(t, err)
+	require.Equal(t, 200, res.StatusCode)
+
+	// put object expire
+	url, err = cli.PreSignedURL(&tos.PreSignedURLInput{
+		HTTPMethod: http.MethodPut,
+		Bucket:     bucket,
+		Key:        "put-key",
+		Expires:    2,
+	})
+	require.Nil(t, err)
+	time.Sleep(time.Second * 3)
+	req, _ = http.NewRequest(http.MethodPut, url.SignedUrl, strings.NewReader(randomString(1024)))
+	res, err = client.Do(req)
+	require.Nil(t, err)
+	require.Equal(t, 403, res.StatusCode)
+
+	// put object without expires
+	url, err = cli.PreSignedURL(&tos.PreSignedURLInput{
+		HTTPMethod: http.MethodPut,
+		Bucket:     bucket,
+		Key:        "put-key",
+		Expires:    7 * 24 * 60 * 60, // 604800
+	})
+	require.Nil(t, err)
+	req, _ = http.NewRequest(http.MethodPut, url.SignedUrl, strings.NewReader(randomString(1024)))
+	res, err = client.Do(req)
+	require.Nil(t, err)
+	require.Equal(t, 200, res.StatusCode)
+
+	// exceed max expires
+	url, err = cli.PreSignedURL(&tos.PreSignedURLInput{
+		HTTPMethod: http.MethodPut,
+		Bucket:     bucket,
+		Key:        "put-key",
+		Expires:    6048000,
+	})
+	require.NotNil(t, err)
+
+}
 
 func TestPreSignedURL(t *testing.T) {
 	var (
@@ -133,6 +192,7 @@ func TestPreSignedURL(t *testing.T) {
 	res, err = client.Do(req)
 	require.Nil(t, err)
 	require.Equal(t, 200, res.StatusCode)
+
 }
 
 func TestPreSignedURLEndpoint(t *testing.T) {

@@ -430,9 +430,14 @@ func (cli *ClientV2) PreSignedURL(input *PreSignedURLInput) (*PreSignedURLOutput
 		rb.WithQuery(k, v)
 	}
 	if input.Expires == 0 {
-		input.Expires = 3600
+		input.Expires = defaultPreSignedURLExpires
 	}
-	signedURL, err := rb.PreSignedURL(string(input.HTTPMethod), time.Second*time.Duration(3600))
+
+	if input.Expires > maxPreSignedURLExpires {
+		return nil, InvalidPreSignedURLExpires
+	}
+
+	signedURL, err := rb.PreSignedURL(string(input.HTTPMethod), time.Second*time.Duration(input.Expires))
 	if err != nil {
 		return nil, err
 	}

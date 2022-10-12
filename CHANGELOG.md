@@ -1,5 +1,8 @@
 # ChangeLog of TOS SDK for Go
 
+## 版本号 v2.3.3 日期： 2022-10-12
+- 修复： PreSignedURL 接口 expire 过期时间问题
+
 ## 版本号 v2.3.2 日期：2022-10-09
 - 优化：上传支持 / 开头的对象
 
