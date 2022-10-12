@@ -29,6 +29,7 @@ var (
 	InvalidSrcFilePath                = newTosClientError("invalid file path, the file does not exist", nil)
 	InvalidFilePartNum                = newTosClientError("unsupported part number, the maximum is 10000", nil)
 	InvalidMarshal                    = newTosClientError("unable to do serialization/deserialization", nil)
+	InvalidPreSignedURLExpires        = newTosClientError("invalid pre signed url expires, the time must be less 604800 seconds.", nil)
 )
 
 type TosError struct {
