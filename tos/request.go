@@ -153,6 +153,7 @@ func convertToString(iface interface{}, tag *reflect.StructTag) string {
 
 // WithParams will set filed with tag "header" in input to rb.Header.
 func (rb *requestBuilder) WithParams(input interface{}) *requestBuilder {
+
 	t := reflect.TypeOf(input)
 	v := reflect.ValueOf(input)
 	for i := 0; i < v.NumField(); i++ {

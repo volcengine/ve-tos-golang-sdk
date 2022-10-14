@@ -421,6 +421,11 @@ func TestSSEC(t *testing.T) {
 	require.NotNil(t, get)
 	require.Nil(t, err)
 	require.Equal(t, 200, get.StatusCode)
+
+	buffer, err := ioutil.ReadAll(get.Content)
+	require.Nil(t, err)
+	require.Equal(t, string(buffer), value)
+	require.Equal(t, md5s(value), md5s(string(buffer)))
 }
 
 func TestSSE(t *testing.T) {
@@ -719,6 +724,19 @@ func TestAppend(t *testing.T) {
 		Meta:             meta,
 	})
 	checkSuccess(t, appendOutput, err, 200)
+	get, err := client.GetObjectV2(context.Background(), &tos.GetObjectV2Input{
+		Bucket: bucket,
+		Key:    key,
+	})
+	checkSuccess(t, get, err, 200)
+	buffer, err := ioutil.ReadAll(get.Content)
+	require.Equal(t, md5s(value1), md5s(string(buffer)))
+	for k, v := range meta {
+		val, ok := get.Meta.Get(k)
+		require.Equal(t, ok, true)
+		require.Equal(t, v, val)
+	}
+
 	appendOutput, err = client.AppendObjectV2(context.Background(), &tos.AppendObjectV2Input{
 		Bucket:           bucket,
 		Key:              key,
@@ -728,12 +746,12 @@ func TestAppend(t *testing.T) {
 		PreHashCrc64ecma: appendOutput.HashCrc64ecma,
 	})
 	checkSuccess(t, appendOutput, err, 200)
-	get, err := client.GetObjectV2(context.Background(), &tos.GetObjectV2Input{
+	get, err = client.GetObjectV2(context.Background(), &tos.GetObjectV2Input{
 		Bucket: bucket,
 		Key:    key,
 	})
 	checkSuccess(t, get, err, 200)
-	buffer, err := ioutil.ReadAll(get.Content)
+	buffer, err = ioutil.ReadAll(get.Content)
 	require.Equal(t, md5Sum, md5s(string(buffer)))
 	for k, v := range meta {
 		val, ok := get.Meta.Get(k)
@@ -949,6 +967,79 @@ func TestPutAndGetFile(t *testing.T) {
 	require.Equal(t, storageClass, get.StorageClass)
 }
 
+func TestPutAndGetFileDir(t *testing.T) {
+	var (
+		env          = newTestEnv(t)
+		bucket       = generateBucketName("put-from-file-dir")
+		key          = "/new123"
+		value        = randomString(4 * 1024)
+		md5Sum       = md5s(value)
+		expires      = time.Now().UTC().Add(time.Hour)
+		acl          = enum.ACLAuthRead
+		meta         = map[string]string{"Hello": "world"}
+		client       = env.prepareClient(bucket)
+		ssecKey      = randomString(32)
+		ssecMd5      = md5s(ssecKey)
+		storageClass = enum.StorageClassIa
+		fileName     = randomString(16) + ".file"
+		downFileName = "/tmp/gosdk/download"
+	)
+	defer func() {
+		cleanBucket(t, client, bucket)
+		cleanTestFile(t, fileName)
+		cleanTestFile(t, downFileName)
+	}()
+
+	file, err := os.Create(fileName)
+	require.Nil(t, err)
+	n, err := file.Write([]byte(value))
+	require.Nil(t, err)
+	require.Equal(t, len(value), n)
+	defer func(file *os.File) {
+		_ = file.Close()
+	}(file)
+	input := &tos.PutObjectFromFileInput{
+		PutObjectBasicInput: tos.PutObjectBasicInput{
+			Bucket:        bucket,
+			Key:           key,
+			ContentMD5:    md5Sum,
+			Expires:       expires,
+			ACL:           acl,
+			StorageClass:  storageClass,
+			SSECAlgorithm: "AES256",
+			SSECKey:       base64.StdEncoding.EncodeToString([]byte(ssecKey)),
+			SSECKeyMD5:    ssecMd5,
+			Meta:          meta,
+		},
+		FilePath: fileName,
+	}
+	put, err := client.PutObjectFromFile(context.Background(), input)
+	checkSuccess(t, put, err, 200)
+	get, err := client.GetObjectToFile(context.Background(), &tos.GetObjectToFileInput{
+		GetObjectV2Input: tos.GetObjectV2Input{
+			Bucket:        bucket,
+			Key:           key,
+			SSECAlgorithm: "AES256",
+			SSECKey:       base64.StdEncoding.EncodeToString([]byte(ssecKey)),
+			SSECKeyMD5:    ssecMd5,
+		},
+		FilePath: downFileName,
+	})
+	checkSuccess(t, get, err, 200)
+	downFile, err := os.Open(downFileName)
+	require.Nil(t, err)
+	buffer, err := ioutil.ReadAll(downFile)
+	require.Equal(t, value, string(buffer))
+	require.Equal(t, md5Sum, md5s(string(buffer)))
+	for k, v := range meta {
+		val, ok := get.Meta.Get(k)
+		require.Equal(t, ok, true)
+		require.Equal(t, v, val)
+	}
+	require.Equal(t, expires.Format(time.UnixDate), get.Expires.Format(time.UnixDate))
+	require.Equal(t, storageClass, get.StorageClass)
+}
+
 func TestMultiVersion(t *testing.T) {
 	var (
 		env     = newTestEnv(t)
@@ -1018,7 +1109,7 @@ func TestPutWithMeta(t *testing.T) {
 	var (
 		env    = newTestEnv(t)
 		bucket = generateBucketName("put-with-meta")
-		key    = "key123"
+		key    = "key&123"
 		client = env.prepareClient(bucket)
 		value  = randomString(4 * 1024)
 	)

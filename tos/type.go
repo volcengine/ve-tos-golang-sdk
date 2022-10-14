@@ -15,10 +15,10 @@ type Grantee struct {
 }
 
 type GranteeV2 struct {
-	ID          string
-	DisplayName string
-	Type        enum.GranteeType
-	Canned      enum.CannedType
+	ID          string           `json:"ID,omitempty"`
+	DisplayName string           `json:"DisplayName,omitempty"`
+	Type        enum.GranteeType `json:"Type,omitempty"`
+	Canned      enum.CannedType  `json:"Canned,omitempty"`
 }
 
 type GrantV2 struct {
@@ -51,6 +51,38 @@ type GetObjectAclOutput struct {
 	VersionID   string  `json:"VersionId,omitempty"`
 	Owner       Owner   `json:"Owner,omitempty"`
 	Grants      []Grant `json:"Grants,omitempty"`
+}
+
+type bucketACL struct {
+	Owner     Owner     `json:"Owner,omitempty"`
+	GrantList []GrantV2 `json:"Grants,omitempty"`
+}
+
+type PutBucketACLInput struct {
+	Bucket           string
+	ACLType          enum.ACLType `location:"header" locationName:"X-Tos-Acl"`                // optional
+	GrantFullControl string       `location:"header" locationName:"X-Tos-Grant-Full-Control"` // optional
+	GrantRead        string       `location:"header" locationName:"X-Tos-Grant-Read"`         // optional
+	GrantReadAcp     string       `location:"header" locationName:"X-Tos-Grant-Read-Acp"`     // optional
+	GrantWrite       string       `location:"header" locationName:"X-Tos-Grant-Write"`        // optional
+	GrantWriteAcp    string       `location:"header" locationName:"X-Tos-Grant-Write-Acp"`    // optional
+
+	Owner  Owner     `json:"Owner,omitempty"`
+	Grants []GrantV2 `json:"Grants,omitempty"`
+}
+
+type PutBucketACLOutput struct {
+	RequestInfo
+}
+
+type GetBucketACLInput struct {
+	Bucket string
+}
+
+type GetBucketACLOutput struct {
+	RequestInfo
+	Owner  Owner     `json:"Owner,omitempty"`
+	Grants []GrantV2 `json:"Grants,omitempty"`
 }
 
 type GetObjectACLInput struct {
@@ -94,6 +126,93 @@ type PutObjectAclOutput struct {
 
 type PutObjectACLOutput struct {
 	PutObjectAclOutput
+}
+
+type putFetchTaskV2Input struct {
+	URL           string `json:"URL,omitempty"`
+	IgnoreSameKey bool   `json:"IgnoreSameKey,omitempty"`
+	HexMD5        string `json:"ContentMD5,omitempty"`
+	Object        string `json:"Object,omitempty"`
+}
+
+type PutFetchTaskInputV2 struct {
+	Bucket string
+	Key    string
+
+	ACL              enum.ACLType          `location:"header" locationName:"X-Tos-Acl"`
+	GrantFullControl string                `location:"header" locationName:"X-Tos-Grant-Full-Control"`
+	GrantRead        string                `location:"header" locationName:"X-Tos-Grant-Read"`
+	GrantReadACP     string                `location:"header" locationName:"X-Tos-Grant-Read-Acp"`
+	GrantWriteACP    string                `location:"header" locationName:"X-Tos-Grant-Write-Acp"`
+	StorageClass     enum.StorageClassType `location:"header" locationName:"X-Tos-Storage-Class"`
+	SSECAlgorithm    string                `location:"header" locationName:"X-Tos-Server-Side-Encryption-Customer-Algorithm"`
+	SSECKey          string                `location:"header" locationName:"X-Tos-Server-Side-Encryption-Customer-Key"`
+	SSECKeyMD5       string                `location:"header" locationName:"X-Tos-Server-Side-Encryption-Customer-Key-MD5"`
+	Meta             map[string]string     `location:"headers"`
+
+	URL           string `json:"URL,omitempty"`
+	IgnoreSameKey bool   `json:"IgnoreSameKey,omitempty"`
+	HexMD5        string `json:"ContentMD5,omitempty"`
+}
+
+type PutFetchTaskOutputV2 struct {
+	RequestInfo
+	TaskID string
+}
+
+type FetchObjectInputV2 struct {
+	Bucket           string
+	Key              string
+	ACL              enum.ACLType          `location:"header" locationName:"X-Tos-Acl"`
+	GrantFullControl string                `location:"header" locationName:"X-Tos-Grant-Full-Control"`
+	GrantRead        string                `location:"header" locationName:"X-Tos-Grant-Read"`
+	GrantReadACP     string                `location:"header" locationName:"X-Tos-Grant-Read-Acp"`
+	GrantWriteACP    string                `location:"header" locationName:"X-Tos-Grant-Write-Acp"`
+	StorageClass     enum.StorageClassType `location:"header" locationName:"X-Tos-Storage-Class"`
+	SSECAlgorithm    string                `location:"header" locationName:"X-Tos-Server-Side-Encryption-Customer-Algorithm"`
+	SSECKey          string                `location:"header" locationName:"X-Tos-Server-Side-Encryption-Customer-Key"`
+	SSECKeyMD5       string                `location:"header" locationName:"X-Tos-Server-Side-Encryption-Customer-Key-MD5"`
+	Meta             map[string]string     `location:"headers"`
+
+	URL           string `json:"URL,omitempty"`
+	IgnoreSameKey bool   `json:"IgnoreSameKey,omitempty"`
+	HexMD5        string `json:"ContentMD5,omitempty"`
+}
+
+type FetchObjectOutputV2 struct {
+	RequestInfo
+	VersionID     string `json:"VersionId,omitempty"`
+	Etag          string `json:"Etag,omitempty"`
+	SSECAlgorithm string `json:"SSECAlgorithm,omitempty"`
+	SSECKeyMD5    string `json:"SSECKeyMD5,omitempty"`
+}
+
+type PreSingedPostSignatureInput struct {
+	Bucket             string
+	Key                string
+	Expires            int64
+	Conditions         []PostSignatureCondition
+	ContentLengthRange *ContentLengthRange
+}
+
+type PreSingedPostSignatureOutput struct {
+	OriginPolicy string
+	Policy       string
+	Algorithm    string
+	Credential   string
+	Date         string
+	Signature    string
+}
+
+type ContentLengthRange struct {
+	RangeStart int64
+	RangeEnd   int64
+}
+
+type PostSignatureCondition struct {
+	Key      string
+	Value    string
+	Operator *string
 }
 
 type PreSignedURLInput struct {
@@ -376,6 +495,31 @@ type ListObjectsV2Input struct {
 	ListObjectsInput
 }
 
+type ListObjectsType2Input struct {
+	Bucket            string
+	Prefix            string `location:"query" locationName:"prefix"`
+	Delimiter         string `location:"query" locationName:"delimiter"`
+	StartAfter        string `location:"query" locationName:"start-after"`
+	ContinuationToken string `location:"query" locationName:"continuation-token"`
+	MaxKeys           int    `location:"query" locationName:"max-keys"`
+	EncodingType      string `location:"query" locationName:"encoding-type"`
+}
+
+type ListObjectsType2Output struct {
+	RequestInfo
+	Name                  string               `json:"Name,omitempty"`
+	Prefix                string               `json:"Prefix,omitempty"`
+	ContinuationToken     string               `json:"ContinuationToken,omitempty"`
+	KeyCount              int                  `json:"KeyCount,omitempty"`
+	MaxKeys               int                  `json:"MaxKeys,omitempty"`
+	Delimiter             string               `json:"Delimiter,omitempty"`
+	IsTruncated           bool                 `json:"IsTruncated,omitempty"`
+	EncodingType          string               `json:"EncodingType,omitempty"`
+	NextContinuationToken string               `json:"NextContinuationToken,omitempty"`
+	CommonPrefixes        []ListedCommonPrefix `json:"CommonPrefixes,omitempty"`
+	Contents              []ListedObjectV2     `json:"Contents,omitempty"`
+}
+
 type ListObjectsInput struct {
 	Prefix       string `location:"query" locationName:"prefix"`
 	Delimiter    string `location:"query" locationName:"delimiter"`
@@ -406,13 +550,13 @@ type ListedObjectV2 struct {
 }
 
 type listedObjectV2 struct {
-	Key           string
-	LastModified  time.Time
-	ETag          string
-	Size          int64
-	Owner         Owner
-	StorageClass  enum.StorageClassType
-	HashCrc64ecma string
+	Key           string                `json:"Key,omitempty"`
+	LastModified  time.Time             `json:"LastModified,omitempty"`
+	ETag          string                `json:"ETag,omitempty"`
+	Size          int64                 `json:"Size,omitempty"`
+	Owner         Owner                 `json:"Owner,omitempty"`
+	StorageClass  enum.StorageClassType `json:"StorageClass,omitempty"`
+	HashCrc64ecma string                `json:"HashCrc64Ecma,omitempty"`
 }
 
 type ListedCommonPrefix struct {
@@ -459,6 +603,21 @@ type listObjectsV2Output struct {
 	EncodingType   string               `json:"EncodingType,omitempty"`
 	CommonPrefixes []ListedCommonPrefix `json:"CommonPrefixes,omitempty"`
 	Contents       []listedObjectV2     `json:"Contents,omitempty"`
+}
+
+type listObjectsType2Output struct {
+	RequestInfo           `json:"-"`
+	Name                  string               `json:"Name,omitempty"`
+	Prefix                string               `json:"Prefix,omitempty"`
+	ContinuationToken     string               `json:"ContinuationToken,omitempty"`
+	KeyCount              int                  `json:"KeyCount,omitempty"`
+	MaxKeys               int                  `json:"MaxKeys,omitempty"`
+	Delimiter             string               `json:"Delimiter,omitempty"`
+	IsTruncated           bool                 `json:"IsTruncated,omitempty"`
+	EncodingType          string               `json:"EncodingType,omitempty"`
+	NextContinuationToken string               `json:"NextContinuationToken,omitempty"`
+	CommonPrefixes        []ListedCommonPrefix `json:"CommonPrefixes,omitempty"`
+	Contents              []listedObjectV2     `json:"Contents,omitempty"`
 }
 
 type ListObjectVersionsInput struct {
@@ -1102,6 +1261,223 @@ type ListPartsOutput struct {
 	Parts                []UploadedPartV2
 }
 
+type putBucketLifecycleInput struct {
+	Rules []lifecycleRule `json:"Rules,omitempty"`
+}
+
+type lifecycleRule struct {
+	ID                             string                          `json:"ID,omitempty"`
+	Prefix                         string                          `json:"Prefix,omitempty"`
+	Status                         enum.StatusType                 `json:"Status,omitempty"`
+	Transitions                    []transition                    `json:"Transitions,omitempty"`
+	Expiration                     *expiration                     `json:"Expiration,omitempty"`
+	NonCurrentVersionTransition    []NonCurrentVersionTransition   `json:"NoncurrentVersionTransitions,omitempty"`
+	NoCurrentVersionExpiration     *NoCurrentVersionExpiration     `json:"NoncurrentVersionExpiration,omitempty"`
+	Tag                            []Tag                           `json:"Tags,omitempty"`
+	AbortInCompleteMultipartUpload *AbortInCompleteMultipartUpload `json:"AbortIncompleteMultipartUpload,omitempty"`
+}
+
+type PutBucketLifecycleInput struct {
+	Bucket string
+	Rules  []LifecycleRule `json:"Rules,omitempty"`
+}
+
+type GetBucketLifecycleInput struct {
+	Bucket string
+}
+
+type GetBucketLifecycleOutput struct {
+	RequestInfo
+	Rules []LifecycleRule `json:"Rules"`
+}
+
+type DeleteBucketLifecycleInput struct {
+	Bucket string
+}
+
+type DeleteBucketLifecycleOutput struct {
+	RequestInfo
+}
+
+type LifecycleRule struct {
+	ID                             string                          `json:"ID,omitempty"`
+	Prefix                         string                          `json:"Prefix,omitempty"`
+	Status                         enum.StatusType                 `json:"Status,omitempty"`
+	Transitions                    []Transition                    `json:"Transitions,omitempty"`
+	Expiration                     *Expiration                     `json:"Expiration,omitempty"`
+	NonCurrentVersionTransition    []NonCurrentVersionTransition   `json:"NoncurrentVersionTransitions,omitempty"`
+	NoCurrentVersionExpiration     *NoCurrentVersionExpiration     `json:"NoncurrentVersionExpiration,omitempty"`
+	Tag                            []Tag                           `json:"Tags,omitempty"`
+	AbortInCompleteMultipartUpload *AbortInCompleteMultipartUpload `json:"AbortIncompleteMultipartUpload,omitempty"`
+}
+
+type AbortInCompleteMultipartUpload struct {
+	DaysAfterInitiation int `json:"DaysAfterInitiation,omitempty"`
+}
+
+type Tag struct {
+	Key   string `json:"Key"`
+	Value string `json:"Value"`
+}
+
+type NoCurrentVersionExpiration struct {
+	NoCurrentDays int `json:"NoncurrentDays,omitempty"`
+}
+
+type NonCurrentVersionTransition struct {
+	NonCurrentDays int                   `json:"NoncurrentDays,omitempty"`
+	StorageClass   enum.StorageClassType `json:"StorageClass,omitempty"`
+}
+
+type transition struct {
+	Days         int                   `json:"Days,omitempty"`
+	Date         string                `json:"Date,omitempty"`
+	StorageClass enum.StorageClassType `json:"StorageClass,omitempty"`
+}
+
+type Transition struct {
+	Days         int                   `json:"Days,omitempty"`
+	Date         time.Time             `json:"Date,omitempty"`
+	StorageClass enum.StorageClassType `json:"StorageClass,omitempty"`
+}
+
+type Expiration struct {
+	Days int       `json:"Days,omitempty"`
+	Date time.Time `json:"Date,omitempty"`
+}
+
+type expiration struct {
+	Days int    `json:"Days,omitempty"`
+	Date string `json:"Date,omitempty"`
+}
+
+type PutLifecycleOutput struct {
+	RequestInfo
+}
+
+type PutBucketMirrorBackOutput struct {
+	RequestInfo
+}
+
+type putBucketMirrorBackInput struct {
+	Rules []MirrorBackRule `json:"Rules"`
+}
+
+type PutBucketMirrorBackInput struct {
+	Bucket string
+	Rules  []MirrorBackRule
+}
+
+type MirrorBackRule struct {
+	ID        string    `json:"ID,omitempty"`
+	Condition Condition `json:"Condition,omitempty"`
+	Redirect  Redirect  `json:"Redirect,omitempty"`
+}
+
+type Condition struct {
+	HttpCode int `json:"HttpCode,omitempty"`
+}
+type Redirect struct {
+	RedirectType          enum.RedirectType `json:"RedirectType,omitempty"`
+	FetchSourceOnRedirect bool              `json:"FetchSourceOnRedirect,omitempty"`
+	PassQuery             bool              `json:"PassQuery,omitempty"`
+	FollowRedirect        bool              `json:"FollowRedirect,omitempty"`
+	MirrorHeader          MirrorHeader      `json:"MirrorHeader,omitempty"`
+	PublicSource          PublicSource      `json:"PublicSource,omitempty"`
+}
+
+type PublicSource struct {
+	SourceEndpoint SourceEndpoint `json:"SourceEndpoint,omitempty"`
+}
+
+type GetBucketMirrorBackInput struct {
+	Bucket string
+}
+
+type GetBucketMirrorBackOutput struct {
+	RequestInfo
+	Rules []MirrorBackRule
+}
+
+type DeleteObjectTaggingInput struct {
+	Bucket    string
+	Key       string
+	VersionID string `location:"query" locationName:"versionId"`
+}
+
+type GetObjectTaggingInput struct {
+	Bucket    string
+	Key       string
+	VersionID string `location:"query" locationName:"versionId"`
+}
+type putObjectTaggingInput struct {
+	TagSet TagSet `json:"TagSet"`
+}
+type PutObjectTaggingInput struct {
+	Bucket    string
+	Key       string
+	VersionID string `location:"query" locationName:"versionId"`
+	TagSet    TagSet `json:"TagSet"`
+}
+
+type PutObjectTaggingOutput struct {
+	RequestInfo
+	VersionID string
+}
+
+type GetObjectTaggingOutput struct {
+	RequestInfo
+	VersionID string
+	TagSet    TagSet
+}
+
+type TagSet struct {
+	Tags []Tag
+}
+
+type DeleteObjectTaggingOutput struct {
+	RequestInfo
+	VersionID string
+}
+
+type DeleteBucketMirrorBackInput struct {
+	Bucket string
+}
+
+type DeleteBucketMirrorBackOutput struct {
+	RequestInfo
+}
+
+type SourceEndpoint struct {
+	Primary  []string `json:"Primary,omitempty"`
+	Follower []string `json:"Follower,omitempty"`
+}
+type MirrorHeader struct {
+	PassAll bool     `json:"PassAll,omitempty"`
+	Pass    []string `json:"Pass,omitempty"`
+	Remove  []string `json:"Remove,omitempty"`
+}
+
+type PutBucketStorageClassInput struct {
+	Bucket       string
+	StorageClass enum.StorageClassType `location:"header" locationName:"X-Tos-Storage-Class"`
+}
+
+type PutBucketStorageClassOutput struct {
+	RequestInfo
+}
+
+type GetBucketLocationInput struct {
+	Bucket string
+}
+
+type GetBucketLocationOutput struct {
+	RequestInfo      `json:"-"`
+	Region           string `json:"Region,omitempty"`
+	ExtranetEndpoint string `json:"ExtranetEndpoint,omitempty"`
+	IntranetEndpoint string `json:"IntranetEndpoint,omitempty"`
+}
+
 type CancelHook interface {
 	// Cancel 取消断点上传\断点下载事, isAbort 为 true 时删除上下文信息和临时文件，为 false 时只是中断当前执行，该接口只能调用一次
 	Cancel(isAbort bool)
@@ -1112,6 +1488,7 @@ type CancelHook interface {
 type DownloadFileInput struct {
 	HeadObjectV2Input
 	FilePath              string
+	filePath              string
 	PartSize              int64
 	TaskNum               int
 	EnableCheckpoint      bool

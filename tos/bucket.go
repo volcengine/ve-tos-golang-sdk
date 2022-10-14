@@ -161,3 +161,47 @@ func (cli *ClientV2) ListBuckets(ctx context.Context, _ *ListBucketsInput) (*Lis
 	}
 	return &output, nil
 }
+
+func (cli *ClientV2) PutBucketStorageClass(ctx context.Context, input *PutBucketStorageClassInput) (*PutBucketStorageClassOutput, error) {
+	if input == nil {
+		return nil, InputIsNilClientError
+	}
+	if err := IsValidBucketName(input.Bucket); err != nil {
+		return nil, err
+	}
+	if err := isValidStorageClass(input.StorageClass); err != nil {
+		return nil, err
+	}
+	res, err := cli.newBuilder(input.Bucket, "").
+		WithQuery("storageClass", "").
+		WithParams(*input).
+		Request(ctx, http.MethodPut, nil, cli.roundTripper(http.StatusOK))
+	if err != nil {
+		return nil, err
+	}
+	defer res.Close()
+	output := PutBucketStorageClassOutput{RequestInfo: res.RequestInfo()}
+	return &output, nil
+}
+
+func (cli *ClientV2) GetBucketLocation(ctx context.Context, input *GetBucketLocationInput) (*GetBucketLocationOutput, error) {
+	if input == nil {
+		return nil, InputIsNilClientError
+	}
+	if err := IsValidBucketName(input.Bucket); err != nil {
+		return nil, err
+	}
+	res, err := cli.newBuilder(input.Bucket, "").
+		WithQuery("location", "").
+		Request(ctx, http.MethodGet, nil, cli.roundTripper(http.StatusOK))
+	if err != nil {
+		return nil, err
+	}
+	defer res.Close()
+	output := GetBucketLocationOutput{RequestInfo: res.RequestInfo()}
+	if err = marshalOutput(output.RequestID, res.Body, &output); err != nil {
+		return nil, err
+	}
+	return &output, nil
+
+}

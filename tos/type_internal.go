@@ -187,7 +187,7 @@ func (c *downloadCheckpoint) Valid(input *DownloadFileInput, head *HeadObjectV2O
 		c.ObjectInfo.LastModified != head.LastModified || c.ObjectInfo.ObjectSize != head.ContentLength {
 		return false
 	}
-	if c.FileInfo.FilePath != input.FilePath {
+	if c.FileInfo.FilePath != input.filePath {
 		return false
 	}
 	return true
@@ -576,8 +576,9 @@ func (r *retryer) SetJitter(jit float64) {
 
 // readCloserWithCRC warp io.ReadCloser with crc checker
 type readCloserWithCRC struct {
-	checker hash.Hash64
-	base    io.ReadCloser
+	serverCrc uint64 // Get Object 时对 content 进行校验
+	checker   hash.Hash64
+	base      io.ReadCloser
 }
 
 func (r *readCloserWithCRC) Read(p []byte) (n int, err error) {
@@ -587,6 +588,13 @@ func (r *readCloserWithCRC) Read(p []byte) (n int, err error) {
 			return n, err
 		}
 	}
+	if err == io.EOF && r.serverCrc != 0 {
+		clientCRC := r.checker.Sum64()
+		if clientCRC != r.serverCrc {
+			return n, CrcCheckFail.withCause(fmt.Errorf("expect crc: %d , actual crc:%d", r.serverCrc, clientCRC))
+		}
+	}
+
 	return
 }
 

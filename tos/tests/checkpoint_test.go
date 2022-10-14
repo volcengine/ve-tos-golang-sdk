@@ -201,7 +201,7 @@ func TestUploadFileCancelHook(t *testing.T) {
 	require.Nil(t, upload)
 	require.NotNil(t, err)
 	// checkpoint file still exist
-	stat, err := os.Stat(strings.Join([]string{fileName, bucket, key, "upload"}, "."))
+	stat, err := os.Stat(input.CheckpointFile)
 	require.Nil(t, err)
 	require.True(t, listener.count >= 2)
 
@@ -490,8 +490,9 @@ func TestDownloadCancelHook(t *testing.T) {
 	_, err = client.DownloadFile(context.Background(), input)
 	require.True(t, listener.count >= 2)
 
-	stat, err := os.Stat(fileName + ".file" + ".temp")
+	_, err = os.Stat(fileName + ".file" + ".temp")
 	require.Nil(t, err)
+
 	input.CancelHook = tos.NewCancelHook()
 
 	listener.input = input
@@ -502,7 +503,6 @@ func TestDownloadCancelHook(t *testing.T) {
 	buffer, err := ioutil.ReadAll(file)
 	require.Nil(t, err)
 	require.Equal(t, md5Sum, md5s(string(buffer)))
-	_ = os.Remove(stat.Name())
 	require.Equal(t, 5, listener.count)
 }
 
@@ -643,4 +643,55 @@ func TestDownloadFileWithUpdate(t *testing.T) {
 	buffer, err := ioutil.ReadAll(file)
 	require.Nil(t, err)
 	require.Equal(t, md5s(value1), md5s(string(buffer)))
+}
+
+func TestDownloadFileWithDirPath(t *testing.T) {
+	var (
+		env            = newTestEnv(t)
+		bucket         = generateBucketName("download-file-with-checkpoint")
+		value1         = randomString(5 * 1024)
+		client         = env.prepareClient(bucket)
+		filePath       = "/tmp/gosdk/"
+		checkpointPath = "/tmp/gosdk/checkpoint"
+		ctx            = context.Background()
+	)
+	defer cleanBucket(t, client, bucket)
+	keyList := []string{"/a/b.file", "/a/b/c.file", "/a/d/e/f/g.file", "a/b/d.file", "/a/g/", "/a/f"}
+	for _, key := range keyList {
+		_, err := client.PutObjectV2(ctx, &tos.PutObjectV2Input{
+			PutObjectBasicInput: tos.PutObjectBasicInput{
+				Bucket: bucket,
+				Key:    key,
+			},
+			Content: bytes.NewReader([]byte(value1)),
+		})
+		require.Nil(t, err)
+	}
+
+	// filePath dir not exist
+	path := filePath + randomString(4) + "/"
+	for _, key := range keyList {
+
+		_, err := client.DownloadFile(ctx, &tos.DownloadFileInput{
+			HeadObjectV2Input: tos.HeadObjectV2Input{Bucket: bucket, Key: key},
+			FilePath:          path,
+			CheckpointFile:    checkpointPath,
+			EnableCheckpoint:  true,
+		})
+		require.Nil(t, err)
+	}
+
+	// filePath dir exist
+	path = filePath + randomString(4)
+	os.MkdirAll(path, os.ModePerm)
+	for _, key := range keyList {
+
+		_, err := client.DownloadFile(ctx, &tos.DownloadFileInput{
+			HeadObjectV2Input: tos.HeadObjectV2Input{Bucket: bucket, Key: key},
+			FilePath:          path,
+			EnableCheckpoint:  true,
+			CheckpointFile:    "/tmp/gosdk/checkpoint/",
+		})
+		require.Nil(t, err)
+	}
 }

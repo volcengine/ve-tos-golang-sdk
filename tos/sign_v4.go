@@ -15,12 +15,13 @@ import (
 )
 
 const (
-	emptySHA256     = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-	unsignedPayload = "UNSIGNED-PAYLOAD"
-	signPrefix      = "TOS4-HMAC-SHA256"
-	iso8601Layout   = "20060102T150405Z"
-	yyMMdd          = "20060102"
-	authorization   = "Authorization"
+	emptySHA256      = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+	unsignedPayload  = "UNSIGNED-PAYLOAD"
+	signPrefix       = "TOS4-HMAC-SHA256"
+	iso8601Layout    = "20060102T150405Z"
+	yyMMdd           = "20060102"
+	serverTimeFormat = "2006-01-02T15:04:05Z"
+	authorization    = "Authorization"
 
 	v4Algorithm      = "X-Tos-Algorithm"
 	v4Credential     = "X-Tos-Credential"

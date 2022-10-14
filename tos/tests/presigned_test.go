@@ -2,16 +2,20 @@ package tests
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"mime/multipart"
 	"net/http"
 	"os"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/volcengine/ve-tos-golang-sdk/v2/tos/enum"
 
 	"github.com/volcengine/ve-tos-golang-sdk/v2/tos"
 )
@@ -326,4 +330,180 @@ func TestPreSignedURLEndpoint(t *testing.T) {
 	res, err = client.Do(req)
 	require.Nil(t, err)
 	require.Equal(t, 200, res.StatusCode)
+}
+
+func newPostRequest(bucket, key string, endpoint string, acl enum.ACLType, input *tos.PreSingedPostSignatureOutput) (*http.Request, string, error) {
+	url := fmt.Sprintf("http://%s.%s", bucket, endpoint)
+	body := new(bytes.Buffer)
+	w := multipart.NewWriter(body)
+	w.WriteField("key", key)
+	w.WriteField("x-tos-algorithm", input.Algorithm)
+	w.WriteField("x-tos-date", input.Date)
+	w.WriteField("x-tos-credential", input.Credential)
+	w.WriteField("policy", input.Policy)
+	w.WriteField("x-tos-signature", input.Signature)
+	if acl != "" {
+		w.WriteField("x-tos-acl", string(acl))
+	}
+	fileWrite, _ := w.CreateFormFile("file", "my.test")
+	value := randomString(1024)
+	fileWrite.Write([]byte(value))
+	w.Close()
+	request, err := http.NewRequest(http.MethodPost, url, body)
+	if err != nil {
+		return nil, "", err
+	}
+	md5 := md5s(value)
+
+	request.Header.Set("Content-Type", w.FormDataContentType())
+	return request, md5, nil
+}
+
+func TestPreSignedPostSignature(t *testing.T) {
+	var (
+		env    = newTestEnv(t)
+		bucket = generateBucketName("pre-post-signed")
+		cli    = env.prepareClient(bucket)
+		client = &http.Client{}
+		key    = randomString(6)
+		ctx    = context.Background()
+	)
+	defer cleanBucket(t, cli, bucket)
+	// base upload
+	res, err := cli.PreSignedPostSignature(ctx, &tos.PreSingedPostSignatureInput{
+		Bucket:  bucket,
+		Key:     key,
+		Expires: 3600,
+	})
+	require.Nil(t, err)
+	fmt.Println(res)
+	request, md5, err := newPostRequest(bucket, key, env.endpoint, "", res)
+
+	httpRes, err := client.Do(request)
+	require.Nil(t, err)
+	fmt.Println(httpRes)
+	data, err := ioutil.ReadAll(httpRes.Body)
+	fmt.Println(string(data))
+
+	getRes, err := cli.GetObjectV2(ctx, &tos.GetObjectV2Input{
+		Bucket: bucket,
+		Key:    key,
+	})
+	assert.Nil(t, err)
+	data, err = ioutil.ReadAll(getRes.Content)
+	assert.Nil(t, err)
+	assert.Equal(t, md5s(string(data)), md5)
+
+	// with content length range
+	key = randomString(6)
+	res, err = cli.PreSignedPostSignature(ctx, &tos.PreSingedPostSignatureInput{
+		Bucket:  bucket,
+		Key:     key,
+		Expires: 3600,
+		ContentLengthRange: &tos.ContentLengthRange{
+			RangeStart: 50,
+			RangeEnd:   1025,
+		},
+	})
+	request, md5, err = newPostRequest(bucket, key, env.endpoint, "", res)
+	httpRes, err = client.Do(request)
+	assert.Nil(t, err)
+	getRes, err = cli.GetObjectV2(ctx, &tos.GetObjectV2Input{
+		Bucket: bucket,
+		Key:    key,
+	})
+	assert.Nil(t, err)
+	data, err = ioutil.ReadAll(getRes.Content)
+	assert.Nil(t, err)
+	assert.Equal(t, md5s(string(data)), md5)
+
+	// expires
+	res, err = cli.PreSignedPostSignature(ctx, &tos.PreSingedPostSignatureInput{
+		Bucket:  bucket,
+		Key:     key,
+		Expires: 1,
+	})
+	require.Nil(t, err)
+	time.Sleep(time.Second * 4)
+	request, md5, err = newPostRequest(bucket, key, env.endpoint, "", res)
+
+	httpRes, err = client.Do(request)
+	assert.Nil(t, err)
+	assert.Equal(t, httpRes.StatusCode, http.StatusForbidden)
+
+	// exceed content range
+	key = randomString(6)
+	res, err = cli.PreSignedPostSignature(ctx, &tos.PreSingedPostSignatureInput{
+		Bucket:  bucket,
+		Key:     key,
+		Expires: 3600,
+		ContentLengthRange: &tos.ContentLengthRange{
+			RangeStart: 50,
+			RangeEnd:   1023,
+		},
+	})
+	request, md5, err = newPostRequest(bucket, key, env.endpoint, "", res)
+	httpRes, err = client.Do(request)
+	assert.Nil(t, err)
+	getRes, err = cli.GetObjectV2(ctx, &tos.GetObjectV2Input{
+		Bucket: bucket,
+		Key:    key,
+	})
+	assert.NotNil(t, err)
+}
+
+func TestPreSignedPostSignatureWithCondition(t *testing.T) {
+	var (
+		env    = newTestEnv(t)
+		bucket = generateBucketName("pre-post-signed-condition")
+		cli    = env.prepareClient(bucket)
+		client = &http.Client{}
+		ctx    = context.Background()
+	)
+	defer cleanBucket(t, cli, bucket)
+	// base upload
+	keyPrefix := "post-"
+	key := keyPrefix + randomString(6)
+
+	operator := "starts-with"
+	res, err := cli.PreSignedPostSignature(ctx, &tos.PreSingedPostSignatureInput{
+		Bucket:  bucket,
+		Key:     key,
+		Expires: 3600,
+		Conditions: []tos.PostSignatureCondition{{
+			Key:   "x-tos-acl",
+			Value: "public-read",
+		}, {
+			Key:      "key",
+			Value:    keyPrefix,
+			Operator: &operator,
+		}},
+	})
+	require.Nil(t, err)
+	fmt.Println(res)
+	request, md5, err := newPostRequest(bucket, key, env.endpoint, enum.ACLPublicRead, res)
+	httpRes, err := client.Do(request)
+	require.Nil(t, err)
+	assert.Equal(t, httpRes.StatusCode, 204)
+
+	getRes, err := cli.GetObjectV2(ctx, &tos.GetObjectV2Input{
+		Bucket: bucket,
+		Key:    key,
+	})
+	assert.Nil(t, err)
+	data, err := ioutil.ReadAll(getRes.Content)
+	require.Equal(t, md5, md5s(string(data)))
+
+	// Invalid ACl
+	request, md5, err = newPostRequest(bucket, key, env.endpoint, enum.ACLPrivate, res)
+	httpRes, err = client.Do(request)
+	require.Nil(t, err)
+	assert.Equal(t, httpRes.StatusCode, 403)
+
+	// Invalid Key
+	request, md5, err = newPostRequest(bucket, randomString(6), env.endpoint, enum.ACLPublicRead, res)
+	httpRes, err = client.Do(request)
+	require.Nil(t, err)
+	assert.Equal(t, httpRes.StatusCode, 403)
+
 }

@@ -7,7 +7,7 @@ import (
 
 const (
 	// Version tos-go-sdk version
-	Version = "v2.3.3"
+	Version = "v2.4.0"
 )
 
 const TempFileSuffix = ".temp"
@@ -33,8 +33,9 @@ const (
 )
 
 const (
-	MaxPartSize = 5 * 1024 * 1024 * 1024
-	MinPartSize = 5 * 1024 * 1024
+	MaxPartSize     = 5 * 1024 * 1024 * 1024
+	MinPartSize     = 5 * 1024 * 1024
+	DefaultPartSize = 20 * 1024 * 1024
 )
 
 const (

@@ -161,7 +161,7 @@ func (cli *ClientV2) UploadPartV2(ctx context.Context, input *UploadPartV2Input)
 		classifier classifier
 	)
 	if content != nil {
-		content = wrapReader(content, contentLength, input.DataTransferListener, input.RateLimiter, checker)
+		content = wrapReader(content, contentLength, input.DataTransferListener, input.RateLimiter, &crcChecker{checker: checker})
 	}
 	classifier = NoRetryClassifier{}
 	if seeker, ok := content.(io.Seeker); ok {

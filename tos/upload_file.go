@@ -58,13 +58,23 @@ func initUploadCheckpoint(input *UploadFileInput, stat os.FileInfo) (*uploadChec
 	return checkPoint, nil
 }
 
+func getUploadCheckpointFilePath(checkpointPath, filePath string, bucket, key string) string {
+	fileName := strings.Join([]string{filepath.Base(filePath), checkpointPathMd5(bucket, key, ""), "upload"}, ".")
+	if len(checkpointPath) == 0 {
+		dirName := filepath.Dir(filePath)
+		return filepath.Join(dirName, fileName)
+	}
+
+	return withSuffixIfDir(checkpointPath, fileName)
+}
+
 // validateUploadInput validate upload input, return TosClientError failed
 func validateUploadInput(input *UploadFileInput, stat os.FileInfo) error {
 	if err := isValidNames(input.Bucket, input.Key); err != nil {
 		return err
 	}
 	if input.PartSize == 0 {
-		input.PartSize = MinPartSize
+		input.PartSize = DefaultPartSize
 	}
 	if input.PartSize < MinPartSize || input.PartSize > MaxPartSize {
 		return InvalidPartSize
@@ -75,13 +85,7 @@ func validateUploadInput(input *UploadFileInput, stat os.FileInfo) error {
 	}
 	if input.EnableCheckpoint {
 		// get correct checkpoint path
-		if len(input.CheckpointFile) == 0 {
-			dirName, _ := filepath.Split(input.FilePath)
-			fileName := strings.Join([]string{input.FilePath, input.Bucket, input.Key, "upload"}, ".")
-			input.CheckpointFile = filepath.Join(dirName, fileName)
-		} else {
-			mustFile(&input.CheckpointFile, strings.Join([]string{input.FilePath, input.Bucket, input.Key, "upload"}, "."))
-		}
+		input.CheckpointFile = getUploadCheckpointFilePath(input.CheckpointFile, input.FilePath, input.Bucket, input.Key)
 	}
 	if input.TaskNum < 1 {
 		input.TaskNum = 1
@@ -130,6 +134,10 @@ func getUploadCheckpoint(ctx context.Context, cli *ClientV2, input *UploadFileIn
 
 	if exist {
 		return checkpoint, nil
+	}
+	err = checkAndCreateDir(input.CheckpointFile)
+	if err != nil {
+		return nil, InvalidCheckpointFilePath.withCause(err)
 	}
 
 	_, err = os.Create(input.CheckpointFile)
