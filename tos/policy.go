@@ -1,6 +1,7 @@
 package tos
 
 import (
+	"bytes"
 	"context"
 	"io/ioutil"
 	"net/http"
@@ -22,6 +23,35 @@ type PutBucketPolicyOutput struct {
 
 type DeleteBucketPolicyOutput struct {
 	RequestInfo `json:"-"`
+}
+
+type GetBucketPolicyV2Input struct {
+	Bucket string `json:"-"`
+}
+
+type GetBucketPolicyV2Output struct {
+	RequestInfo `json:"-"`
+	Policy      string `json:"Policy,omitempty"`
+}
+
+type putBucketPolicyV2Input struct {
+	Policy string `json:"Policy,omitempty"`
+}
+
+type PutBucketPolicyV2Input struct {
+	Bucket string `json:"-"`
+	Policy string `json:"Policy,omitempty"`
+}
+
+type PutBucketPolicyV2Output struct {
+	RequestInfo `json:"-"`
+}
+
+type DeleteBucketPolicyV2Input struct {
+	Bucket string `json:"-"`
+}
+type DeleteBucketPolicyV2Output struct {
+	RequestInfo
 }
 
 // GetBucketPolicy get bucket access policy
@@ -79,4 +109,66 @@ func (cli *Client) DeleteBucketPolicy(ctx context.Context, bucket string) (*Dele
 	defer res.Close()
 
 	return &DeleteBucketPolicyOutput{RequestInfo: res.RequestInfo()}, nil
+}
+
+func (cli *ClientV2) PutBucketPolicyV2(ctx context.Context, input *PutBucketPolicyV2Input) (*PutBucketPolicyV2Output, error) {
+	if input == nil {
+		return nil, InputIsNilClientError
+	}
+	if err := IsValidBucketName(input.Bucket); err != nil {
+		return nil, err
+	}
+
+	res, err := cli.newBuilder(input.Bucket, "").
+		WithQuery("policy", "").
+		Request(ctx, http.MethodPut, bytes.NewReader([]byte(input.Policy)), cli.roundTripper(http.StatusNoContent))
+	if err != nil {
+		return nil, err
+	}
+	defer res.Close()
+	output := PutBucketPolicyV2Output{RequestInfo: res.RequestInfo()}
+	return &output, nil
+}
+
+func (cli *ClientV2) GetBucketPolicyV2(ctx context.Context, input *GetBucketPolicyV2Input) (*GetBucketPolicyV2Output, error) {
+	if input == nil {
+		return nil, InputIsNilClientError
+	}
+	if err := IsValidBucketName(input.Bucket); err != nil {
+		return nil, err
+	}
+	res, err := cli.newBuilder(input.Bucket, "").
+		WithQuery("policy", "").
+		Request(ctx, http.MethodGet, nil, cli.roundTripper(http.StatusOK))
+	if err != nil {
+		return nil, err
+	}
+	defer res.Close()
+	output := GetBucketPolicyV2Output{RequestInfo: res.RequestInfo()}
+	data, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		return nil, err
+	}
+	output.Policy = string(data)
+	return &output, nil
+}
+
+func (cli *ClientV2) DeleteBucketPolicyV2(ctx context.Context, input *DeleteBucketPolicyV2Input) (*DeleteBucketPolicyV2Output, error) {
+	if input == nil {
+		return nil, InputIsNilClientError
+	}
+	if err := IsValidBucketName(input.Bucket); err != nil {
+		return nil, err
+	}
+	res, err := cli.newBuilder(input.Bucket, "").
+		WithQuery("policy", "").
+		Request(ctx, http.MethodDelete, nil, cli.roundTripper(http.StatusNoContent))
+	if err != nil {
+		return nil, err
+	}
+	defer res.Close()
+
+	output := DeleteBucketPolicyV2Output{RequestInfo: res.RequestInfo()}
+	return &output, nil
+
 }

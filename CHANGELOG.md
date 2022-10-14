@@ -1,5 +1,17 @@
 # ChangeLog of TOS SDK for Go
 
+## 版本号 v2.4.0 日期：2022-10-13
+- 新增：Bucket Lifecycle 管理接口
+- 新增：Bucket Policy 管理接口
+- 新增：Bucket MirrorBack 管理接口
+- 新增：Object Tagging 管理接口
+- 新增：FetchObjectV2 & PutFetchTaskV2
+- 新增：表单上传签名接口
+- 新增：修改桶的存储类型接口
+- 新增：查询桶的 region 信息
+- 新增：ListObjectType2 接口
+- 修复：DownloadFile 支持指定下载目录
+
 ## 版本号 v2.3.3 日期： 2022-10-12
 - 修复： PreSignedURL 接口 expire 过期时间问题
 

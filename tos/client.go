@@ -1,7 +1,11 @@
 package tos
 
 import (
+	"bytes"
 	"context"
+	"encoding/base64"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
@@ -9,6 +13,20 @@ import (
 	"runtime"
 	"strings"
 	"time"
+)
+
+const (
+	signPolicyDate                  = "x-tos-date"
+	signPolicyCredential            = "x-tos-credential"
+	signPolicyAlgorithm             = "x-tos-algorithm"
+	signPolicySecurityToken         = "x-tos-security-token"
+	signPolicyExpiration            = "expiration"
+	signConditionContentLengthRange = "content-length-range"
+	signConditionBucket             = "bucket"
+	signConditionKey                = "key"
+	signConditions                  = "conditions"
+	maxPreSignExpires               = 604800 // 7 day
+	defaultSignExpires              = 3600   // 1 hour
 )
 
 // Client TOS Client
@@ -450,4 +468,151 @@ func (cli *ClientV2) PreSignedURL(input *PreSignedURLInput) (*PreSignedURLOutput
 		SignedHeader: signed,
 	}
 	return output, nil
+}
+
+func (cli *ClientV2) PreSignedPostSignature(ctx context.Context, input *PreSingedPostSignatureInput) (*PreSingedPostSignatureOutput, error) {
+	algorithm := signPrefix
+	postPolicy := make(map[string]interface{})
+	cred := cli.credentials.Credential()
+	region := cli.config.Region
+	date := UTCNow()
+	if input.Expires == 0 {
+		input.Expires = defaultSignExpires
+	}
+	if input.Expires > maxPreSignedURLExpires {
+		return nil, InvalidPreSignedURLExpires
+	}
+
+	postPolicy[signPolicyExpiration] = date.Add(time.Second * time.Duration(input.Expires)).Format(serverTimeFormat)
+
+	cond := make([]interface{}, 0)
+	credential := fmt.Sprintf("%s/%s/%s/tos/request", cred.AccessKeyID, date.Format(yyMMdd), region)
+	cond = append(cond, map[string]string{signPolicyAlgorithm: algorithm})
+	cond = append(cond, map[string]string{signPolicyCredential: credential})
+	cond = append(cond, map[string]string{signPolicyDate: date.Format(iso8601Layout)})
+
+	if cred.SecurityToken != "" {
+		cond = append(cond, map[string]string{signPolicySecurityToken: cred.SecurityToken})
+	}
+
+	if input.Bucket != "" {
+		cond = append(cond, map[string]string{signConditionBucket: input.Bucket})
+	}
+
+	if input.Key != "" {
+		cond = append(cond, map[string]string{signConditionKey: input.Key})
+	}
+
+	for _, condition := range input.Conditions {
+		if condition.Operator != nil {
+			cond = append(cond, []string{*condition.Operator, "$" + condition.Key, condition.Value})
+		} else {
+			cond = append(cond, map[string]string{condition.Key: condition.Value})
+
+		}
+	}
+	if input.ContentLengthRange != nil {
+		cond = append(cond, []interface{}{signConditionContentLengthRange, input.ContentLengthRange.RangeStart, input.ContentLengthRange.RangeEnd})
+	}
+	postPolicy[signConditions] = cond
+	originPolicy, err := json.Marshal(postPolicy)
+	if err != nil {
+		return nil, InvalidMarshal
+	}
+	signK := SigningKey(&SigningKeyInfo{
+		Date:       date.Format(yyMMdd),
+		Region:     region,
+		Credential: &cred,
+	})
+	policy := base64.StdEncoding.EncodeToString(originPolicy)
+	return &PreSingedPostSignatureOutput{
+		OriginPolicy: string(originPolicy),
+		Policy:       policy,
+		Algorithm:    signPrefix,
+		Credential:   credential,
+		Date:         date.Format(iso8601Layout),
+		Signature:    hex.EncodeToString(hmacSHA256(signK, []byte(policy))),
+	}, nil
+
+}
+
+func (cli *ClientV2) FetchObjectV2(ctx context.Context, input *FetchObjectInputV2) (*FetchObjectOutputV2, error) {
+	if err := isValidKey(input.Key); err != nil {
+		return nil, err
+	}
+	if err := isValidStorageClass(input.StorageClass); len(input.StorageClass) > 0 && err != nil {
+		return nil, InvalidStorageClass
+	}
+
+	if err := isValidACL(input.ACL); len(input.ACL) > 0 && err != nil {
+		return nil, InvalidACL
+	}
+
+	data, contentMD5, err := marshalInput("FetchObjectInputV2", &fetchObjectInput{
+		URL:           input.URL,
+		IgnoreSameKey: input.IgnoreSameKey,
+		ContentMD5:    input.HexMD5,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	res, err := cli.newBuilder(input.Bucket, input.Key).
+		WithQuery("fetch", "").
+		WithHeader(HeaderContentMD5, contentMD5).
+		WithParams(*input).
+		Request(ctx, http.MethodPost, bytes.NewReader(data), cli.roundTripper(http.StatusOK))
+	if err != nil {
+		return nil, err
+	}
+	defer res.Close()
+	output := FetchObjectOutputV2{RequestInfo: res.RequestInfo()}
+	if err = marshalOutput(output.RequestID, res.Body, &output); err != nil {
+		return nil, err
+	}
+
+	output.VersionID = res.Header.Get(HeaderVersionID)
+	output.SSECAlgorithm = res.Header.Get(HeaderSSECustomerAlgorithm)
+	output.SSECKeyMD5 = res.Header.Get(HeaderCopySourceSSECKeyMD5)
+	return &output, nil
+}
+
+func (cli *ClientV2) PutFetchTaskV2(ctx context.Context, input *PutFetchTaskInputV2) (*PutFetchTaskOutputV2, error) {
+
+	if err := isValidKey(input.Key); err != nil {
+		return nil, err
+	}
+
+	if err := isValidStorageClass(input.StorageClass); len(input.StorageClass) > 0 && err != nil {
+		return nil, err
+	}
+
+	if err := isValidACL(input.ACL); len(input.ACL) > 0 && err != nil {
+		return nil, err
+	}
+
+	data, contentMD5, err := marshalInput("PutFetchTaskInputV2", putFetchTaskV2Input{
+		URL:           input.URL,
+		IgnoreSameKey: input.IgnoreSameKey,
+		HexMD5:        input.HexMD5,
+		Object:        input.Key,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	res, err := cli.newBuilder(input.Bucket, "").
+		WithQuery("fetchTask", "").
+		WithHeader(HeaderContentMD5, contentMD5).
+		WithParams(*input).
+		Request(ctx, http.MethodPost, bytes.NewReader(data), cli.roundTripper(http.StatusOK))
+	if err != nil {
+		return nil, err
+	}
+	defer res.Close()
+	output := PutFetchTaskOutputV2{RequestInfo: res.RequestInfo()}
+	if err = marshalOutput(output.RequestID, res.Body, &output); err != nil {
+		return nil, err
+	}
+	return &output, nil
 }

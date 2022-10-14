@@ -1,7 +1,9 @@
 package tests
 
 import (
+	"bytes"
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -128,4 +130,98 @@ func TestListBucketV2(t *testing.T) {
 	require.Equal(t, 200, listed.StatusCode)
 	require.Equal(t, 1, len(testBucket))
 	require.Equal(t, bucket, testBucket[0].Name)
+}
+
+func TestGetBucketLocation(t *testing.T) {
+	var (
+		env = newTestEnv(t)
+	)
+	bucket := generateBucketName("bucket-location")
+	client := env.prepareClient(bucket)
+	defer func() {
+		cleanBucket(t, client, bucket)
+	}()
+	res, err := client.GetBucketLocation(context.Background(), &tos.GetBucketLocationInput{Bucket: bucket})
+	require.Nil(t, err)
+	require.Equal(t, res.Region, env.region)
+	require.Equal(t, res.ExtranetEndpoint, env.endpoint)
+}
+
+func TestPutBucketStorageClass(t *testing.T) {
+	var (
+		env    = newTestEnv(t)
+		bucket = generateBucketName("storage-class")
+		client = env.prepareClient(bucket)
+		ctx    = context.Background()
+	)
+	headRes, err := client.HeadBucket(ctx, &tos.HeadBucketInput{Bucket: bucket})
+	require.Nil(t, err)
+	require.True(t, headRes.StorageClass != enum.StorageClassIa)
+
+	output, err := client.PutBucketStorageClass(ctx, &tos.PutBucketStorageClassInput{
+		Bucket:       bucket,
+		StorageClass: enum.StorageClassIa,
+	})
+	require.Nil(t, err)
+	require.NotNil(t, output)
+	headRes, err = client.HeadBucket(ctx, &tos.HeadBucketInput{Bucket: bucket})
+	require.Nil(t, err)
+	require.Equal(t, headRes.StorageClass, enum.StorageClassIa)
+
+	output, err = client.PutBucketStorageClass(ctx, &tos.PutBucketStorageClassInput{
+		Bucket:       bucket,
+		StorageClass: "ci-test-storage",
+	})
+	require.NotNil(t, err)
+}
+
+func TestListObjectType2(t *testing.T) {
+	var (
+		env    = newTestEnv(t)
+		bucket = generateBucketName("storage-class")
+		client = env.prepareClient(bucket)
+		ctx    = context.Background()
+		value  = randomString(1024)
+	)
+	defer func() {
+		cleanBucket(t, client, bucket)
+	}()
+	length := 3
+	for i := 0; i < length; i++ {
+		for j := 0; j < length; j++ {
+			for k := 0; k < length; k++ {
+				_, err := client.PutObjectV2(ctx, &tos.PutObjectV2Input{
+					PutObjectBasicInput: tos.PutObjectBasicInput{Bucket: bucket, Key: fmt.Sprintf("%d/%d/%d", i, j, k)},
+					Content:             bytes.NewBufferString(value),
+				})
+				require.Nil(t, err)
+			}
+		}
+	}
+
+	out, err := client.ListObjectsType2(ctx, &tos.ListObjectsType2Input{
+		Bucket:     bucket,
+		Prefix:     "0",
+		StartAfter: "0/1",
+		MaxKeys:    2,
+	})
+	require.Nil(t, err)
+	require.Equal(t, len(out.Contents), 2)
+	for _, obj := range out.Contents {
+		require.True(t, strings.HasPrefix(obj.Key, "0/1"))
+	}
+
+	out, err = client.ListObjectsType2(ctx, &tos.ListObjectsType2Input{
+		Bucket:            bucket,
+		Prefix:            "0",
+		StartAfter:        "0/1",
+		ContinuationToken: out.NextContinuationToken,
+		MaxKeys:           2,
+	})
+	require.Nil(t, err)
+	require.NotNil(t, out)
+	require.Equal(t, len(out.Contents), 2)
+	require.Equal(t, out.Contents[0].Key, "0/1/2")
+	require.Equal(t, out.Contents[1].Key, "0/2/0")
+
 }

@@ -47,6 +47,12 @@ func (bkt *Bucket) GetObject(ctx context.Context, objectKey string, options ...O
 
 // GetObjectToFile get object and write it to file
 func (cli *ClientV2) GetObjectToFile(ctx context.Context, input *GetObjectToFileInput) (*GetObjectToFileOutput, error) {
+
+	err := checkAndCreateDir(input.FilePath)
+	if err != nil {
+		return nil, InvalidFilePath.withCause(err)
+	}
+
 	tempFilePath := input.FilePath + TempFileSuffix
 	fd, err := os.OpenFile(tempFilePath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, DefaultFilePerm)
 	if err != nil {
@@ -92,9 +98,16 @@ func (cli *ClientV2) GetObjectV2(ctx context.Context, input *GetObjectV2Input) (
 		ContentRange: res.Header.Get(HeaderContentRange),
 	}
 	basic.ObjectMetaV2.fromResponseV2(res)
+	var serverCrc uint64
+	var checker hash.Hash64
+	if rb.Range == nil && input.PartNumber == 0 && cli.enableCRC {
+		serverCrc = basic.HashCrc64ecma
+		checker = NewCRC(DefaultCrcTable(), 0)
+
+	}
 	output := GetObjectV2Output{
 		GetObjectBasicOutput: basic,
-		Content:              wrapReader(res.Body, res.ContentLength, input.DataTransferListener, input.RateLimiter, nil),
+		Content:              wrapReader(res.Body, res.ContentLength, input.DataTransferListener, input.RateLimiter, &crcChecker{checker: checker, serverCrc: serverCrc}),
 	}
 	return &output, nil
 }
@@ -350,9 +363,14 @@ func checkCrc64(res *Response, checker hash.Hash64) error {
 	return nil
 }
 
+type crcChecker struct {
+	checker   hash.Hash64
+	serverCrc uint64
+}
+
 // wrapReader wrap reader with some extension function.
 // If reader can be interpreted as io.ReadCloser, use itself as base ReadCloser, else wrap it a NopCloser.
-func wrapReader(reader io.Reader, totalBytes int64, listener DataTransferListener, limiter RateLimiter, checker hash.Hash64) io.ReadCloser {
+func wrapReader(reader io.Reader, totalBytes int64, listener DataTransferListener, limiter RateLimiter, crcChecker *crcChecker) io.ReadCloser {
 	var wrapped io.ReadCloser
 	// get base ReadCloser
 	if rc, ok := reader.(io.ReadCloser); ok {
@@ -376,10 +394,11 @@ func wrapReader(reader io.Reader, totalBytes int64, listener DataTransferListene
 		}
 	}
 	// wrap with crc64 checker
-	if checker != nil {
+	if crcChecker != nil && crcChecker.checker != nil {
 		wrapped = &readCloserWithCRC{
-			checker: checker,
-			base:    wrapped,
+			serverCrc: crcChecker.serverCrc,
+			checker:   crcChecker.checker,
+			base:      wrapped,
 		}
 	}
 	return wrapped
@@ -414,7 +433,7 @@ func (cli *ClientV2) PutObjectV2(ctx context.Context, input *PutObjectV2Input) (
 		contentLength = tryResolveLength(content)
 	}
 	if content != nil {
-		content = wrapReader(content, contentLength, input.DataTransferListener, input.RateLimiter, checker)
+		content = wrapReader(content, contentLength, input.DataTransferListener, input.RateLimiter, &crcChecker{checker: checker})
 	}
 	var (
 		onRetry    func(req *Request) error = nil
@@ -548,7 +567,7 @@ func (cli *ClientV2) AppendObjectV2(ctx context.Context, input *AppendObjectV2In
 		checker = NewCRC(DefaultCrcTable(), input.PreHashCrc64ecma)
 	}
 	if content != nil {
-		content = wrapReader(content, contentLength, input.DataTransferListener, input.RateLimiter, checker)
+		content = wrapReader(content, contentLength, input.DataTransferListener, input.RateLimiter, &crcChecker{checker: checker})
 	}
 	res, err := cli.newBuilder(input.Bucket, input.Key).
 		WithQuery("append", "").
@@ -632,7 +651,7 @@ func (cli *ClientV2) SetObjectMeta(ctx context.Context, input *SetObjectMetaInpu
 
 // ListObjects list objects of a bucket
 //
-// Deprecated: use ListObjects of ClientV2 instead
+// Deprecated: use ListObjectsV2 of ClientV2 instead
 func (bkt *Bucket) ListObjects(ctx context.Context, input *ListObjectsInput, options ...Option) (*ListObjectsOutput, error) {
 	res, err := bkt.client.newBuilder(bkt.name, "", options...).
 		WithQuery("prefix", input.Prefix).
@@ -708,6 +727,65 @@ func (cli *ClientV2) ListObjectsV2(ctx context.Context, input *ListObjectsV2Inpu
 		EncodingType:   temp.EncodingType,
 		CommonPrefixes: temp.CommonPrefixes,
 		Contents:       contents,
+	}
+	return &output, nil
+}
+
+func (cli *ClientV2) ListObjectsType2(ctx context.Context, input *ListObjectsType2Input) (*ListObjectsType2Output, error) {
+	if err := IsValidBucketName(input.Bucket); err != nil {
+		return nil, err
+	}
+	res, err := cli.newBuilder(input.Bucket, "").
+		WithParams(*input).
+		WithQuery("list-type", "2").
+		Request(ctx, http.MethodGet, nil, cli.roundTripper(http.StatusOK))
+	if err != nil {
+		return nil, err
+	}
+	defer res.Close()
+	temp := listObjectsType2Output{
+		RequestInfo: res.RequestInfo(),
+	}
+	if err = marshalOutput(temp.RequestID, res.Body, &temp); err != nil {
+		return nil, err
+	}
+	contents := make([]ListedObjectV2, 0, len(temp.Contents))
+	for _, object := range temp.Contents {
+		var hashCrc uint64
+		if len(object.HashCrc64ecma) == 0 {
+			hashCrc = 0
+		} else {
+			hashCrc, err = strconv.ParseUint(object.HashCrc64ecma, 10, 64)
+			if err != nil {
+				return nil, &TosServerError{
+					TosError:    TosError{Message: "tos: server returned invalid HashCrc64Ecma"},
+					RequestInfo: RequestInfo{RequestID: temp.RequestID},
+				}
+			}
+		}
+		contents = append(contents, ListedObjectV2{
+			Key:           object.Key,
+			LastModified:  object.LastModified,
+			ETag:          object.ETag,
+			Size:          object.Size,
+			Owner:         object.Owner,
+			StorageClass:  object.StorageClass,
+			HashCrc64ecma: hashCrc,
+		})
+	}
+	output := ListObjectsType2Output{
+		RequestInfo:           temp.RequestInfo,
+		Name:                  temp.Name,
+		ContinuationToken:     temp.ContinuationToken,
+		Prefix:                temp.Prefix,
+		MaxKeys:               temp.MaxKeys,
+		KeyCount:              temp.KeyCount,
+		Delimiter:             temp.Delimiter,
+		IsTruncated:           temp.IsTruncated,
+		EncodingType:          temp.EncodingType,
+		CommonPrefixes:        temp.CommonPrefixes,
+		NextContinuationToken: temp.NextContinuationToken,
+		Contents:              contents,
 	}
 	return &output, nil
 }

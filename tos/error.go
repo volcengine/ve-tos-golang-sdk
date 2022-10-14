@@ -30,6 +30,9 @@ var (
 	InvalidFilePartNum                = newTosClientError("unsupported part number, the maximum is 10000", nil)
 	InvalidMarshal                    = newTosClientError("unable to do serialization/deserialization", nil)
 	InvalidPreSignedURLExpires        = newTosClientError("invalid pre signed url expires, the time must be less 604800 seconds.", nil)
+	InvalidFilePath                   = newTosClientError("invalid file path", nil)
+	InvalidCheckpointFilePath         = newTosClientError("invalid checkpoint file path", nil)
+	CrcCheckFail                      = newTosClientError("crc check not equal", nil)
 )
 
 type TosError struct {
@@ -53,6 +56,11 @@ func newTosClientError(message string, cause error) *TosClientError {
 type TosClientError struct {
 	TosError
 	Cause error
+}
+
+func (t *TosClientError) withCause(err error) error {
+	t.Cause = err
+	return t
 }
 
 // try to unmarshal server error from response

@@ -146,3 +146,61 @@ func (cli *ClientV2) GetObjectACL(ctx context.Context, input *GetObjectACLInput)
 	out.VersionID = res.Header.Get(HeaderVersionID)
 	return &out, nil
 }
+
+func (cli *ClientV2) GetBucketACL(ctx context.Context, input *GetBucketACLInput) (*GetBucketACLOutput, error) {
+	if input == nil {
+		return nil, InputIsNilClientError
+	}
+	if err := IsValidBucketName(input.Bucket); err != nil {
+		return nil, err
+	}
+	res, err := cli.newBuilder(input.Bucket, "").
+		WithQuery("acl", "").
+		Request(ctx, http.MethodGet, nil, cli.roundTripper(http.StatusOK))
+	if err != nil {
+		return nil, err
+	}
+	defer res.Close()
+	output := GetBucketACLOutput{RequestInfo: res.RequestInfo()}
+	marshalRes := bucketACL{}
+	if err = marshalOutput(output.RequestID, res.Body, &marshalRes); err != nil {
+		return nil, err
+	}
+	output.Grants = marshalRes.GrantList
+	output.Owner = marshalRes.Owner
+	return &output, nil
+}
+
+func (cli *ClientV2) PutBucketACL(ctx context.Context, input *PutBucketACLInput) (*PutBucketACLOutput, error) {
+	if input == nil {
+		return nil, InputIsNilClientError
+	}
+	if err := IsValidBucketName(input.Bucket); err != nil {
+		return nil, err
+	}
+
+	reqBuilder := cli.newBuilder(input.Bucket, "").
+		WithQuery("acl", "").
+		WithParams(*input)
+	var reqData io.Reader
+
+	if input.Owner.ID != "" && len(input.Grants) != 0 {
+		data, contentMD5, err := marshalInput("PutBucketACLInput", bucketACL{
+			Owner:     input.Owner,
+			GrantList: input.Grants,
+		})
+		if err != nil {
+			return nil, err
+		}
+		_ = reqBuilder.WithHeader(HeaderContentMD5, contentMD5)
+		reqData = bytes.NewReader(data)
+	}
+
+	res, err := reqBuilder.Request(ctx, http.MethodPut, reqData, cli.roundTripper(http.StatusOK))
+	if err != nil {
+		return nil, err
+	}
+	defer res.Close()
+	output := PutBucketACLOutput{RequestInfo: res.RequestInfo()}
+	return &output, nil
+}

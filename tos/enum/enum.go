@@ -103,6 +103,20 @@ const (
 	DownloadEventRenameTempFileFailed  DownloadEventType = 7
 )
 
+type StatusType string
+
+const (
+	LifecycleStatusEnabled  StatusType = "Enabled"
+	LifecycleStatusDisabled StatusType = "Disabled"
+)
+
+type RedirectType string
+
+const (
+	RedirectTypeMirror RedirectType = "Mirror"
+	RedirectTypeAsync  RedirectType = "Async"
+)
+
 const (
 	SSETosAlg = "AES256"
 	SSEKMS    = "kms"
