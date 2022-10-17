@@ -1,5 +1,8 @@
 # ChangeLog of TOS SDK for Go
 
+## 版本号 v2.4.1 日期：2022-10-17
+- 优化：对 key 的校验规则
+
 ## 版本号 v2.4.0 日期：2022-10-13
 - 新增：Bucket Lifecycle 管理接口
 - 新增：Bucket Policy 管理接口

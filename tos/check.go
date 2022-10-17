@@ -46,11 +46,12 @@ func validKey(key string) error {
 	if !ok {
 		return InvalidObjectNameCharacterSet
 	}
-	for _, r := range []rune(key) {
-		if (r >= 0 && r < 32) || (r > 127 && r < 256) {
-			return InvalidObjectNameCharacterSet
-		}
+
+	runeKey := []rune(key)
+	if len(runeKey) == 1 && (runeKey[0] < 32 || runeKey[0] > 127) {
+		return InvalidObjectNameCharacterSet
 	}
+
 	return nil
 }
 

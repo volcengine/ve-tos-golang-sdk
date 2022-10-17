@@ -21,7 +21,7 @@ import (
 	"github.com/volcengine/ve-tos-golang-sdk/v2/tos"
 )
 
-const testPrefix = "g0lan9-5dk-t35ts"
+const testPrefix = "g0lan9-5dk-t37ts"
 
 var LongTimeOutClientOption = []tos.ClientOption{tos.WithSocketTimeout(360*time.Second, 360*time.Second), tos.WithRequestTimeout(360 * time.Second)}
 
@@ -243,7 +243,7 @@ func cleanBucket(t *testing.T, client *tos.ClientV2, bucket string) {
 			require.Nil(t, err)
 		}
 		// delete all objects
-		list, err := client.ListObjectsV2(context.Background(), &tos.ListObjectsV2Input{Bucket: bucket})
+		list, err := client.ListObjectsV2(context.Background(), &tos.ListObjectsV2Input{Bucket: bucket, ListObjectsInput: tos.ListObjectsInput{EncodingType: "url"}})
 		require.Nil(t, err)
 		for _, object := range list.Contents {
 			del, err := client.DeleteObjectV2(context.Background(), &tos.DeleteObjectV2Input{Bucket: bucket, Key: object.Key})
