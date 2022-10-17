@@ -297,14 +297,9 @@ func TestInvalidObjectKey(t *testing.T) {
 		bucket = generateBucketName("test-invalid-object-key")
 		client = env.prepareClient(bucket)
 	)
-	testInvalidObjectKey(t, client, "	key")
 	testInvalidObjectKey(t, client, randomString(1001))
 	testInvalidObjectKey(t, client, "\\key")
-	key1 := make([]byte, 5)
-	for i := 0; i < len(key1); i++ {
-		key1[i] = byte(i)
-	}
-	testInvalidObjectKey(t, client, string(key1))
+
 }
 
 func TestUnmatchedMD5(t *testing.T) {
@@ -1286,4 +1281,46 @@ func TestObjectWithRootPath(t *testing.T) {
 	data, err := ioutil.ReadAll(out.Content)
 	require.Nil(t, err)
 	require.Equal(t, md5s(string(data)), md5)
+}
+
+func TestObjectKey(t *testing.T) {
+	var (
+		env    = newTestEnv(t)
+		bucket = generateBucketName("put-object-test-key")
+		client = env.prepareClient(bucket)
+		ctx    = context.Background()
+	)
+	defer cleanBucket(t, client, bucket)
+
+	validKeys := []string{"a\\aa", "b/b\\a", "a?ac=asd", "$%&^^&$¥**^&(^", "ab·d/test.test", "a" + string(rune(32)), "a" + string(rune(127)), "a" + string(rune(183)), "a", "  a"}
+	for _, key := range validKeys {
+		value := randomString(4 * 1024)
+		md5 := md5s(value)
+		_, err := client.PutObjectV2(ctx, &tos.PutObjectV2Input{
+			PutObjectBasicInput: tos.PutObjectBasicInput{Bucket: bucket, Key: key},
+			Content:             bytes.NewBufferString(value),
+		})
+		require.Nil(t, err)
+		getRes, err := client.GetObjectV2(ctx, &tos.GetObjectV2Input{Bucket: bucket, Key: key})
+		require.Nil(t, err)
+		data, err := ioutil.ReadAll(getRes.Content)
+		require.Nil(t, err)
+		require.Equal(t, md5s(string(data)), md5)
+	}
+	listRes, err := client.ListObjectsV2(ctx, &tos.ListObjectsV2Input{Bucket: bucket})
+	require.Nil(t, err)
+	require.Equal(t, len(listRes.Contents), len(validKeys))
+
+	invalidKey := []string{string('·'), string(rune(128)), "\\avas", string(rune(31))}
+	for _, key := range invalidKey {
+		value := randomString(4 * 1024)
+		_, err = client.PutObjectV2(ctx, &tos.PutObjectV2Input{
+			PutObjectBasicInput: tos.PutObjectBasicInput{Bucket: bucket, Key: key},
+			Content:             bytes.NewBufferString(value),
+		})
+		require.NotNil(t, err)
+		_, ok := err.(*tos.TosClientError)
+		require.True(t, ok)
+	}
+
 }
