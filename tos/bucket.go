@@ -32,6 +32,7 @@ func (cli *Client) CreateBucket(ctx context.Context, input *CreateBucketInput) (
 		WithHeader(HeaderGrantReadAcp, input.GrantReadAcp).
 		WithHeader(HeaderGrantWrite, input.GrantWrite).
 		WithHeader(HeaderGrantWriteAcp, input.GrantWriteAcp).
+		WithRetry(nil, StatusCodeClassifier{}).
 		Request(ctx, http.MethodPut, nil, cli.roundTripper(http.StatusOK))
 	if err != nil {
 		return nil, err
@@ -65,7 +66,7 @@ func (cli *ClientV2) CreateBucketV2(ctx context.Context, input *CreateBucketV2In
 
 	res, err := cli.newBuilder(input.Bucket, "").
 		WithParams(*input).
-		WithRetry(func(req *Request) error { return nil }, ServerErrorClassifier{}).
+		WithRetry(nil, StatusCodeClassifier{}).
 		Request(ctx, http.MethodPut, nil, cli.roundTripper(http.StatusOK))
 	if err != nil {
 		return nil, err
@@ -86,6 +87,7 @@ func (cli *Client) HeadBucket(ctx context.Context, bucket string) (*HeadBucketOu
 		return nil, err
 	}
 	res, err := cli.newBuilder(bucket, "").
+		WithRetry(nil, StatusCodeClassifier{}).
 		Request(ctx, http.MethodHead, nil, cli.roundTripper(http.StatusOK))
 	if err != nil {
 		return nil, err
@@ -113,6 +115,7 @@ func (cli *Client) DeleteBucket(ctx context.Context, bucket string) (*DeleteBuck
 	}
 
 	res, err := cli.newBuilder(bucket, "").
+		WithRetry(nil, StatusCodeClassifier{}).
 		Request(ctx, http.MethodDelete, nil, cli.roundTripper(http.StatusNoContent))
 	if err != nil {
 		return nil, err
@@ -133,6 +136,7 @@ func (cli *ClientV2) DeleteBucket(ctx context.Context, input *DeleteBucketInput)
 // Deprecated: use ListBuckets of ClientV2 instead
 func (cli *Client) ListBuckets(ctx context.Context, _ *ListBucketsInput) (*ListBucketsOutput, error) {
 	res, err := cli.newBuilder("", "").
+		WithRetry(nil, StatusCodeClassifier{}).
 		Request(ctx, http.MethodGet, nil, cli.roundTripper(http.StatusOK))
 	if err != nil {
 		return nil, err
@@ -149,6 +153,7 @@ func (cli *Client) ListBuckets(ctx context.Context, _ *ListBucketsInput) (*ListB
 // ListBuckets list the buckets that the AK can access
 func (cli *ClientV2) ListBuckets(ctx context.Context, _ *ListBucketsInput) (*ListBucketsOutput, error) {
 	res, err := cli.newBuilder("", "").
+		WithRetry(nil, StatusCodeClassifier{}).
 		Request(ctx, http.MethodGet, nil, cli.roundTripper(http.StatusOK))
 	if err != nil {
 		return nil, err
@@ -175,6 +180,7 @@ func (cli *ClientV2) PutBucketStorageClass(ctx context.Context, input *PutBucket
 	res, err := cli.newBuilder(input.Bucket, "").
 		WithQuery("storageClass", "").
 		WithParams(*input).
+		WithRetry(nil, StatusCodeClassifier{}).
 		Request(ctx, http.MethodPut, nil, cli.roundTripper(http.StatusOK))
 	if err != nil {
 		return nil, err
@@ -193,6 +199,7 @@ func (cli *ClientV2) GetBucketLocation(ctx context.Context, input *GetBucketLoca
 	}
 	res, err := cli.newBuilder(input.Bucket, "").
 		WithQuery("location", "").
+		WithRetry(nil, StatusCodeClassifier{}).
 		Request(ctx, http.MethodGet, nil, cli.roundTripper(http.StatusOK))
 	if err != nil {
 		return nil, err

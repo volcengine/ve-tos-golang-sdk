@@ -32,7 +32,7 @@ func (bkt *Bucket) GetObject(ctx context.Context, objectKey string, options ...O
 		return nil, err
 	}
 	rb := bkt.client.newBuilder(bkt.name, objectKey, options...)
-	res, err := rb.Request(ctx, http.MethodGet, nil, bkt.client.roundTripper(expectedCode(rb)))
+	res, err := rb.WithRetry(nil, StatusCodeClassifier{}).Request(ctx, http.MethodGet, nil, bkt.client.roundTripper(expectedCode(rb)))
 	if err != nil {
 		return nil, err
 	}
@@ -80,7 +80,7 @@ func (cli *ClientV2) GetObjectV2(ctx context.Context, input *GetObjectV2Input) (
 		return nil, err
 	}
 	rb := cli.newBuilder(input.Bucket, input.Key).
-		WithParams(*input)
+		WithParams(*input).WithRetry(nil, StatusCodeClassifier{})
 	if input.RangeEnd != 0 || input.RangeStart != 0 {
 		if input.RangeEnd < input.RangeStart {
 			return nil, errors.New("tos: invalid range")
@@ -126,7 +126,8 @@ func (bkt *Bucket) HeadObject(ctx context.Context, objectKey string, options ...
 	}
 
 	rb := bkt.client.newBuilder(bkt.name, objectKey, options...)
-	res, err := rb.Request(ctx, http.MethodHead, nil, bkt.client.roundTripper(expectedCode(rb)))
+
+	res, err := rb.WithRetry(nil, StatusCodeClassifier{}).Request(ctx, http.MethodHead, nil, bkt.client.roundTripper(expectedCode(rb)))
 	if err != nil {
 		return nil, err
 	}
@@ -180,7 +181,7 @@ func (bkt *Bucket) DeleteObject(ctx context.Context, objectKey string, options .
 		return nil, err
 	}
 
-	res, err := bkt.client.newBuilder(bkt.name, objectKey, options...).
+	res, err := bkt.client.newBuilder(bkt.name, objectKey, options...).WithRetry(nil, StatusCodeClassifier{}).
 		Request(ctx, http.MethodDelete, nil, bkt.client.roundTripper(http.StatusNoContent))
 	if err != nil {
 		return nil, err
@@ -239,6 +240,7 @@ func (bkt *Bucket) DeleteMultiObjects(ctx context.Context, input *DeleteMultiObj
 	res, err := bkt.client.newBuilder(bkt.name, "", options...).
 		WithHeader(HeaderContentMD5, contentMD5).
 		WithQuery("delete", "").
+		WithRetry(nil, ServerErrorClassifier{}).
 		Request(ctx, http.MethodPost, bytes.NewReader(in), bkt.client.roundTripper(http.StatusOK))
 	if err != nil {
 		return nil, err
@@ -312,8 +314,34 @@ func (bkt *Bucket) PutObject(ctx context.Context, objectKey string, content io.R
 	if err := isValidKey(objectKey); err != nil {
 		return nil, err
 	}
-
+	var (
+		onRetry    func(req *Request) error = nil
+		classifier classifier
+	)
+	classifier = NoRetryClassifier{}
+	if seeker, ok := content.(io.Seeker); ok {
+		start, err := seeker.Seek(0, io.SeekCurrent)
+		if err != nil {
+			return nil, err
+		}
+		onRetry = func(req *Request) error {
+			// PutObject/UploadPart can be treated as an idempotent semantics if the request message body
+			// supports a reset operation. e.g. the request message body is a string,
+			// a local file handle, binary data in memory
+			if seeker, ok := req.Content.(io.Seeker); ok {
+				_, err := seeker.Seek(start, io.SeekStart)
+				if err != nil {
+					return err
+				}
+			} else {
+				return newTosClientError("Io Reader not support retry", nil)
+			}
+			return nil
+		}
+		classifier = StatusCodeClassifier{}
+	}
 	res, err := bkt.client.newBuilder(bkt.name, objectKey, options...).
+		WithRetry(onRetry, classifier).
 		Request(ctx, http.MethodPut, content, bkt.client.roundTripper(http.StatusOK))
 	if err != nil {
 		return nil, err
@@ -532,6 +560,7 @@ func (bkt *Bucket) AppendObject(ctx context.Context, objectKey string, content i
 	res, err := bkt.client.newBuilder(bkt.name, objectKey, options...).
 		WithQuery("append", "").
 		WithQuery("offset", strconv.FormatInt(offset, 10)).
+		WithRetry(nil, NoRetryClassifier{}).
 		Request(ctx, http.MethodPost, content, bkt.client.roundTripper(http.StatusOK))
 	if err != nil {
 		return nil, err
@@ -621,6 +650,7 @@ func (bkt *Bucket) SetObjectMeta(ctx context.Context, objectKey string, options 
 
 	res, err := bkt.client.newBuilder(bkt.name, objectKey, options...).
 		WithQuery("metadata", "").
+		WithRetry(nil, StatusCodeClassifier{}).
 		Request(ctx, http.MethodPost, nil, bkt.client.roundTripper(http.StatusOK))
 	if err != nil {
 		return nil, err
@@ -660,6 +690,7 @@ func (bkt *Bucket) ListObjects(ctx context.Context, input *ListObjectsInput, opt
 		WithQuery("max-keys", strconv.Itoa(input.MaxKeys)).
 		WithQuery("reverse", strconv.FormatBool(input.Reverse)).
 		WithQuery("encoding-type", input.EncodingType).
+		WithRetry(nil, StatusCodeClassifier{}).
 		Request(ctx, http.MethodGet, nil, bkt.client.roundTripper(http.StatusOK))
 	if err != nil {
 		return nil, err
@@ -680,6 +711,7 @@ func (cli *ClientV2) ListObjectsV2(ctx context.Context, input *ListObjectsV2Inpu
 	}
 	res, err := cli.newBuilder(input.Bucket, "").
 		WithParams(*input).
+		WithRetry(nil, StatusCodeClassifier{}).
 		Request(ctx, http.MethodGet, nil, cli.roundTripper(http.StatusOK))
 	if err != nil {
 		return nil, err
@@ -738,6 +770,7 @@ func (cli *ClientV2) ListObjectsType2(ctx context.Context, input *ListObjectsTyp
 	res, err := cli.newBuilder(input.Bucket, "").
 		WithParams(*input).
 		WithQuery("list-type", "2").
+		WithRetry(nil, StatusCodeClassifier{}).
 		Request(ctx, http.MethodGet, nil, cli.roundTripper(http.StatusOK))
 	if err != nil {
 		return nil, err
@@ -801,6 +834,7 @@ func (bkt *Bucket) ListObjectVersions(ctx context.Context, input *ListObjectVers
 		WithQuery("max-keys", strconv.Itoa(input.MaxKeys)).
 		WithQuery("encoding-type", input.EncodingType).
 		WithQuery("versions", "").
+		WithRetry(nil, StatusCodeClassifier{}).
 		Request(ctx, http.MethodGet, nil, bkt.client.roundTripper(http.StatusOK))
 	if err != nil {
 		return nil, err
@@ -823,6 +857,7 @@ func (cli *ClientV2) ListObjectVersionsV2(
 	}
 	res, err := cli.newBuilder(input.Bucket, "").
 		WithQuery("versions", "").
+		WithRetry(nil, StatusCodeClassifier{}).
 		Request(ctx, http.MethodGet, nil, cli.roundTripper(http.StatusOK))
 	if err != nil {
 		return nil, err

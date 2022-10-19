@@ -62,6 +62,7 @@ func (cli *Client) GetBucketPolicy(ctx context.Context, bucket string) (*GetBuck
 
 	res, err := cli.newBuilder(bucket, "").
 		WithQuery("policy", "").
+		WithRetry(nil, StatusCodeClassifier{}).
 		Request(ctx, http.MethodGet, nil, cli.roundTripper(http.StatusOK))
 	if err != nil {
 		return nil, err
@@ -86,6 +87,7 @@ func (cli *Client) PutBucketPolicy(ctx context.Context, bucket string, policy *B
 	}
 	res, err := cli.newBuilder(bucket, "").
 		WithQuery("policy", "").
+		WithRetry(nil, StatusCodeClassifier{}).
 		Request(ctx, http.MethodPut, strings.NewReader(policy.Policy), cli.roundTripper(http.StatusNoContent))
 	if err != nil {
 		return nil, err
@@ -102,6 +104,7 @@ func (cli *Client) DeleteBucketPolicy(ctx context.Context, bucket string) (*Dele
 
 	res, err := cli.newBuilder(bucket, "").
 		WithQuery("policy", "").
+		WithRetry(nil, StatusCodeClassifier{}).
 		Request(ctx, http.MethodDelete, nil, cli.roundTripper(http.StatusNoContent))
 	if err != nil {
 		return nil, err
@@ -121,6 +124,7 @@ func (cli *ClientV2) PutBucketPolicyV2(ctx context.Context, input *PutBucketPoli
 
 	res, err := cli.newBuilder(input.Bucket, "").
 		WithQuery("policy", "").
+		WithRetry(nil, StatusCodeClassifier{}).
 		Request(ctx, http.MethodPut, bytes.NewReader([]byte(input.Policy)), cli.roundTripper(http.StatusNoContent))
 	if err != nil {
 		return nil, err
@@ -139,6 +143,7 @@ func (cli *ClientV2) GetBucketPolicyV2(ctx context.Context, input *GetBucketPoli
 	}
 	res, err := cli.newBuilder(input.Bucket, "").
 		WithQuery("policy", "").
+		WithRetry(nil, StatusCodeClassifier{}).
 		Request(ctx, http.MethodGet, nil, cli.roundTripper(http.StatusOK))
 	if err != nil {
 		return nil, err
@@ -162,6 +167,7 @@ func (cli *ClientV2) DeleteBucketPolicyV2(ctx context.Context, input *DeleteBuck
 	}
 	res, err := cli.newBuilder(input.Bucket, "").
 		WithQuery("policy", "").
+		WithRetry(nil, StatusCodeClassifier{}).
 		Request(ctx, http.MethodDelete, nil, cli.roundTripper(http.StatusNoContent))
 	if err != nil {
 		return nil, err

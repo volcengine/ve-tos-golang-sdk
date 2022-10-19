@@ -23,6 +23,7 @@ func (cli *Client) GetBucketVersioning(ctx context.Context, bucket string) (*Get
 
 	res, err := cli.newBuilder(bucket, "").
 		WithQuery("versioning", "").
+		WithRetry(nil, StatusCodeClassifier{}).
 		Request(ctx, http.MethodGet, nil, cli.roundTripper(http.StatusOK))
 	if err != nil {
 		return nil, err

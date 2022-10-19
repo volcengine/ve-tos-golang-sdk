@@ -304,6 +304,8 @@ func getDownloadTasks(cli *ClientV2, ctx context.Context, headOutput *HeadObject
 				total:       headOutput.ContentLength,
 				enableCRC64: cli.enableCRC,
 			})
+		} else {
+			consumed += part.RangeEnd - part.RangeStart + 1
 		}
 	}
 	return tasks

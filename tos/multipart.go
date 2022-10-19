@@ -35,6 +35,7 @@ func (bkt *Bucket) CreateMultipartUpload(ctx context.Context, objectKey string, 
 
 	res, err := bkt.client.newBuilder(bkt.name, objectKey, options...).
 		WithQuery("uploads", "").
+		WithRetry(nil, ServerErrorClassifier{}).
 		Request(ctx, http.MethodPost, nil, bkt.client.roundTripper(http.StatusOK))
 	if err != nil {
 		return nil, err
@@ -112,10 +113,37 @@ func (bkt *Bucket) UploadPart(ctx context.Context, input *UploadPartInput, optio
 	if err := isValidKey(input.Key); err != nil {
 		return nil, err
 	}
-
+	var (
+		onRetry func(req *Request) error = nil
+		cf      classifier
+		content = input.Content
+	)
+	cf = NoRetryClassifier{}
+	if seeker, ok := content.(io.Seeker); ok {
+		start, err := seeker.Seek(0, io.SeekCurrent)
+		if err != nil {
+			return nil, err
+		}
+		onRetry = func(req *Request) error {
+			// PutObject/UploadPartV2 can be treated as an idempotent semantics if the request message body
+			// supports a reset operation. e.g. the request message body is a string,
+			// a local file handle, binary data in memory
+			if seeker, ok := req.Content.(io.Seeker); ok {
+				_, err := seeker.Seek(start, io.SeekStart)
+				if err != nil {
+					return err
+				}
+			} else {
+				return newTosClientError("Io Reader not support retry", nil)
+			}
+			return nil
+		}
+		cf = StatusCodeClassifier{}
+	}
 	res, err := bkt.client.newBuilder(bkt.name, input.Key, options...).
 		WithQuery("uploadId", input.UploadID).
 		WithQuery("partNumber", strconv.Itoa(input.PartNumber)).
+		WithRetry(onRetry, cf).
 		Request(ctx, http.MethodPut, input.Content, bkt.client.roundTripper(http.StatusOK))
 	if err != nil {
 		return nil, err
@@ -157,13 +185,13 @@ func (cli *ClientV2) UploadPartV2(ctx context.Context, input *UploadPartV2Input)
 		checker = NewCRC(DefaultCrcTable(), 0)
 	}
 	var (
-		onRetry    func(req *Request) error = nil
-		classifier classifier
+		onRetry func(req *Request) error = nil
+		cf      classifier
 	)
 	if content != nil {
 		content = wrapReader(content, contentLength, input.DataTransferListener, input.RateLimiter, &crcChecker{checker: checker})
 	}
-	classifier = NoRetryClassifier{}
+	cf = NoRetryClassifier{}
 	if seeker, ok := content.(io.Seeker); ok {
 		start, err := seeker.Seek(0, io.SeekCurrent)
 		if err != nil {
@@ -183,13 +211,13 @@ func (cli *ClientV2) UploadPartV2(ctx context.Context, input *UploadPartV2Input)
 			}
 			return nil
 		}
-		classifier = StatusCodeClassifier{}
+		cf = StatusCodeClassifier{}
 	}
 
 	res, err := cli.newBuilder(input.Bucket, input.Key).
 		WithParams(*input).
 		WithContentLength(input.ContentLength).
-		WithRetry(onRetry, classifier).
+		WithRetry(onRetry, cf).
 		Request(ctx, http.MethodPut, content, cli.roundTripper(http.StatusOK))
 	if err != nil {
 		return nil, err
@@ -254,6 +282,7 @@ func (bkt *Bucket) CompleteMultipartUpload(ctx context.Context, input *CompleteM
 
 	res, err := bkt.client.newBuilder(bkt.name, input.Key, options...).
 		WithQuery("uploadId", input.UploadID).
+		WithRetry(nil, ServerErrorClassifier{}).
 		Request(ctx, http.MethodPost, bytes.NewReader(data), bkt.client.roundTripper(http.StatusOK))
 	if err != nil {
 		return nil, err
@@ -314,6 +343,7 @@ func (bkt *Bucket) AbortMultipartUpload(ctx context.Context, input *AbortMultipa
 	}
 	res, err := bkt.client.newBuilder(bkt.name, input.Key, options...).
 		WithQuery("uploadId", input.UploadID).
+		WithRetry(nil, ServerErrorClassifier{}).
 		Request(ctx, http.MethodDelete, nil, bkt.client.roundTripper(http.StatusNoContent))
 	if err != nil {
 		return nil, err
@@ -353,6 +383,7 @@ func (bkt *Bucket) ListUploadedParts(ctx context.Context, input *ListUploadedPar
 		WithQuery("uploadId", input.UploadID).
 		WithQuery("max-parts", strconv.Itoa(input.MaxParts)).
 		WithQuery("part-number-marker", strconv.Itoa(input.PartNumberMarker)).
+		WithRetry(nil, StatusCodeClassifier{}).
 		Request(ctx, http.MethodGet, nil, bkt.client.roundTripper(http.StatusOK))
 	if err != nil {
 		return nil, err
@@ -373,6 +404,7 @@ func (cli *ClientV2) ListParts(ctx context.Context, input *ListPartsInput) (*Lis
 	}
 	res, err := cli.newBuilder(input.Bucket, input.Key).
 		WithParams(*input).
+		WithRetry(nil, StatusCodeClassifier{}).
 		Request(ctx, http.MethodGet, nil, cli.roundTripper(http.StatusOK))
 	if err != nil {
 		return nil, err
@@ -397,6 +429,7 @@ func (bkt *Bucket) ListMultipartUploads(ctx context.Context, input *ListMultipar
 		WithQuery("key-marker", input.KeyMarker).
 		WithQuery("upload-id-marker", input.UploadIDMarker).
 		WithQuery("max-uploads", strconv.Itoa(input.MaxUploads)).
+		WithRetry(nil, StatusCodeClassifier{}).
 		Request(ctx, http.MethodGet, nil, bkt.client.roundTripper(http.StatusOK))
 	if err != nil {
 		return nil, err
@@ -420,6 +453,7 @@ func (cli *ClientV2) ListMultipartUploadsV2(
 	res, err := cli.newBuilder(input.Bucket, "").
 		WithQuery("uploads", "").
 		WithParams(*input).
+		WithRetry(nil, StatusCodeClassifier{}).
 		Request(ctx, http.MethodGet, nil, cli.roundTripper(http.StatusOK))
 	if err != nil {
 		return nil, err

@@ -745,10 +745,9 @@ type GetObjectOutput struct {
 }
 
 type GetObjectV2Input struct {
-	Bucket     string
-	Key        string
-	VersionID  string `location:"query" locationName:"versionId"`
-	PartNumber int    `location:"query" locationName:"partNumber"`
+	Bucket    string
+	Key       string
+	VersionID string `location:"query" locationName:"versionId"`
 
 	IfMatch           string    `location:"header" locationName:"If-Match"`
 	IfModifiedSince   time.Time `location:"header" locationName:"If-Modified-Since"`
@@ -771,6 +770,8 @@ type GetObjectV2Input struct {
 
 	DataTransferListener DataTransferListener
 	RateLimiter          RateLimiter
+	// Deprecated Not Use
+	PartNumber int
 }
 
 type GetObjectBasicOutput struct {
@@ -907,6 +908,12 @@ type CopyObjectInput struct {
 
 	MetadataDirective enum.MetadataDirectiveType `location:"header" locationName:"X-Tos-Metadata-Directive"`
 	Meta              map[string]string          `location:"headers"`
+}
+
+type copyObjectOutput struct {
+	ETag         string `json:"ETag,omitempty"`         // at body
+	LastModified string `json:"LastModified,omitempty"` // at body
+	Error
 }
 
 type CopyObjectOutput struct {

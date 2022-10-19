@@ -89,15 +89,27 @@ func (bkt *Bucket) CopyObjectFrom(ctx context.Context, srcBucket, srcObjectKey, 
 func (cli *Client) copyObject(ctx context.Context, dstBucket, dstObject string, srcBucket, srcObject string, options ...Option) (*CopyObjectOutput, error) {
 	res, err := cli.newBuilder(dstBucket, dstObject, options...).
 		WithCopySource(srcBucket, srcObject).
+		WithRetry(nil, ServerErrorClassifier{}).
 		Request(ctx, http.MethodPut, nil, cli.roundTripper(http.StatusOK))
 	if err != nil {
 		return nil, err
 	}
 	defer res.Close()
-	out := CopyObjectOutput{RequestInfo: res.RequestInfo()}
-	if err = marshalOutput(out.RequestID, res.Body, &out); err != nil {
+	marshalOut := copyObjectOutput{}
+
+	if err = marshalOutput(res.RequestInfo().RequestID, res.Body, &marshalOut); err != nil {
 		return nil, err
 	}
+	if marshalOut.ETag == "" {
+		return nil, &TosServerError{
+			TosError:    TosError{marshalOut.Message},
+			RequestInfo: res.RequestInfo(),
+			Code:        marshalOut.Code,
+			HostID:      marshalOut.HostID,
+			Resource:    marshalOut.Resource,
+		}
+	}
+	out := CopyObjectOutput{RequestInfo: res.RequestInfo(), ETag: marshalOut.ETag, LastModified: marshalOut.LastModified}
 	out.VersionID = res.Header.Get(HeaderVersionID)
 	out.SourceVersionID = res.Header.Get(HeaderCopySourceVersionID)
 	return &out, nil
@@ -126,10 +138,21 @@ func (cli *ClientV2) CopyObject(ctx context.Context, input *CopyObjectInput) (*C
 		return nil, err
 	}
 	defer res.Close()
-	out := CopyObjectOutput{RequestInfo: res.RequestInfo()}
-	if err = marshalOutput(out.RequestID, res.Body, &out); err != nil {
+	marshalOut := copyObjectOutput{}
+	if err = marshalOutput(res.RequestInfo().RequestID, res.Body, &marshalOut); err != nil {
 		return nil, err
 	}
+	//  Body 的 Etag 存在复制成功
+	if marshalOut.ETag == "" {
+		return nil, &TosServerError{
+			TosError:    TosError{marshalOut.Message},
+			RequestInfo: res.RequestInfo(),
+			Code:        marshalOut.Code,
+			HostID:      marshalOut.HostID,
+			Resource:    marshalOut.Resource,
+		}
+	}
+	out := CopyObjectOutput{RequestInfo: res.RequestInfo(), ETag: marshalOut.ETag, LastModified: marshalOut.LastModified}
 	out.VersionID = res.Header.Get(HeaderVersionID)
 	out.SourceVersionID = res.Header.Get(HeaderCopySourceVersionID)
 	return &out, nil
@@ -138,6 +161,7 @@ func (cli *ClientV2) CopyObject(ctx context.Context, input *CopyObjectInput) (*C
 type uploadPartCopyOutput struct {
 	ETag         string `json:"ETag,omitempty"`
 	LastModified string `json:"LastModified,omitempty"`
+	Error
 }
 
 func copyRange(startOffset, partSize *int64) string {
@@ -181,6 +205,7 @@ func (bkt *Bucket) UploadPartCopy(ctx context.Context, input *UploadPartCopyInpu
 		WithQuery("versionId", input.SourceVersionID).
 		WithHeader(HeaderCopySourceRange, copyRange(input.StartOffset, input.PartSize)).
 		WithCopySource(input.SourceBucket, input.SourceKey).
+		WithRetry(nil, ServerErrorClassifier{}).
 		Request(ctx, http.MethodPut, nil, bkt.client.roundTripper(http.StatusOK))
 	if err != nil {
 		return nil, err
@@ -190,7 +215,15 @@ func (bkt *Bucket) UploadPartCopy(ctx context.Context, input *UploadPartCopyInpu
 	if err = marshalOutput(res.RequestInfo().RequestID, res.Body, &out); err != nil {
 		return nil, err
 	}
-
+	if out.ETag == "" {
+		return nil, &TosServerError{
+			TosError:    TosError{out.Message},
+			RequestInfo: res.RequestInfo(),
+			Code:        out.Code,
+			HostID:      out.HostID,
+			Resource:    out.Resource,
+		}
+	}
 	return &UploadPartCopyOutput{
 		RequestInfo:     res.RequestInfo(),
 		VersionID:       res.Header.Get(HeaderVersionID),
@@ -243,6 +276,15 @@ func (cli *ClientV2) UploadPartCopyV2(
 	}
 
 	lastModified, _ := time.ParseInLocation(http.TimeFormat, res.Header.Get(HeaderLastModified), time.UTC)
+	if out.ETag == "" {
+		return nil, &TosServerError{
+			TosError:    TosError{out.Message},
+			RequestInfo: res.RequestInfo(),
+			Code:        out.Code,
+			HostID:      out.HostID,
+			Resource:    out.Resource,
+		}
+	}
 	return &UploadPartCopyV2Output{
 		RequestInfo:         res.RequestInfo(),
 		CopySourceVersionID: res.Header.Get(HeaderCopySourceVersionID),
