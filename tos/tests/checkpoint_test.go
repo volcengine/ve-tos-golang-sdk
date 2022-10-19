@@ -88,13 +88,6 @@ func TestUploadFile(t *testing.T) {
 	data, err := ioutil.ReadAll(get.Content)
 	require.Nil(t, err)
 	require.Equal(t, md5s(string(data)), md5s(value1))
-
-	get, err = client.GetObjectV2(context.Background(), &tos.GetObjectV2Input{
-		Bucket:     bucket,
-		Key:        key,
-		PartNumber: 1,
-	})
-	checkSuccess(t, get, err, 206)
 }
 
 func TestUploadFileWithCheckpoint(t *testing.T) {
@@ -207,12 +200,15 @@ func TestUploadFileCancelHook(t *testing.T) {
 
 	input.CancelHook = tos.NewCancelHook()
 	listener.maxTime = 3
+	d := &dataTransferListenerTest{}
+	input.DataTransferListener = d
 	upload, err = client.UploadFile(context.Background(), input)
 	require.Nil(t, err)
 	file, err = os.Open(fileName)
 	require.Nil(t, err)
 	fileData, err := ioutil.ReadAll(file)
 	require.Equal(t, upload.HashCrc64ecma, getCrc(fileData))
+	require.Equal(t, d.AlreadyConsumer, d.TotalBytes)
 
 	get, err := client.GetObjectV2(context.Background(), &tos.GetObjectV2Input{
 		Bucket: bucket,
@@ -497,6 +493,8 @@ func TestDownloadCancelHook(t *testing.T) {
 
 	listener.input = input
 	listener.maxTime = 5
+	d := &dataTransferListenerTest{}
+	input.DataTransferListener = d
 	_, err = client.DownloadFile(context.Background(), input)
 	require.Nil(t, err)
 	file, err = os.Open(fileName + ".file")
@@ -504,6 +502,7 @@ func TestDownloadCancelHook(t *testing.T) {
 	require.Nil(t, err)
 	require.Equal(t, md5Sum, md5s(string(buffer)))
 	require.Equal(t, 5, listener.count)
+	require.Equal(t, d.AlreadyConsumer, d.TotalBytes)
 }
 
 func TestLargeFile(t *testing.T) {

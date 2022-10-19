@@ -252,7 +252,7 @@ func (classifier StatusCodeClassifier) Classify(err error) retryAction {
 
 // ServerErrorClassifier classify errors returned by POST method.
 // If the error is nil, it returns NoRetry;
-// if the error can be interpreted as TosServerError and its StatusCode is 5xx, it returns Retry;
+// if the error can be interpreted as TosServerError and its StatusCode is 5xx or 429, it returns Retry;
 // otherwise, it returns NoRetry.
 type ServerErrorClassifier struct{}
 
@@ -263,7 +263,7 @@ func (classifier ServerErrorClassifier) Classify(err error) retryAction {
 	}
 	e, ok := err.(*TosServerError)
 	if ok {
-		if e.StatusCode >= 500 {
+		if e.StatusCode >= 500 || e.StatusCode == 429 {
 			return Retry
 		}
 	}

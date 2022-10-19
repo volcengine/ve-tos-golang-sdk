@@ -62,6 +62,7 @@ func (cli *ClientV2) PutBucketLifecycle(ctx context.Context, input *PutBucketLif
 	res, err := cli.newBuilder(input.Bucket, "").
 		WithQuery("lifecycle", "").
 		WithHeader(HeaderContentMD5, contentMD5).
+		WithRetry(nil, StatusCodeClassifier{}).
 		Request(ctx, http.MethodPut, bytes.NewReader(data), cli.roundTripper(http.StatusOK))
 	if err != nil {
 		return nil, err
@@ -80,6 +81,7 @@ func (cli *ClientV2) GetBucketLifecycle(ctx context.Context, input *GetBucketLif
 	}
 	res, err := cli.newBuilder(input.Bucket, "").
 		WithQuery("lifecycle", "").
+		WithRetry(nil, StatusCodeClassifier{}).
 		Request(ctx, http.MethodGet, nil, cli.roundTripper(http.StatusOK))
 	if err != nil {
 		return nil, err
@@ -101,6 +103,7 @@ func (cli *ClientV2) DeleteBucketLifecycle(ctx context.Context, input *DeleteBuc
 	}
 	res, err := cli.newBuilder(input.Bucket, "").
 		WithQuery("lifecycle", "").
+		WithRetry(nil, StatusCodeClassifier{}).
 		Request(ctx, http.MethodDelete, nil, cli.roundTripper(http.StatusNoContent))
 	if err != nil {
 		return nil, err

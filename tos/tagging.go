@@ -23,6 +23,7 @@ func (cli *ClientV2) PutObjectTagging(ctx context.Context, input *PutObjectTaggi
 		WithQuery("tagging", "").
 		WithParams(*input).
 		WithHeader(HeaderContentMD5, contentMD5).
+		WithRetry(nil, StatusCodeClassifier{}).
 		Request(ctx, http.MethodPut, bytes.NewReader(data), cli.roundTripper(http.StatusOK))
 	if err != nil {
 		return nil, err
@@ -43,6 +44,7 @@ func (cli *ClientV2) GetObjectTagging(ctx context.Context, input *GetObjectTaggi
 	res, err := cli.newBuilder(input.Bucket, input.Key).
 		WithQuery("tagging", "").
 		WithParams(*input).
+		WithRetry(nil, StatusCodeClassifier{}).
 		Request(ctx, http.MethodGet, nil, cli.roundTripper(http.StatusOK))
 	if err != nil {
 		return nil, err
@@ -66,6 +68,7 @@ func (cli *ClientV2) DeleteObjectTagging(ctx context.Context, input *DeleteObjec
 	res, err := cli.newBuilder(input.Bucket, input.Key).
 		WithQuery("tagging", "").
 		WithParams(*input).
+		WithRetry(nil, StatusCodeClassifier{}).
 		Request(ctx, http.MethodDelete, nil, cli.roundTripper(http.StatusNoContent))
 	if err != nil {
 		return nil, err

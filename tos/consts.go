@@ -7,7 +7,7 @@ import (
 
 const (
 	// Version tos-go-sdk version
-	Version = "v2.4.1"
+	Version = "v2.4.2"
 )
 
 const TempFileSuffix = ".temp"
@@ -25,6 +25,14 @@ func SupportedRegion() map[string]string {
 		"cn-guangzhou": "tos-cn-guangzhou.volces.com",
 		"cn-shanghai":  "tos-cn-shanghai.volces.com",
 	}
+}
+
+func SupportedEndpoint() map[string]string {
+	supportEndpoint := make(map[string]string)
+	for key, value := range SupportedRegion() {
+		supportEndpoint[value] = key
+	}
+	return supportEndpoint
 }
 
 const (

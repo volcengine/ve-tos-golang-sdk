@@ -55,6 +55,7 @@ func (bkt *Bucket) FetchObject(ctx context.Context, input *FetchObjectInput, opt
 	res, err := bkt.client.newBuilder(bkt.name, input.Key, options...).
 		WithQuery("fetch", "").
 		WithHeader(HeaderContentMD5, contentMD5).
+		WithRetry(nil, ServerErrorClassifier{}).
 		Request(ctx, http.MethodPost, bytes.NewReader(data), bkt.client.roundTripper(http.StatusOK))
 	if err != nil {
 		return nil, err
@@ -100,6 +101,7 @@ func (bkt *Bucket) PutFetchTask(ctx context.Context, input *PutFetchTaskInput, o
 	res, err := bkt.client.newBuilder(bkt.name, "", options...).
 		WithQuery("fetchTask", "").
 		WithHeader(HeaderContentMD5, contentMD5).
+		WithRetry(nil, ServerErrorClassifier{}).
 		Request(ctx, http.MethodPost, bytes.NewReader(data), bkt.client.roundTripper(http.StatusOK))
 	if err != nil {
 		return nil, err
@@ -132,6 +134,7 @@ func (bkt *Bucket) GetFetchTask(ctx context.Context, input *GetFetchTaskInput, o
 	res, err := bkt.client.newBuilder(bkt.name, "", options...).
 		WithQuery("fetchTask", "").
 		WithQuery("taskId", input.TaskID).
+		WithRetry(nil, StatusCodeClassifier{}).
 		Request(ctx, http.MethodGet, nil, bkt.client.roundTripper(http.StatusOK))
 
 	out := GetFetchTaskOutput{RequestInfo: res.RequestInfo()}

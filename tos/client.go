@@ -301,7 +301,11 @@ func initClient(client *Client, endpoint string, options ...ClientOption) error 
 	}
 	if cred := client.credentials; cred != nil && client.signer == nil {
 		if len(client.config.Region) == 0 {
-			return newTosClientError("tos: missing Region option", nil)
+			if region, ok := SupportedEndpoint()[client.host]; ok {
+				client.config.Region = region
+			} else {
+				return newTosClientError("tos: missing Region option", nil)
+			}
 		}
 		signer := NewSignV4(cred, client.config.Region)
 		signer.WithSignLogger(client.logger)
@@ -322,7 +326,9 @@ func NewClient(endpoint string, options ...ClientOption) (*Client, error) {
 		recognizer: ExtensionBasedContentTypeRecognizer{},
 		config:     defaultConfig(),
 		userAgent:  fmt.Sprintf("tos-go-sdk/%s (%s/%s;%s)", Version, runtime.GOOS, runtime.GOARCH, runtime.Version()),
+		retry:      newRetryer([]time.Duration{}),
 	}
+	client.retry.SetJitter(0.25)
 	err := initClient(&client, endpoint, options...)
 	if err != nil {
 		return nil, err
@@ -561,6 +567,7 @@ func (cli *ClientV2) FetchObjectV2(ctx context.Context, input *FetchObjectInputV
 		WithQuery("fetch", "").
 		WithHeader(HeaderContentMD5, contentMD5).
 		WithParams(*input).
+		WithRetry(nil, ServerErrorClassifier{}).
 		Request(ctx, http.MethodPost, bytes.NewReader(data), cli.roundTripper(http.StatusOK))
 	if err != nil {
 		return nil, err
@@ -605,6 +612,7 @@ func (cli *ClientV2) PutFetchTaskV2(ctx context.Context, input *PutFetchTaskInpu
 		WithQuery("fetchTask", "").
 		WithHeader(HeaderContentMD5, contentMD5).
 		WithParams(*input).
+		WithRetry(nil, ServerErrorClassifier{}).
 		Request(ctx, http.MethodPost, bytes.NewReader(data), cli.roundTripper(http.StatusOK))
 	if err != nil {
 		return nil, err

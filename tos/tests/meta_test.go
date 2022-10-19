@@ -3,6 +3,7 @@ package tests
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -25,10 +26,12 @@ func TestSetObjectMetaV2(t *testing.T) {
 	meta["Test-床前明月光"] = "疑是地上霜"
 	meta["Test-Key"] = "Value"
 	_, err := client.SetObjectMeta(context.Background(), &tos.SetObjectMetaInput{
-		Bucket:      bucket,
-		Key:         key,
-		ContentType: contentType,
-		Meta:        meta,
+		Bucket:       bucket,
+		Key:          key,
+		ContentType:  contentType,
+		Meta:         meta,
+		Expires:      time.Now().Add(24 * time.Hour),
+		CacheControl: "no-cache",
 	})
 	head, err := client.HeadObjectV2(context.Background(), &tos.HeadObjectV2Input{Bucket: bucket, Key: key})
 	require.Nil(t, err)

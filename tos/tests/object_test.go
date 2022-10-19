@@ -262,13 +262,15 @@ func TestCopyObject(t *testing.T) {
 		Content:             strings.NewReader(value),
 	})
 	checkSuccess(t, put, err, 200)
-	_, err = client.CopyObject(context.Background(), &tos.CopyObjectInput{
+	copyRes, err := client.CopyObject(context.Background(), &tos.CopyObjectInput{
 		Bucket:    bucket,
 		Key:       copyedKey,
 		SrcBucket: bucket,
 		SrcKey:    key,
 	})
 	require.Nil(t, err)
+	require.NotNil(t, copyRes.ETag)
+	require.NotNil(t, copyRes.LastModified)
 	get, err := client.GetObjectV2(context.Background(), &tos.GetObjectV2Input{
 		Bucket: bucket,
 		Key:    copyedKey,

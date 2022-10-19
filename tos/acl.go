@@ -37,7 +37,7 @@ func (bkt *Bucket) PutObjectAcl(ctx context.Context, input *PutObjectAclInput, o
 			WithHeader(HeaderGrantWriteAcp, grant.GrantWriteAcp)
 	}
 
-	res, err := builder.Request(ctx, http.MethodPut, content, bkt.client.roundTripper(http.StatusOK))
+	res, err := builder.WithRetry(nil, StatusCodeClassifier{}).Request(ctx, http.MethodPut, content, bkt.client.roundTripper(http.StatusOK))
 	if err != nil {
 		return nil, err
 	}
@@ -85,7 +85,7 @@ func (cli *ClientV2) PutObjectACL(ctx context.Context, input *PutObjectACLInput)
 	builder := cli.newBuilder(input.Bucket, input.Key).
 		WithQuery("acl", "").
 		WithParams(*input)
-	res, err := builder.Request(ctx, http.MethodPut, content, cli.roundTripper(http.StatusOK))
+	res, err := builder.WithRetry(nil, StatusCodeClassifier{}).Request(ctx, http.MethodPut, content, cli.roundTripper(http.StatusOK))
 	if err != nil {
 		return nil, err
 	}
@@ -108,6 +108,7 @@ func (bkt *Bucket) GetObjectAcl(ctx context.Context, objectKey string, options .
 
 	res, err := bkt.client.newBuilder(bkt.name, objectKey, options...).
 		WithQuery("acl", "").
+		WithRetry(nil, StatusCodeClassifier{}).
 		Request(ctx, http.MethodGet, nil, bkt.client.roundTripper(http.StatusOK))
 	if err != nil {
 		return nil, err
@@ -133,6 +134,7 @@ func (cli *ClientV2) GetObjectACL(ctx context.Context, input *GetObjectACLInput)
 	res, err := cli.newBuilder(input.Bucket, input.Key).
 		WithQuery("acl", "").
 		WithParams(*input).
+		WithRetry(nil, StatusCodeClassifier{}).
 		Request(ctx, http.MethodGet, nil, cli.roundTripper(http.StatusOK))
 	if err != nil {
 		return nil, err
@@ -156,6 +158,7 @@ func (cli *ClientV2) GetBucketACL(ctx context.Context, input *GetBucketACLInput)
 	}
 	res, err := cli.newBuilder(input.Bucket, "").
 		WithQuery("acl", "").
+		WithRetry(nil, StatusCodeClassifier{}).
 		Request(ctx, http.MethodGet, nil, cli.roundTripper(http.StatusOK))
 	if err != nil {
 		return nil, err
@@ -181,6 +184,7 @@ func (cli *ClientV2) PutBucketACL(ctx context.Context, input *PutBucketACLInput)
 
 	reqBuilder := cli.newBuilder(input.Bucket, "").
 		WithQuery("acl", "").
+		WithRetry(nil, StatusCodeClassifier{}).
 		WithParams(*input)
 	var reqData io.Reader
 

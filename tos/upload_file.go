@@ -250,6 +250,8 @@ func prepareUploadTasks(cli *ClientV2, ctx context.Context, checkpoint *uploadCh
 				Offset:     part.Offset,
 				PartSize:   part.PartSize,
 			})
+		} else {
+			consumed += part.PartSize
 		}
 	}
 	return tasks
