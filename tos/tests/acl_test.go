@@ -46,6 +46,22 @@ func TestObjectACLV2(t *testing.T) {
 	require.Equal(t, 200, getAcl.StatusCode)
 	require.Equal(t, ownerID, getAcl.Grants[0].GranteeV2.ID)
 	require.Equal(t, enum.PermissionRead, getAcl.Grants[0].Permission)
+	ctx := context.Background()
+	acl, err = client.PutObjectACL(ctx, &tos.PutObjectACLInput{
+		Bucket:     bucket,
+		Key:        key,
+		GrantWrite: "id=123",
+	})
+	require.Nil(t, err)
+
+	getAcl, err = client.GetObjectACL(context.Background(), &tos.GetObjectACLInput{
+		Bucket: bucket,
+		Key:    key,
+	})
+	require.Nil(t, err)
+	require.Equal(t, len(getAcl.Grants), 1)
+	require.Equal(t, getAcl.Grants[0].GranteeV2.ID, "123")
+	require.Equal(t, getAcl.Grants[0].Permission, enum.PermissionWrite)
 }
 
 func TestPutWithACLV2(t *testing.T) {

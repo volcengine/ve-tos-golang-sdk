@@ -114,10 +114,12 @@ type PutObjectACLInput struct {
 	GrantFullControl string       `location:"header" locationName:"X-Tos-Grant-Full-Control"` // optional
 	GrantRead        string       `location:"header" locationName:"X-Tos-Grant-Read"`         // optional
 	GrantReadAcp     string       `location:"header" locationName:"X-Tos-Grant-Read-Acp"`     // optional
-	GrantWrite       string       `location:"header" locationName:"X-Tos-Grant-Write"`        // optional
-	GrantWriteAcp    string       `location:"header" locationName:"X-Tos-Grant-Write-Acp"`    // optional
-	Owner            Owner
-	Grants           []GrantV2
+
+	// Deprecated
+	GrantWrite    string `location:"header" locationName:"X-Tos-Grant-Write"`     // optional
+	GrantWriteAcp string `location:"header" locationName:"X-Tos-Grant-Write-Acp"` // optional
+	Owner         Owner
+	Grants        []GrantV2
 }
 
 type PutObjectAclOutput struct {
@@ -474,7 +476,7 @@ type AppendObjectV2Output struct {
 type SetObjectMetaInput struct {
 	Bucket    string
 	Key       string
-	VersionID string
+	VersionID string `location:"query" locationName:"versionId"`
 
 	CacheControl       string    `location:"header" locationName:"Cache-Control"`
 	ContentDisposition string    `location:"header" locationName:"Content-Disposition"`
@@ -879,7 +881,7 @@ type CopyObjectInput struct {
 	Key                string
 	SrcBucket          string
 	SrcKey             string
-	SrcVersionID       string
+	SrcVersionID       string       `location:"query" locationName:"versionId"`
 	CacheControl       string       `location:"header" locationName:"Cache-Control"`
 	ContentDisposition string       `location:"header" locationName:"Content-Disposition" encodeChinese:"true"`
 	ContentEncoding    string       `location:"header" locationName:"Content-Encoding"`
