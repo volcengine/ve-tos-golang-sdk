@@ -216,9 +216,9 @@ func TestListObjectVersions(t *testing.T) {
 	var (
 		env    = newTestEnv(t)
 		bucket = generateBucketName("list-objects")
-		key1   = "key1"
-		key2   = "key2"
-		key3   = "key3"
+		key1   = "key-a-1"
+		key2   = "key-a-2"
+		key3   = "key-b-3"
 		client = env.prepareClient(bucket)
 	)
 	defer func() {
@@ -243,6 +243,24 @@ func TestListObjectVersions(t *testing.T) {
 	})
 	checkSuccess(t, objects, err, 200)
 	require.Equal(t, 3, len(objects.Versions))
+
+	objects, err = client.ListObjectVersionsV2(context.Background(), &tos.ListObjectVersionsV2Input{
+		Bucket: bucket,
+		ListObjectVersionsInput: tos.ListObjectVersionsInput{
+			MaxKeys: 2,
+		},
+	})
+	checkSuccess(t, objects, err, 200)
+	require.Equal(t, 2, len(objects.Versions))
+
+	objects, err = client.ListObjectVersionsV2(context.Background(), &tos.ListObjectVersionsV2Input{
+		Bucket: bucket,
+		ListObjectVersionsInput: tos.ListObjectVersionsInput{
+			Prefix: "key-a-",
+		},
+	})
+	checkSuccess(t, objects, err, 200)
+	require.Equal(t, 2, len(objects.Versions))
 }
 
 func TestCopyObject(t *testing.T) {
@@ -281,6 +299,60 @@ func TestCopyObject(t *testing.T) {
 	require.Nil(t, err)
 	require.Equal(t, string(buffer), value)
 	require.Nil(t, err)
+}
+
+func TestCopyObjectVersion(t *testing.T) {
+	var (
+		env       = newTestEnv(t)
+		bucket    = generateBucketName("copy-object-version")
+		key       = "key123"
+		value     = "value123"
+		copyedKey = "copyedKey"
+		client    = env.prepareClient(bucket)
+	)
+	enableMultiVersion(t, client, bucket)
+
+	defer func() {
+		cleanBucket(t, client, bucket)
+
+	}()
+	put, err := client.PutObjectV2(context.Background(), &tos.PutObjectV2Input{
+		PutObjectBasicInput: tos.PutObjectBasicInput{Bucket: bucket, Key: key},
+		Content:             strings.NewReader(value),
+	})
+	checkSuccess(t, put, err, 200)
+	versionId := put.VersionID
+	value2 := randomString(8)
+	put, err = client.PutObjectV2(context.Background(), &tos.PutObjectV2Input{
+		PutObjectBasicInput: tos.PutObjectBasicInput{Bucket: bucket, Key: key},
+		Content:             strings.NewReader(value2),
+	})
+	checkSuccess(t, put, err, 200)
+
+	copyRes, err := client.CopyObject(context.Background(), &tos.CopyObjectInput{
+		Bucket:       bucket,
+		Key:          copyedKey,
+		SrcVersionID: versionId,
+		SrcBucket:    bucket,
+		SrcKey:       key,
+	})
+	require.Nil(t, err)
+
+	require.NotNil(t, copyRes.ETag)
+	require.NotNil(t, copyRes.LastModified)
+
+	get, err := client.GetObjectV2(context.Background(), &tos.GetObjectV2Input{
+		Bucket: bucket,
+		Key:    copyedKey,
+	})
+
+	require.Nil(t, err)
+	buffer, err := ioutil.ReadAll(get.Content)
+	require.NotNil(t, get)
+	require.Nil(t, err)
+	require.Equal(t, string(buffer), value)
+	require.Nil(t, err)
+
 }
 
 func TestValidObjectKey(t *testing.T) {

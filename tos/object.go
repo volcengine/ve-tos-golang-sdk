@@ -856,6 +856,7 @@ func (cli *ClientV2) ListObjectVersionsV2(
 		return nil, err
 	}
 	res, err := cli.newBuilder(input.Bucket, "").
+		WithParams(*input).
 		WithQuery("versions", "").
 		WithRetry(nil, StatusCodeClassifier{}).
 		Request(ctx, http.MethodGet, nil, cli.roundTripper(http.StatusOK))
