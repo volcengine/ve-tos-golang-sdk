@@ -1,5 +1,8 @@
 # ChangeLog of TOS SDK for Go
 
+## 版本号 v2.4.4 日期：2022-11-02
+- 修复：部分接口 Closer 没有正确关闭
+
 ## 版本号 v2.4.3 日期：2022-10-28
 - 修复：CopyObject/SetObjectMeta 无法正确消费 VersionID 
 - 修复：ListObjectVersionsV2 参数无法正常消费

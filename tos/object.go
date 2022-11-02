@@ -59,10 +59,13 @@ func (cli *ClientV2) GetObjectToFile(ctx context.Context, input *GetObjectToFile
 		return nil, err
 	}
 	defer fd.Close()
+
 	get, err := cli.GetObjectV2(ctx, &input.GetObjectV2Input)
 	if err != nil {
 		return nil, err
 	}
+	defer get.Content.Close()
+
 	_, err = io.Copy(fd, get.Content)
 	if err != nil {
 		return nil, err
@@ -403,8 +406,9 @@ func wrapReader(reader io.Reader, totalBytes int64, listener DataTransferListene
 	// get base ReadCloser
 	if rc, ok := reader.(io.ReadCloser); ok {
 		wrapped = rc
+	} else {
+		wrapped = ioutil.NopCloser(reader)
 	}
-	wrapped = ioutil.NopCloser(reader)
 	// wrap with listener
 	if listener != nil {
 		wrapped = &readCloserWithListener{
