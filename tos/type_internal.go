@@ -306,6 +306,7 @@ func (t *downloadTask) do() (result interface{}, err error) {
 	if err != nil {
 		return nil, err
 	}
+	defer output.Content.Close()
 	file, err := os.OpenFile(t.input.tempFile, os.O_RDWR, DefaultFilePerm)
 	if err != nil {
 		return nil, err

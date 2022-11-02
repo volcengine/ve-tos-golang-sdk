@@ -60,7 +60,7 @@ func (bkt *Bucket) FetchObject(ctx context.Context, input *FetchObjectInput, opt
 	if err != nil {
 		return nil, err
 	}
-
+	defer res.Close()
 	out := FetchObjectOutput{RequestInfo: res.RequestInfo()}
 	if err = marshalOutput(out.RequestID, res.Body, &out); err != nil {
 		return nil, err
@@ -106,7 +106,7 @@ func (bkt *Bucket) PutFetchTask(ctx context.Context, input *PutFetchTaskInput, o
 	if err != nil {
 		return nil, err
 	}
-
+	defer res.Close()
 	out := PutFetchTaskOutput{RequestInfo: res.RequestInfo()}
 	if err = marshalOutput(out.RequestID, res.Body, &out); err != nil {
 		return nil, err
@@ -138,6 +138,7 @@ func (bkt *Bucket) GetFetchTask(ctx context.Context, input *GetFetchTaskInput, o
 		Request(ctx, http.MethodGet, nil, bkt.client.roundTripper(http.StatusOK))
 
 	out := GetFetchTaskOutput{RequestInfo: res.RequestInfo()}
+	defer res.Close()
 	if err = marshalOutput(out.RequestID, res.Body, &out); err != nil {
 		return nil, err
 	}
