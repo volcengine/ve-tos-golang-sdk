@@ -507,3 +507,136 @@ func TestPreSignedPostSignatureWithCondition(t *testing.T) {
 	assert.Equal(t, httpRes.StatusCode, 403)
 
 }
+
+func TestPreSignedPolicyURLWithExpires(t *testing.T) {
+	var (
+		env    = newTestEnv(t)
+		bucket = generateBucketName("pre-signed-policy-url")
+		cli    = env.prepareClient(bucket)
+		client = &http.Client{}
+		ctx    = context.Background()
+	)
+	defer cleanBucket(t, cli, bucket)
+	keyPrefix := "policy-"
+	key := keyPrefix + randomString(6)
+	key1 := keyPrefix + randomString(6)
+	key2 := "policy/" + randomString(6)
+	key3 := "policy/" + randomString(6)
+	// put object for key key1 key2 key3
+	put, err := cli.PutObjectV2(context.Background(), &tos.PutObjectV2Input{
+		PutObjectBasicInput: tos.PutObjectBasicInput{Bucket: bucket, Key: key},
+		Content:             strings.NewReader(randomString(4096)),
+	})
+	checkSuccess(t, put, err, 200)
+	put1, err := cli.PutObjectV2(context.Background(), &tos.PutObjectV2Input{
+		PutObjectBasicInput: tos.PutObjectBasicInput{Bucket: bucket, Key: key1},
+		Content:             strings.NewReader(randomString(2048)),
+	})
+	checkSuccess(t, put1, err, 200)
+	put2, err := cli.PutObjectV2(context.Background(), &tos.PutObjectV2Input{
+		PutObjectBasicInput: tos.PutObjectBasicInput{Bucket: bucket, Key: key2},
+		Content:             strings.NewReader(randomString(1024)),
+	})
+	checkSuccess(t, put2, err, 200)
+	put3, err := cli.PutObjectV2(context.Background(), &tos.PutObjectV2Input{
+		PutObjectBasicInput: tos.PutObjectBasicInput{Bucket: bucket, Key: key3},
+		Content:             strings.NewReader(randomString(1024)),
+	})
+	checkSuccess(t, put3, err, 200)
+
+	// build policy url
+	operatorSw := "starts-with"
+	operatorEq := "eq"
+	output, err := cli.PreSignedPolicyURL(ctx, &tos.PreSingedPolicyURLInput{
+		Expires: 1000,
+		Conditions: []tos.PolicySignatureCondition{{
+			Key:   "bucket",
+			Value: bucket,
+		}, {
+			Key:      "key",
+			Value:    keyPrefix,
+			Operator: &operatorSw,
+		}, {
+			Key:      "key",
+			Value:    key2,
+			Operator: &operatorEq,
+		}, {
+			Key:   "key",
+			Value: key3,
+		}},
+	})
+	require.Nil(t, err)
+
+	// head&get object test based policy url for key
+	getUrl := output.GetSignedURLForGetOrHead(bucket, key, nil)
+	req, _ := http.NewRequest(http.MethodGet, getUrl, nil)
+	res, err := client.Do(req)
+	require.Nil(t, err)
+	require.Equal(t, 200, res.StatusCode)
+	require.Equal(t, int64(4096), res.ContentLength)
+
+	req, _ = http.NewRequest(http.MethodHead, getUrl, nil)
+	res, err = client.Do(req)
+	require.Nil(t, err)
+	require.Equal(t, 200, res.StatusCode)
+	require.Equal(t, int64(4096), res.ContentLength)
+
+	// get test based policy url for key1
+	getUrl1 := output.GetSignedURLForGetOrHead(bucket, key1, nil)
+	req, _ = http.NewRequest(http.MethodHead, getUrl1, nil)
+	res, err = client.Do(req)
+	require.Nil(t, err)
+	require.Equal(t, 200, res.StatusCode)
+	require.Equal(t, int64(2048), res.ContentLength)
+
+	// prefix must be subsequence for policy, prefix set "policy", but policy starts-with "policy-"
+	listUrl := output.GetSignedURLForList(bucket, map[string]string{
+		"prefix": "policy",
+	})
+	req, _ = http.NewRequest(http.MethodGet, listUrl, nil)
+	res, err = client.Do(req)
+	require.Nil(t, err)
+	require.Equal(t, 403, res.StatusCode)
+
+	// list test based policy url, can list key key1
+	listUrl = output.GetSignedURLForList(bucket, map[string]string{
+		"prefix": keyPrefix,
+	})
+	req, _ = http.NewRequest(http.MethodGet, listUrl, nil)
+	res, err = client.Do(req)
+	require.Nil(t, err)
+	require.Equal(t, 200, res.StatusCode)
+	// Unmarshal ListObjectsOutput
+	data, err := ioutil.ReadAll(res.Body)
+	require.Nil(t, err)
+	data = bytes.TrimSpace(data)
+	jsonOut := tos.ListObjectsOutput{}
+	err = json.Unmarshal(data, &jsonOut)
+	require.Nil(t, err)
+	require.Equal(t, len(jsonOut.Contents), 2)
+
+	// head test based policy url for key2
+	getUrl2 := output.GetSignedURLForGetOrHead(bucket, key2, nil)
+	req, _ = http.NewRequest(http.MethodHead, getUrl2, nil)
+	res, err = client.Do(req)
+	require.Nil(t, err)
+	require.Equal(t, 200, res.StatusCode)
+	require.Equal(t, int64(1024), res.ContentLength)
+
+	// get test based policy url for key3
+	getUrl3 := output.GetSignedURLForGetOrHead(bucket, key3, nil)
+	req, _ = http.NewRequest(http.MethodGet, getUrl3, nil)
+	res, err = client.Do(req)
+	require.Nil(t, err)
+	require.Equal(t, 200, res.StatusCode)
+	require.Equal(t, int64(1024), res.ContentLength)
+	require.Equal(t, "binary/octet-stream", res.Header.Get("Content-Type"))
+
+	// get with additionQuery test based policy url for key3
+	getUrl3 = output.GetSignedURLForGetOrHead(bucket, key3, map[string]string{"response-content-type": "text/plain"})
+	req, _ = http.NewRequest(http.MethodGet, getUrl3, nil)
+	res, err = client.Do(req)
+	require.Nil(t, err)
+	require.Equal(t, 200, res.StatusCode)
+	require.Equal(t, "text/plain", res.Header.Get("Content-Type"))
+}

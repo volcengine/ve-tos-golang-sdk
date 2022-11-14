@@ -21,27 +21,33 @@ import (
 )
 
 type dataTransferListenerTest struct {
-	TotalBytes      int64
-	CurBytes        int64 // bytes read/written
-	StartedTime     int64
-	SuccessTime     int64
-	AlreadyConsumer int64
-	RWTime          int64
+	TotalBytes       int64
+	CurBytes         int64 // bytes read/written
+	StartedTime      int64
+	SuccessTime      int64
+	AlreadyConsumer  int64
+	RWTime           int64
+	DataTransferType enum.DataTransferType
 }
 
 func (d *dataTransferListenerTest) DataTransferStatusChange(status *tos.DataTransferStatus) {
 	switch status.Type {
 	case enum.DataTransferStarted:
 		d.StartedTime += 1
+		d.DataTransferType = enum.DataTransferStarted
 	case enum.DataTransferRW:
 		d.TotalBytes = status.TotalBytes
 		atomic.AddInt64(&d.CurBytes, status.RWOnceBytes)
 		d.AlreadyConsumer = status.ConsumedBytes
 		d.RWTime += 1
+		d.DataTransferType = enum.DataTransferRW
 	case enum.DataTransferSucceed:
 		d.SuccessTime += 1
+		d.TotalBytes = status.TotalBytes
+		d.DataTransferType = enum.DataTransferSucceed
 	case enum.DataTransferFailed:
 		fmt.Println("Failed")
+		d.DataTransferType = enum.DataTransferFailed
 	}
 }
 
@@ -416,13 +422,13 @@ func TestDownloadFileWithCheckpoint(t *testing.T) {
 	require.Equal(t, md5Sum, md5s(string(buffer)))
 }
 
-type DownloadListenerTest struct {
+type DownloadCancelListenerTest struct {
 	count   int
 	input   *tos.DownloadFileInput
 	maxTime int
 }
 
-func (l *DownloadListenerTest) EventChange(event *tos.DownloadEvent) {
+func (l *DownloadCancelListenerTest) EventChange(event *tos.DownloadEvent) {
 	if event.Type == enum.DownloadEventDownloadPartSucceed {
 		l.count++
 	}
@@ -437,7 +443,7 @@ func TestDownloadCancelHook(t *testing.T) {
 		env      = newTestEnv(t)
 		bucket   = generateBucketName("download-file-cancel-hook")
 		key      = "key123"
-		value1   = randomString(22 * 1024 * 1024)
+		value1   = randomString(82 * 1024 * 1024)
 		client   = env.prepareClient(bucket)
 		fileName = randomString(16) + ".file"
 		md5Sum   = md5s(value1)
@@ -470,14 +476,14 @@ func TestDownloadCancelHook(t *testing.T) {
 			Bucket: bucket,
 			Key:    key,
 		},
-		PartSize:         5 * 1024 * 1024,
+		PartSize:         20 * 1024 * 1024,
 		TaskNum:          4,
 		FilePath:         fileName + ".file", // xxx.file.file
 		CheckpointFile:   fileName + ".checkpoint",
 		EnableCheckpoint: true,
 		CancelHook:       hook,
 	}
-	listener := &DownloadListenerTest{
+	listener := &DownloadCancelListenerTest{
 		count:   0,
 		input:   input,
 		maxTime: 2,
@@ -485,12 +491,11 @@ func TestDownloadCancelHook(t *testing.T) {
 	input.DownloadEventListener = listener
 	_, err = client.DownloadFile(context.Background(), input)
 	require.True(t, listener.count >= 2)
-
+	t.Logf("listener.count:%d", listener.count)
 	_, err = os.Stat(fileName + ".file" + ".temp")
 	require.Nil(t, err)
 
 	input.CancelHook = tos.NewCancelHook()
-
 	listener.input = input
 	listener.maxTime = 5
 	d := &dataTransferListenerTest{}
@@ -503,6 +508,8 @@ func TestDownloadCancelHook(t *testing.T) {
 	require.Equal(t, md5Sum, md5s(string(buffer)))
 	require.Equal(t, 5, listener.count)
 	require.Equal(t, d.AlreadyConsumer, d.TotalBytes)
+	require.Equal(t, d.DataTransferType, enum.DataTransferSucceed)
+	require.Equal(t, d.SuccessTime, int64(1))
 }
 
 func TestLargeFile(t *testing.T) {
@@ -609,7 +616,7 @@ func TestDownloadFileWithUpdate(t *testing.T) {
 		EnableCheckpoint: true,
 		CancelHook:       hook,
 	}
-	listener := DownloadListenerTest{
+	listener := DownloadCancelListenerTest{
 		count:   0,
 		input:   input,
 		maxTime: 2,

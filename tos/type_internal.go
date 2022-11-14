@@ -669,6 +669,7 @@ type readCloserWithListener struct {
 	consumed int64
 	subtotal int64
 	total    int64
+	onceEof  bool
 }
 
 func (r *readCloserWithListener) Read(p []byte) (n int, err error) {
@@ -677,6 +678,34 @@ func (r *readCloserWithListener) Read(p []byte) (n int, err error) {
 			Type: enum.DataTransferStarted,
 		})
 	}
+	defer func() {
+		if err == io.EOF {
+			r.consumed += int64(n)
+			r.subtotal += int64(n)
+			if r.subtotal != 0 {
+				postDataTransferStatus(r.listener, &DataTransferStatus{
+					Type:          enum.DataTransferRW,
+					RWOnceBytes:   r.subtotal,
+					ConsumedBytes: r.consumed,
+					TotalBytes:    r.total,
+				})
+				r.subtotal = 0
+			}
+
+			if !r.onceEof {
+				if r.total == -1 {
+					r.total = r.consumed
+				}
+				postDataTransferStatus(r.listener, &DataTransferStatus{
+					Type:          enum.DataTransferSucceed,
+					ConsumedBytes: r.consumed,
+					TotalBytes:    r.total,
+				})
+				r.onceEof = true
+			}
+
+		}
+	}()
 	n, err = r.base.Read(p)
 	if err != nil && err != io.EOF {
 		postDataTransferStatus(r.listener, &DataTransferStatus{
@@ -684,7 +713,7 @@ func (r *readCloserWithListener) Read(p []byte) (n int, err error) {
 		})
 		return n, err
 	}
-	if n <= 0 {
+	if n <= 0 || err == io.EOF {
 		return
 	}
 	r.consumed += int64(n)
@@ -697,23 +726,6 @@ func (r *readCloserWithListener) Read(p []byte) (n int, err error) {
 			TotalBytes:    r.total,
 		})
 		r.subtotal = 0
-	}
-
-	if r.consumed == r.total {
-		if r.subtotal != 0 {
-			postDataTransferStatus(r.listener, &DataTransferStatus{
-				Type:          enum.DataTransferRW,
-				RWOnceBytes:   r.subtotal,
-				ConsumedBytes: r.consumed,
-				TotalBytes:    r.total,
-			})
-			r.subtotal = 0
-		}
-		postDataTransferStatus(r.listener, &DataTransferStatus{
-			Type:          enum.DataTransferSucceed,
-			ConsumedBytes: r.consumed,
-			TotalBytes:    r.total,
-		})
 	}
 	return
 }

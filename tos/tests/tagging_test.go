@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	"github.com/volcengine/ve-tos-golang-sdk/v2/tos"
@@ -67,6 +68,7 @@ func TestBucketTaggingVersion(t *testing.T) {
 		cleanBucket(t, client, bucket)
 	}()
 	enableMultiVersion(t, client, bucket)
+	time.Sleep(time.Minute)
 	ctx := context.Background()
 	putObjectRes, err := client.PutObjectV2(ctx, &tos.PutObjectV2Input{
 		PutObjectBasicInput: tos.PutObjectBasicInput{

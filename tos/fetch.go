@@ -136,9 +136,12 @@ func (bkt *Bucket) GetFetchTask(ctx context.Context, input *GetFetchTaskInput, o
 		WithQuery("taskId", input.TaskID).
 		WithRetry(nil, StatusCodeClassifier{}).
 		Request(ctx, http.MethodGet, nil, bkt.client.roundTripper(http.StatusOK))
+	if err != nil {
+		return nil, err
+	}
+	defer res.Close()
 
 	out := GetFetchTaskOutput{RequestInfo: res.RequestInfo()}
-	defer res.Close()
 	if err = marshalOutput(out.RequestID, res.Body, &out); err != nil {
 		return nil, err
 	}

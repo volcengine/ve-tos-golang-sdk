@@ -3,6 +3,7 @@ package tos
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -11,6 +12,7 @@ import (
 	"net/http"
 	"net/url"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -623,4 +625,102 @@ func (cli *ClientV2) PutFetchTaskV2(ctx context.Context, input *PutFetchTaskInpu
 		return nil, err
 	}
 	return &output, nil
+}
+
+func (cli *ClientV2) PreSignedPolicyURL(ctx context.Context, input *PreSingedPolicyURLInput) (*PreSingedPolicyURLOutput, error) {
+
+	policyConditions := make(map[string]interface{})
+	cred := cli.credentials.Credential()
+	region := cli.config.Region
+
+	if input.Expires == 0 {
+		input.Expires = defaultSignExpires
+	}
+	if input.Expires > maxPreSignedURLExpires {
+		return nil, InvalidPreSignedURLExpires
+	}
+
+	query := make(url.Values)
+	date := UTCNow()
+	query.Add(v4Expires, strconv.FormatInt(input.Expires, 10))
+	// algorithm
+	algorithm := signPrefix
+	query.Add(v4Algorithm, algorithm)
+	// data
+	dateQuery := date.Format(iso8601Layout)
+	query.Add(v4Date, dateQuery)
+	// credential
+	credential := fmt.Sprintf("%s/%s/%s/tos/request", cred.AccessKeyID, date.Format(yyMMdd), region)
+	query.Add(v4Credential, credential)
+
+	if cred.SecurityToken != "" {
+		query.Add(v4SecurityToken, cred.SecurityToken)
+	}
+
+	// input conditions
+	cond := make([]interface{}, 0)
+	for _, condition := range input.Conditions {
+		if condition.Operator != nil {
+			cond = append(cond, []string{*condition.Operator, "$" + condition.Key, condition.Value})
+		} else {
+			cond = append(cond, map[string]string{condition.Key: condition.Value})
+		}
+	}
+	policyConditions[signConditions] = cond
+	originPolicy, err := json.Marshal(policyConditions)
+	if err != nil {
+		return nil, InvalidMarshal
+	}
+	policy := base64.StdEncoding.EncodeToString(originPolicy)
+	query.Add("X-Tos-Policy", policy)
+
+	// CanonicalRequest
+	const split = byte('\n')
+	var buf bytes.Buffer
+	var req bytes.Buffer
+	req.Grow(512)
+	var queryReq = make(KVs, 0, len(query))
+	for key, values := range query {
+		queryReq = append(queryReq, KV{Key: key, Values: values})
+	}
+	req.Write(encodeQuery(queryReq))
+	req.WriteByte(split)
+	req.WriteString(unsignedPayload)
+	canonicalStr := req.String()
+	// StringToSign
+	buf.Grow(len(signPrefix) + 128)
+
+	buf.WriteString(signPrefix)
+	buf.WriteByte(split)
+
+	buf.WriteString(date.Format(iso8601Layout))
+	buf.WriteByte(split)
+
+	buf.WriteString(date.Format(yyMMdd)) // yyMMdd + '/' + region + '/' + service + '/' + request
+	buf.WriteByte('/')
+	buf.WriteString(region)
+
+	buf.WriteString("/tos/request")
+	buf.WriteByte(split)
+
+	sum := sha256.Sum256([]byte(canonicalStr))
+	buf.WriteString(hex.EncodeToString(sum[:]))
+
+	// SigningKey
+	signK := SigningKey(&SigningKeyInfo{Date: date.Format(yyMMdd), Region: region, Credential: &cred})
+	// Signature
+	sign := hmacSHA256(signK, buf.Bytes())
+	query.Add(v4Signature, hex.EncodeToString(sign))
+	rawQuery := query.Encode()
+	// set scheme and host
+	resScheme := cli.scheme
+	resHost := cli.host
+	if input.AlternativeEndpoint != "" {
+		resScheme, resHost, _ = schemeHost(input.AlternativeEndpoint)
+	}
+	return &PreSingedPolicyURLOutput{
+		SignatureQuery: rawQuery,
+		scheme:         resScheme,
+		host:           resHost,
+	}, nil
 }

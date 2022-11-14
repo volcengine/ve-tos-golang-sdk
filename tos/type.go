@@ -1,7 +1,9 @@
 package tos
 
 import (
+	"fmt"
 	"io"
+	"net/url"
 	"time"
 
 	"github.com/volcengine/ve-tos-golang-sdk/v2/tos/enum"
@@ -215,6 +217,55 @@ type PostSignatureCondition struct {
 	Key      string
 	Value    string
 	Operator *string
+}
+
+type PreSingedPolicyURLInput struct {
+	Expires             int64
+	Conditions          []PolicySignatureCondition
+	AlternativeEndpoint string
+}
+
+type PreSingedPolicyURLOutput struct {
+	PreSignedPolicyURLGenerator
+	SignatureQuery string
+	host           string
+	scheme         string
+}
+
+type PolicySignatureCondition struct {
+	Key      string
+	Value    string
+	Operator *string
+}
+
+type PreSignedPolicyURLGenerator interface {
+	GetSignedURLForList(bucket string, additionalQuery map[string]string) string
+	GetSignedURLForGetOrHead(bucket, key string, additionalQuery map[string]string) string
+}
+
+func (output *PreSingedPolicyURLOutput) GetSignedURLForList(bucket string, additionalQuery map[string]string) string {
+	query := make(url.Values)
+	for k, v := range additionalQuery {
+		query.Add(k, v)
+	}
+	queryStr := query.Encode()
+	if queryStr != "" {
+		queryStr = "&" + queryStr
+	}
+	str := fmt.Sprintf("%s://%s.%s/?%s%s", output.scheme, bucket, output.host, output.SignatureQuery, queryStr)
+	return str
+}
+func (output *PreSingedPolicyURLOutput) GetSignedURLForGetOrHead(bucket, key string, additionalQuery map[string]string) string {
+	query := make(url.Values)
+	for k, v := range additionalQuery {
+		query.Add(k, v)
+	}
+	queryStr := query.Encode()
+	if queryStr != "" {
+		queryStr = "&" + queryStr
+	}
+	str := fmt.Sprintf("%s://%s.%s/%s?%s%s", output.scheme, bucket, output.host, key, output.SignatureQuery, queryStr)
+	return str
 }
 
 type PreSignedURLInput struct {

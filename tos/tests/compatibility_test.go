@@ -61,11 +61,12 @@ func TestCurdV1(t *testing.T) {
 		endpoint  = os.Getenv("TOS_GO_SDK_ENDPOINT")
 		accessKey = os.Getenv("TOS_GO_SDK_AK")
 		secretKey = os.Getenv("TOS_GO_SDK_SK")
+		region    = os.Getenv("TOS_GO_SDK_REGION")
 		bucket    = testPrefix + "curd" + "-" + randomString(16)
 	)
 
 	client, err := tos.NewClient(endpoint,
-		tos.WithCredentials(tos.NewStaticCredentials(accessKey, secretKey)), tos.WithMaxRetryCount(5))
+		tos.WithCredentials(tos.NewStaticCredentials(accessKey, secretKey)), tos.WithMaxRetryCount(5), tos.WithRegion(region))
 	require.Nil(t, err)
 	created, err := client.CreateBucket(context.Background(), &tos.CreateBucketInput{Bucket: bucket})
 	checkSuccess(t, created, err, 200)

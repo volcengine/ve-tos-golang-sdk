@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/volcengine/ve-tos-golang-sdk/v2/tos"
 	"github.com/volcengine/ve-tos-golang-sdk/v2/tos/enum"
 )
@@ -29,7 +29,7 @@ func TestFetchObjectWithMeta(t *testing.T) {
 		PutObjectBasicInput: tos.PutObjectBasicInput{Bucket: bucket, Key: key, ACL: enum.ACLPublicRead},
 		Content:             bytes.NewReader([]byte(randomString(length))),
 	})
-	assert.Nil(t, err)
+	require.Nil(t, err)
 	fetchRes, err := client.FetchObjectV2(ctx, &tos.FetchObjectInputV2{
 		Bucket:       bucket,
 		Key:          fetchKey,
@@ -38,18 +38,18 @@ func TestFetchObjectWithMeta(t *testing.T) {
 		Meta:         map[string]string{"test-key": "test-value"},
 		URL:          "https://" + bucket + "." + env.endpoint + "/" + key,
 	})
-	assert.Nil(t, err)
+	require.Nil(t, err)
 
 	headRes, err := client.HeadObjectV2(ctx, &tos.HeadObjectV2Input{
 		Bucket: bucket,
 		Key:    fetchKey,
 	})
-	assert.Nil(t, err)
+	require.Nil(t, err)
 	actualValue, _ := headRes.Meta.Get("test-key")
-	assert.Equal(t, actualValue, "test-value")
-	assert.Equal(t, headRes.StorageClass, enum.StorageClassIa)
-	assert.Equal(t, headRes.ETag, fetchRes.Etag)
-	assert.Equal(t, headRes.ContentLength, int64(length))
+	require.Equal(t, actualValue, "test-value")
+	require.Equal(t, headRes.StorageClass, enum.StorageClassIa)
+	require.Equal(t, headRes.ETag, fetchRes.Etag)
+	require.Equal(t, headRes.ContentLength, int64(length))
 }
 
 func TestFetchObject(t *testing.T) {
@@ -70,7 +70,7 @@ func TestFetchObject(t *testing.T) {
 		PutObjectBasicInput: tos.PutObjectBasicInput{Bucket: bucket, Key: key, ACL: enum.ACLPublicRead},
 		Content:             bytes.NewReader([]byte(value)),
 	})
-	assert.Nil(t, err)
+	require.Nil(t, err)
 	_, err = client.FetchObjectV2(ctx, &tos.FetchObjectInputV2{
 		Bucket:       bucket,
 		Key:          fetchKey,
@@ -79,7 +79,7 @@ func TestFetchObject(t *testing.T) {
 		Meta:         map[string]string{"test-key": "test-value"},
 		URL:          "https://" + bucket + "." + env.endpoint + "/" + key,
 	})
-	assert.Nil(t, err)
+	require.Nil(t, err)
 
 	_, err = client.FetchObjectV2(ctx, &tos.FetchObjectInputV2{
 		Bucket:        bucket,
@@ -90,7 +90,7 @@ func TestFetchObject(t *testing.T) {
 		URL:           "https://" + bucket + "." + env.endpoint + "/" + key,
 		IgnoreSameKey: true,
 	})
-	assert.Nil(t, err)
+	require.Nil(t, err)
 
 }
 
@@ -111,7 +111,7 @@ func TestPutFetchTaskV2(t *testing.T) {
 		PutObjectBasicInput: tos.PutObjectBasicInput{Bucket: bucket, Key: key, ACL: enum.ACLPublicRead},
 		Content:             bytes.NewReader([]byte(randomString(length))),
 	})
-	assert.Nil(t, err)
+	require.Nil(t, err)
 	res, err := client.PutFetchTaskV2(ctx, &tos.PutFetchTaskInputV2{
 		Bucket: bucket,
 		Key:    fetchKey,
@@ -125,9 +125,9 @@ func TestPutFetchTaskV2(t *testing.T) {
 		Bucket: bucket,
 		Key:    fetchKey,
 	})
-	assert.Nil(t, err)
+	require.Nil(t, err)
 	actualValue, _ := headRes.Meta.Get("test-key")
-	assert.Equal(t, actualValue, "test-value")
-	assert.Equal(t, headRes.ContentLength, int64(length))
+	require.Equal(t, actualValue, "test-value")
+	require.Equal(t, headRes.ContentLength, int64(length))
 
 }

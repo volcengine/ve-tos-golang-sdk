@@ -1,5 +1,8 @@
 # ChangeLog of TOS SDK for Go
 
+## 版本号 v2.4.5 日期：2022-11-11
+- 修复：修复 chunk 模式下进度条 total 是 -1 
+
 ## 版本号 v2.4.4 日期：2022-11-02
 - 修复：部分接口 Closer 没有正确关闭
 
