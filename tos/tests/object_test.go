@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/volcengine/ve-tos-golang-sdk/v2/tos"
@@ -311,7 +312,7 @@ func TestCopyObjectVersion(t *testing.T) {
 		client    = env.prepareClient(bucket)
 	)
 	enableMultiVersion(t, client, bucket)
-
+	time.Sleep(time.Minute)
 	defer func() {
 		cleanBucket(t, client, bucket)
 
@@ -1231,6 +1232,7 @@ func checkDataListener(t *testing.T, listener *dataTransferListenerTest) {
 	require.Equal(t, listener.StartedTime, int64(1))
 	require.Equal(t, listener.SuccessTime, int64(1))
 	require.True(t, listener.TotalBytes != 0)
+	require.True(t, listener.DataTransferType == enum.DataTransferSucceed)
 }
 
 func TestWithDataListener(t *testing.T) {
@@ -1315,15 +1317,22 @@ func TestObjectWithIoReader(t *testing.T) {
 	defer func() {
 		cleanBucket(t, client, bucket)
 	}()
-	ioReader := CiIoReader{buff: bytes.NewBufferString(randomString(4 * 1024 * 1024))}
+	totalSize := 4 * 1024 * 1024
+	ioReader := CiIoReader{buff: bytes.NewBufferString(randomString(totalSize))}
+	d := &dataTransferListenerTest{}
 	_, err := client.PutObjectV2(context.Background(), &tos.PutObjectV2Input{
 		PutObjectBasicInput: tos.PutObjectBasicInput{
-			Bucket: bucket,
-			Key:    key,
+			Bucket:               bucket,
+			Key:                  key,
+			DataTransferListener: d,
 		},
 		Content: ioReader,
 	})
 	require.Nil(t, err)
+	assert.Equal(t, d.TotalBytes, int64(totalSize))
+	assert.Equal(t, d.TotalBytes, d.AlreadyConsumer)
+	assert.Equal(t, d.DataTransferType, enum.DataTransferSucceed)
+	assert.Equal(t, d.SuccessTime, int64(1))
 }
 
 func TestObjectWithRootPath(t *testing.T) {

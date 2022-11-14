@@ -21,7 +21,7 @@ import (
 	"github.com/volcengine/ve-tos-golang-sdk/v2/tos"
 )
 
-const testPrefix = "g0lan9-5dk-t37ts"
+const testPrefix = "g0lan9-5dk-t38ts"
 
 var LongTimeOutClientOption = []tos.ClientOption{tos.WithSocketTimeout(360*time.Second, 360*time.Second), tos.WithRequestTimeout(360 * time.Second)}
 

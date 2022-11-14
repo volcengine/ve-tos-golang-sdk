@@ -242,9 +242,12 @@ func (classifier StatusCodeClassifier) Classify(err error) retryAction {
 			return Retry
 		}
 	}
-	t, ok := err.(interface{ Timeout() bool })
-	if ok && t.Timeout() {
-		return Retry
+	cErr, ok := err.(*TosClientError)
+	if ok {
+		_, ok = cErr.Cause.(interface{ Timeout() bool })
+		if ok {
+			return Retry
+		}
 	}
 
 	return NoRetry

@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strconv"
 )
 
@@ -45,6 +46,19 @@ func (bkt *Bucket) GetObject(ctx context.Context, objectKey string, options ...O
 	return &output, nil
 }
 
+func (cli *ClientV2) copyToFile(fileName string, reader io.Reader) error {
+	fd, err := os.OpenFile(filepath.Clean(fileName), os.O_CREATE|os.O_TRUNC|os.O_WRONLY, DefaultFilePerm)
+	if err != nil {
+		return err
+	}
+	defer fd.Close()
+	_, err = io.Copy(fd, reader)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 // GetObjectToFile get object and write it to file
 func (cli *ClientV2) GetObjectToFile(ctx context.Context, input *GetObjectToFileInput) (*GetObjectToFileOutput, error) {
 
@@ -54,22 +68,17 @@ func (cli *ClientV2) GetObjectToFile(ctx context.Context, input *GetObjectToFile
 	}
 
 	tempFilePath := input.FilePath + TempFileSuffix
-	fd, err := os.OpenFile(tempFilePath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, DefaultFilePerm)
-	if err != nil {
-		return nil, err
-	}
-	defer fd.Close()
 
 	get, err := cli.GetObjectV2(ctx, &input.GetObjectV2Input)
 	if err != nil {
 		return nil, err
 	}
 	defer get.Content.Close()
-
-	_, err = io.Copy(fd, get.Content)
+	err = cli.copyToFile(tempFilePath, get.Content)
 	if err != nil {
-		return nil, err
+		return nil, newTosClientError("GetObject to File error", err)
 	}
+
 	err = os.Rename(tempFilePath, input.FilePath)
 	if err != nil {
 		return nil, err
@@ -312,7 +321,7 @@ func (cli *ClientV2) DeleteMultiObjects(ctx context.Context, input *DeleteMultiO
 //   if the parameter content(an io.Reader) is not one of these,
 //   please use io.LimitReader(reader, length) to wrap this reader or use the WithContentLength option.
 //
-// Deprecated: use PutObject of ClientV2 instead
+// Deprecated: use PutObjectV2 of ClientV2 instead
 func (bkt *Bucket) PutObject(ctx context.Context, objectKey string, content io.Reader, options ...Option) (*PutObjectOutput, error) {
 	if err := isValidKey(objectKey); err != nil {
 		return nil, err
