@@ -629,16 +629,19 @@ func (cli *ClientV2) PutFetchTaskV2(ctx context.Context, input *PutFetchTaskInpu
 
 func (cli *ClientV2) PreSignedPolicyURL(ctx context.Context, input *PreSingedPolicyURLInput) (*PreSingedPolicyURLOutput, error) {
 
-	policyConditions := make(map[string]interface{})
-	cred := cli.credentials.Credential()
-	region := cli.config.Region
-
+	if err := IsValidBucketName(input.Bucket); err != nil {
+		return nil, err
+	}
 	if input.Expires == 0 {
 		input.Expires = defaultSignExpires
 	}
 	if input.Expires > maxPreSignedURLExpires {
 		return nil, InvalidPreSignedURLExpires
 	}
+
+	policyConditions := make(map[string]interface{})
+	cred := cli.credentials.Credential()
+	region := cli.config.Region
 
 	query := make(url.Values)
 	date := UTCNow()
@@ -660,12 +663,21 @@ func (cli *ClientV2) PreSignedPolicyURL(ctx context.Context, input *PreSingedPol
 	// input conditions
 	cond := make([]interface{}, 0)
 	for _, condition := range input.Conditions {
-		if condition.Operator != nil {
-			cond = append(cond, []string{*condition.Operator, "$" + condition.Key, condition.Value})
+		key := condition.Key
+		operator := condition.Operator
+		if key != "key" {
+			return nil, InvalidPreSignedConditions
+		}
+		if operator != nil && !(*operator == "eq" || *operator == "starts-with") {
+			return nil, InvalidPreSignedConditions
+		}
+		if operator != nil {
+			cond = append(cond, []string{*operator, "$" + key, condition.Value})
 		} else {
-			cond = append(cond, map[string]string{condition.Key: condition.Value})
+			cond = append(cond, map[string]string{key: condition.Value})
 		}
 	}
+	cond = append(cond, map[string]string{"bucket": input.Bucket})
 	policyConditions[signConditions] = cond
 	originPolicy, err := json.Marshal(policyConditions)
 	if err != nil {
@@ -719,8 +731,10 @@ func (cli *ClientV2) PreSignedPolicyURL(ctx context.Context, input *PreSingedPol
 		resScheme, resHost, _ = schemeHost(input.AlternativeEndpoint)
 	}
 	return &PreSingedPolicyURLOutput{
+		bucket:         input.Bucket,
 		SignatureQuery: rawQuery,
 		scheme:         resScheme,
 		host:           resHost,
+		isCustomDomain: input.IsCustomDomain,
 	}, nil
 }

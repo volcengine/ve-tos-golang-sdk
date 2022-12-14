@@ -548,11 +548,9 @@ func TestPreSignedPolicyURLWithExpires(t *testing.T) {
 	operatorSw := "starts-with"
 	operatorEq := "eq"
 	output, err := cli.PreSignedPolicyURL(ctx, &tos.PreSingedPolicyURLInput{
+		Bucket:  bucket,
 		Expires: 1000,
 		Conditions: []tos.PolicySignatureCondition{{
-			Key:   "bucket",
-			Value: bucket,
-		}, {
 			Key:      "key",
 			Value:    keyPrefix,
 			Operator: &operatorSw,
@@ -568,7 +566,7 @@ func TestPreSignedPolicyURLWithExpires(t *testing.T) {
 	require.Nil(t, err)
 
 	// head&get object test based policy url for key
-	getUrl := output.GetSignedURLForGetOrHead(bucket, key, nil)
+	getUrl := output.GetSignedURLForGetOrHead(key, nil)
 	req, _ := http.NewRequest(http.MethodGet, getUrl, nil)
 	res, err := client.Do(req)
 	require.Nil(t, err)
@@ -582,7 +580,7 @@ func TestPreSignedPolicyURLWithExpires(t *testing.T) {
 	require.Equal(t, int64(4096), res.ContentLength)
 
 	// get test based policy url for key1
-	getUrl1 := output.GetSignedURLForGetOrHead(bucket, key1, nil)
+	getUrl1 := output.GetSignedURLForGetOrHead(key1, nil)
 	req, _ = http.NewRequest(http.MethodHead, getUrl1, nil)
 	res, err = client.Do(req)
 	require.Nil(t, err)
@@ -590,7 +588,7 @@ func TestPreSignedPolicyURLWithExpires(t *testing.T) {
 	require.Equal(t, int64(2048), res.ContentLength)
 
 	// prefix must be subsequence for policy, prefix set "policy", but policy starts-with "policy-"
-	listUrl := output.GetSignedURLForList(bucket, map[string]string{
+	listUrl := output.GetSignedURLForList(map[string]string{
 		"prefix": "policy",
 	})
 	req, _ = http.NewRequest(http.MethodGet, listUrl, nil)
@@ -599,7 +597,7 @@ func TestPreSignedPolicyURLWithExpires(t *testing.T) {
 	require.Equal(t, 403, res.StatusCode)
 
 	// list test based policy url, can list key key1
-	listUrl = output.GetSignedURLForList(bucket, map[string]string{
+	listUrl = output.GetSignedURLForList(map[string]string{
 		"prefix": keyPrefix,
 	})
 	req, _ = http.NewRequest(http.MethodGet, listUrl, nil)
@@ -616,7 +614,7 @@ func TestPreSignedPolicyURLWithExpires(t *testing.T) {
 	require.Equal(t, len(jsonOut.Contents), 2)
 
 	// head test based policy url for key2
-	getUrl2 := output.GetSignedURLForGetOrHead(bucket, key2, nil)
+	getUrl2 := output.GetSignedURLForGetOrHead(key2, nil)
 	req, _ = http.NewRequest(http.MethodHead, getUrl2, nil)
 	res, err = client.Do(req)
 	require.Nil(t, err)
@@ -624,7 +622,7 @@ func TestPreSignedPolicyURLWithExpires(t *testing.T) {
 	require.Equal(t, int64(1024), res.ContentLength)
 
 	// get test based policy url for key3
-	getUrl3 := output.GetSignedURLForGetOrHead(bucket, key3, nil)
+	getUrl3 := output.GetSignedURLForGetOrHead(key3, nil)
 	req, _ = http.NewRequest(http.MethodGet, getUrl3, nil)
 	res, err = client.Do(req)
 	require.Nil(t, err)
@@ -633,7 +631,7 @@ func TestPreSignedPolicyURLWithExpires(t *testing.T) {
 	require.Equal(t, "binary/octet-stream", res.Header.Get("Content-Type"))
 
 	// get with additionQuery test based policy url for key3
-	getUrl3 = output.GetSignedURLForGetOrHead(bucket, key3, map[string]string{"response-content-type": "text/plain"})
+	getUrl3 = output.GetSignedURLForGetOrHead(key3, map[string]string{"response-content-type": "text/plain"})
 	req, _ = http.NewRequest(http.MethodGet, getUrl3, nil)
 	res, err = client.Do(req)
 	require.Nil(t, err)

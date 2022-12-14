@@ -1,5 +1,9 @@
 # ChangeLog of TOS SDK for Go
 
+## 版本号 v2.4.5 日期：2022-12-14
+- 修复：transport socket time 设置错误
+- 修复：GetObject 无法指定 Response 元数据信息
+
 ## 版本号 v2.4.5 日期：2022-11-11
 - 修复：修复 chunk 模式下进度条 total 是 -1 
 
