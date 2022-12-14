@@ -195,7 +195,7 @@ func (tc *TimeoutConn) Read(b []byte) (n int, err error) {
 
 	n, err = tc.Conn.Read(b)
 	if timeout {
-		_ = tc.SetReadDeadline(tc.zero)
+		_ = tc.SetReadDeadline(time.Now().Add(tc.readTimeout * 5))
 	}
 	return n, err
 }
@@ -207,8 +207,8 @@ func (tc *TimeoutConn) Write(b []byte) (n int, err error) {
 	}
 
 	n, err = tc.Conn.Write(b)
-	if timeout {
-		_ = tc.SetWriteDeadline(tc.zero)
+	if tc.readTimeout > 0 {
+		_ = tc.SetReadDeadline(time.Now().Add(tc.readTimeout * 5))
 	}
 	return n, err
 }

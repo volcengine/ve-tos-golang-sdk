@@ -6,7 +6,10 @@ import (
 	"crypto/aes"
 	"encoding/base64"
 	"encoding/hex"
+	"fmt"
+	"io"
 	"io/ioutil"
+	"math/rand"
 	"net/http"
 	"os"
 	"sort"
@@ -1406,4 +1409,70 @@ func TestObjectKey(t *testing.T) {
 		require.True(t, ok)
 	}
 
+}
+
+func TestGetObjectWithResponseParams(t *testing.T) {
+	var (
+		env    = newTestEnv(t)
+		bucket = generateBucketName("put-object-test-key")
+		client = env.prepareClient(bucket)
+		ctx    = context.Background()
+		key    = "key123"
+	)
+	defer cleanBucket(t, client, bucket)
+	putRandomObject(t, client, bucket, key, 1024)
+	responseCacheControl := "10"
+	responseContentType := "application/json"
+	responseContentLanguage := "zh-cn"
+	responseContentDisposition := "abc;def"
+	responseContentEncoding := "deflate"
+	res, err := client.GetObjectV2(ctx, &tos.GetObjectV2Input{Bucket: bucket, Key: key,
+		ResponseCacheControl:       responseCacheControl,
+		ResponseExpires:            time.Now().Add(time.Hour),
+		ResponseContentEncoding:    responseContentEncoding,
+		ResponseContentLanguage:    responseContentLanguage,
+		ResponseContentType:        responseContentType,
+		ResponseContentDisposition: responseContentDisposition,
+	})
+	require.Nil(t, err)
+	require.Equal(t, res.ContentLanguage, responseContentLanguage)
+	require.Equal(t, res.ContentType, responseContentType)
+	require.Equal(t, res.ContentDisposition, responseContentDisposition)
+	require.Equal(t, res.CacheControl, responseCacheControl)
+	require.Equal(t, res.ContentEncoding, responseContentEncoding)
+	require.NotNil(t, res.Expires)
+}
+
+type CountReader struct {
+	count int
+}
+
+func (c *CountReader) Read(p []byte) (n int, err error) {
+	time.Sleep(time.Second)
+	c.count++
+	fmt.Println("Now Count:", c.count)
+	if c.count == 35 {
+		return 0, io.EOF
+	}
+	return rand.Read(p)
+
+}
+
+func TestUpload(t *testing.T) {
+	var (
+		env    = newTestEnv(t)
+		bucket = generateBucketName("object-with-reader-timeout")
+		client = env.prepareClient(bucket)
+		key    = randomString(6)
+		ctx    = context.Background()
+	)
+	c := &CountReader{}
+	defer cleanBucket(t, client, bucket)
+	out, err := client.PutObjectV2(ctx, &tos.PutObjectV2Input{
+		PutObjectBasicInput: tos.PutObjectBasicInput{Bucket: bucket, Key: key},
+		Content:             c,
+	})
+	require.Nil(t, err)
+	t.Log("request id:", out.RequestID)
+	require.Equal(t, c.count > 33, true)
 }

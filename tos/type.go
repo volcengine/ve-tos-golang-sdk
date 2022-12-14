@@ -220,16 +220,20 @@ type PostSignatureCondition struct {
 }
 
 type PreSingedPolicyURLInput struct {
+	Bucket              string
 	Expires             int64
 	Conditions          []PolicySignatureCondition
 	AlternativeEndpoint string
+	IsCustomDomain      bool
 }
 
 type PreSingedPolicyURLOutput struct {
 	PreSignedPolicyURLGenerator
 	SignatureQuery string
+	bucket         string
 	host           string
 	scheme         string
+	isCustomDomain bool
 }
 
 type PolicySignatureCondition struct {
@@ -243,7 +247,7 @@ type PreSignedPolicyURLGenerator interface {
 	GetSignedURLForGetOrHead(bucket, key string, additionalQuery map[string]string) string
 }
 
-func (output *PreSingedPolicyURLOutput) GetSignedURLForList(bucket string, additionalQuery map[string]string) string {
+func (output *PreSingedPolicyURLOutput) GetSignedURLForList(additionalQuery map[string]string) string {
 	query := make(url.Values)
 	for k, v := range additionalQuery {
 		query.Add(k, v)
@@ -252,10 +256,16 @@ func (output *PreSingedPolicyURLOutput) GetSignedURLForList(bucket string, addit
 	if queryStr != "" {
 		queryStr = "&" + queryStr
 	}
-	str := fmt.Sprintf("%s://%s.%s/?%s%s", output.scheme, bucket, output.host, output.SignatureQuery, queryStr)
+	var domain string
+	if output.isCustomDomain {
+		domain = output.host
+	} else {
+		domain = fmt.Sprintf("%s.%s", output.bucket, output.host)
+	}
+	str := fmt.Sprintf("%s://%s/?%s%s", output.scheme, domain, output.SignatureQuery, queryStr)
 	return str
 }
-func (output *PreSingedPolicyURLOutput) GetSignedURLForGetOrHead(bucket, key string, additionalQuery map[string]string) string {
+func (output *PreSingedPolicyURLOutput) GetSignedURLForGetOrHead(key string, additionalQuery map[string]string) string {
 	query := make(url.Values)
 	for k, v := range additionalQuery {
 		query.Add(k, v)
@@ -264,7 +274,13 @@ func (output *PreSingedPolicyURLOutput) GetSignedURLForGetOrHead(bucket, key str
 	if queryStr != "" {
 		queryStr = "&" + queryStr
 	}
-	str := fmt.Sprintf("%s://%s.%s/%s?%s%s", output.scheme, bucket, output.host, key, output.SignatureQuery, queryStr)
+	var domain string
+	if output.isCustomDomain {
+		domain = output.host
+	} else {
+		domain = fmt.Sprintf("%s.%s", output.bucket, output.host)
+	}
+	str := fmt.Sprintf("%s://%s/%s?%s%s", output.scheme, domain, key, output.SignatureQuery, queryStr)
 	return str
 }
 
@@ -811,12 +827,12 @@ type GetObjectV2Input struct {
 	SSECKey       string `location:"header" locationName:"X-Tos-Server-Side-Encryption-Customer-Key"`
 	SSECKeyMD5    string `location:"header" locationName:"X-Tos-Server-Side-Encryption-Customer-Key-MD5"`
 
-	ResponseCacheControl       string    `location:"query" locationName:"Cache-Control"`
-	ResponseContentDisposition string    `location:"query" locationName:"Content-Disposition"`
-	ResponseContentEncoding    string    `location:"query" locationName:"Content-Encoding"`
-	ResponseContentLanguage    string    `location:"query" locationName:"Content-Language"`
-	ResponseContentType        string    `location:"query" locationName:"Content-Type"`
-	ResponseExpires            time.Time `location:"query" locationName:"Expires"`
+	ResponseCacheControl       string    `location:"query" locationName:"response-cache-control"`
+	ResponseContentDisposition string    `location:"query" locationName:"response-content-disposition"`
+	ResponseContentEncoding    string    `location:"query" locationName:"response-content-encoding"`
+	ResponseContentLanguage    string    `location:"query" locationName:"response-content-language"`
+	ResponseContentType        string    `location:"query" locationName:"response-content-type"`
+	ResponseExpires            time.Time `location:"query" locationName:"response-expires"`
 
 	RangeStart int64
 	RangeEnd   int64
