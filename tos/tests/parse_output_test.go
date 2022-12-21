@@ -117,6 +117,18 @@ func TestParseOutput(t *testing.T) {
 	require.Equal(t, 200, list.StatusCode)
 	require.Equal(t, len(list.Contents), 2)
 
+	// list test based policy url, can list key key1
+	listUrl = output.GetSignedURLForList(map[string]string{
+		"prefix": keyPrefix,
+	})
+	req, _ = http.NewRequest(http.MethodGet, listUrl, nil)
+	res, err = client.Do(req)
+	require.Nil(t, err)
+	listV2, err := tos.ParseListObjectsV2Output(res)
+	require.Nil(t, err)
+	require.Equal(t, 200, listV2.StatusCode)
+	require.Equal(t, len(listV2.Contents), 2)
+
 	// list versions test based policy url, can list key key1
 	listUrl = output.GetSignedURLForList(map[string]string{
 		"prefix":   keyPrefix,

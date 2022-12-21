@@ -68,6 +68,68 @@ func ParseListObjectsType2Output(httpRes *http.Response) (*ListObjectsType2Outpu
 	return &output, nil
 }
 
+// ParseListObjectsV2Output Parse the incoming parameters of *http.Response type, and respond to the return value of *ListObjectsV2Output type.
+func ParseListObjectsV2Output(httpRes *http.Response) (*ListObjectsV2Output, error) {
+
+	res := &Response{
+		StatusCode:    httpRes.StatusCode,
+		ContentLength: httpRes.ContentLength,
+		Header:        httpRes.Header,
+		Body:          httpRes.Body,
+	}
+
+	err := checkError(res, true, 200)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Close()
+
+	temp := listObjectsV2Output{
+		RequestInfo: res.RequestInfo(),
+	}
+	if err = marshalOutput(temp.RequestID, res.Body, &temp); err != nil {
+		return nil, err
+	}
+	contents := make([]ListedObjectV2, 0, len(temp.Contents))
+	for _, object := range temp.Contents {
+		var hashCrc uint64
+		if len(object.HashCrc64ecma) == 0 {
+			hashCrc = 0
+		} else {
+			hashCrc, err = strconv.ParseUint(object.HashCrc64ecma, 10, 64)
+			if err != nil {
+				return nil, &TosServerError{
+					TosError:    TosError{Message: "tos: server returned invalid HashCrc64Ecma"},
+					RequestInfo: RequestInfo{RequestID: temp.RequestID},
+				}
+			}
+		}
+		contents = append(contents, ListedObjectV2{
+			Key:           object.Key,
+			LastModified:  object.LastModified,
+			ETag:          object.ETag,
+			Size:          object.Size,
+			Owner:         object.Owner,
+			StorageClass:  object.StorageClass,
+			HashCrc64ecma: uint64(hashCrc),
+		})
+	}
+	output := ListObjectsV2Output{
+		RequestInfo:    temp.RequestInfo,
+		Name:           temp.Name,
+		Prefix:         temp.Prefix,
+		Marker:         temp.Marker,
+		MaxKeys:        temp.MaxKeys,
+		NextMarker:     temp.NextMarker,
+		Delimiter:      temp.Delimiter,
+		IsTruncated:    temp.IsTruncated,
+		EncodingType:   temp.EncodingType,
+		CommonPrefixes: temp.CommonPrefixes,
+		Contents:       contents,
+	}
+	return &output, nil
+}
+
 // ParseListObjectVersionsV2Output Parse the incoming parameters of *http.Response type, and respond to the return value of *ListObjectVersionsV2Output type.
 func ParseListObjectVersionsV2Output(httpRes *http.Response) (*ListObjectVersionsV2Output, error) {
 
