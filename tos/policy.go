@@ -87,7 +87,7 @@ func (cli *Client) PutBucketPolicy(ctx context.Context, bucket string, policy *B
 	}
 	res, err := cli.newBuilder(bucket, "").
 		WithQuery("policy", "").
-		WithRetry(nil, StatusCodeClassifier{}).
+		WithRetry(OnRetryFromStart, StatusCodeClassifier{}).
 		Request(ctx, http.MethodPut, strings.NewReader(policy.Policy), cli.roundTripper(http.StatusNoContent))
 	if err != nil {
 		return nil, err
@@ -124,7 +124,7 @@ func (cli *ClientV2) PutBucketPolicyV2(ctx context.Context, input *PutBucketPoli
 
 	res, err := cli.newBuilder(input.Bucket, "").
 		WithQuery("policy", "").
-		WithRetry(nil, StatusCodeClassifier{}).
+		WithRetry(OnRetryFromStart, StatusCodeClassifier{}).
 		Request(ctx, http.MethodPut, bytes.NewReader([]byte(input.Policy)), cli.roundTripper(http.StatusNoContent))
 	if err != nil {
 		return nil, err

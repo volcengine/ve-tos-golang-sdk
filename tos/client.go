@@ -350,6 +350,9 @@ func NewClient(endpoint string, options ...ClientOption) (*Client, error) {
 //     WithEnableCRC set CRC switch.
 //     WithMaxRetryCount  set Max Retry Count
 func NewClientV2(endpoint string, options ...ClientOption) (*ClientV2, error) {
+	if strings.Contains(endpoint, "s3") {
+		return nil, InvalidS3Endpoint
+	}
 	client := ClientV2{
 		Client: Client{
 			recognizer: ExtensionBasedContentTypeRecognizer{},
@@ -440,9 +443,6 @@ func (cli *Client) PreSignedURL(httpMethod string, bucket, objectKey string, ttl
 
 // PreSignedURL return pre-signed url
 func (cli *ClientV2) PreSignedURL(input *PreSignedURLInput) (*PreSignedURLOutput, error) {
-	if err := IsValidBucketName(input.Bucket); err != nil {
-		return nil, err
-	}
 	rb := cli.newBuilder(input.Bucket, input.Key)
 
 	if input.AlternativeEndpoint != "" {
@@ -569,7 +569,7 @@ func (cli *ClientV2) FetchObjectV2(ctx context.Context, input *FetchObjectInputV
 		WithQuery("fetch", "").
 		WithHeader(HeaderContentMD5, contentMD5).
 		WithParams(*input).
-		WithRetry(nil, ServerErrorClassifier{}).
+		WithRetry(OnRetryFromStart, ServerErrorClassifier{}).
 		Request(ctx, http.MethodPost, bytes.NewReader(data), cli.roundTripper(http.StatusOK))
 	if err != nil {
 		return nil, err

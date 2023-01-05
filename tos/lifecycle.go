@@ -62,7 +62,7 @@ func (cli *ClientV2) PutBucketLifecycle(ctx context.Context, input *PutBucketLif
 	res, err := cli.newBuilder(input.Bucket, "").
 		WithQuery("lifecycle", "").
 		WithHeader(HeaderContentMD5, contentMD5).
-		WithRetry(nil, StatusCodeClassifier{}).
+		WithRetry(OnRetryFromStart, StatusCodeClassifier{}).
 		Request(ctx, http.MethodPut, bytes.NewReader(data), cli.roundTripper(http.StatusOK))
 	if err != nil {
 		return nil, err

@@ -6,21 +6,22 @@ import (
 	"net/http"
 )
 
-func (cli *ClientV2) PutBucketMirrorBack(ctx context.Context, input *PutBucketMirrorBackInput) (*PutBucketMirrorBackOutput, error) {
+func (cli *ClientV2) PutBucketCustomDomain(ctx context.Context, input *PutBucketCustomDomainInput) (*PutBucketCustomDomainOutput, error) {
 	if input == nil {
 		return nil, InputIsNilClientError
 	}
 	if err := IsValidBucketName(input.Bucket); err != nil {
 		return nil, err
 	}
-	data, contentMD5, err := marshalInput("PutBucketMirrorBackInput", putBucketMirrorBackInput{
-		Rules: input.Rules,
-	})
+	body := putBucketCustomDomainInput{
+		Rule: input.Rule,
+	}
+	data, contentMD5, err := marshalInput("PutBucketCustomDomainInput", body)
 	if err != nil {
 		return nil, err
 	}
 	res, err := cli.newBuilder(input.Bucket, "").
-		WithQuery("mirror", "").
+		WithQuery("customdomain", "").
 		WithHeader(HeaderContentMD5, contentMD5).
 		WithRetry(OnRetryFromStart, StatusCodeClassifier{}).
 		Request(ctx, http.MethodPut, bytes.NewReader(data), cli.roundTripper(http.StatusOK))
@@ -28,11 +29,11 @@ func (cli *ClientV2) PutBucketMirrorBack(ctx context.Context, input *PutBucketMi
 		return nil, err
 	}
 	defer res.Close()
-	output := PutBucketMirrorBackOutput{RequestInfo: res.RequestInfo()}
+	output := PutBucketCustomDomainOutput{RequestInfo: res.RequestInfo()}
 	return &output, nil
 }
 
-func (cli *ClientV2) GetBucketMirrorBack(ctx context.Context, input *GetBucketMirrorBackInput) (*GetBucketMirrorBackOutput, error) {
+func (cli *ClientV2) ListBucketCustomDomain(ctx context.Context, input *ListBucketCustomDomainInput) (*ListBucketCustomDomainOutput, error) {
 	if input == nil {
 		return nil, InputIsNilClientError
 	}
@@ -40,21 +41,21 @@ func (cli *ClientV2) GetBucketMirrorBack(ctx context.Context, input *GetBucketMi
 		return nil, err
 	}
 	res, err := cli.newBuilder(input.Bucket, "").
-		WithQuery("mirror", "").
+		WithQuery("customdomain", "").
 		WithRetry(nil, StatusCodeClassifier{}).
 		Request(ctx, http.MethodGet, nil, cli.roundTripper(http.StatusOK))
 	if err != nil {
 		return nil, err
 	}
 	defer res.Close()
-	output := GetBucketMirrorBackOutput{RequestInfo: res.RequestInfo()}
+	output := ListBucketCustomDomainOutput{RequestInfo: res.RequestInfo()}
 	if err = marshalOutput(output.RequestID, res.Body, &output); err != nil {
 		return nil, err
 	}
 	return &output, nil
 }
 
-func (cli *ClientV2) DeleteBucketMirrorBack(ctx context.Context, input *DeleteBucketMirrorBackInput) (*DeleteBucketMirrorBackOutput, error) {
+func (cli *ClientV2) DeleteBucketCustomDomain(ctx context.Context, input *DeleteBucketCustomDomainInput) (*DeleteBucketCustomDomainOutput, error) {
 	if input == nil {
 		return nil, InputIsNilClientError
 	}
@@ -62,15 +63,14 @@ func (cli *ClientV2) DeleteBucketMirrorBack(ctx context.Context, input *DeleteBu
 		return nil, err
 	}
 	res, err := cli.newBuilder(input.Bucket, "").
-		WithQuery("mirror", "").
+		WithQuery("customdomain", input.Domain).
 		WithRetry(nil, StatusCodeClassifier{}).
-		Request(ctx, http.MethodDelete, nil, cli.roundTripper(http.StatusNoContent))
+		Request(ctx, http.MethodDelete, nil, cli.roundTripper(http.StatusOK))
 	if err != nil {
 		return nil, err
 	}
 	defer res.Close()
 
-	output := DeleteBucketMirrorBackOutput{RequestInfo: res.RequestInfo()}
+	output := DeleteBucketCustomDomainOutput{RequestInfo: res.RequestInfo()}
 	return &output, nil
-
 }

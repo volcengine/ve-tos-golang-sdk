@@ -550,11 +550,18 @@ type ContentTypeRecognizer interface {
 type ExtensionBasedContentTypeRecognizer struct{}
 
 func (er ExtensionBasedContentTypeRecognizer) ContentType(objectKey string) string {
+	if len(objectKey) == 0 {
+		return ""
+	}
 	extName := path.Ext(objectKey)
 	if len(extName) > 0 && extName[0] == '.' {
 		extName = extName[1:]
 	}
-	return mime[extName]
+	contentType, ok := mime[extName]
+	if ok {
+		return contentType
+	}
+	return "binary/octet-stream"
 }
 
 type EmptyContentTypeRecognizer struct{}

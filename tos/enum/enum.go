@@ -10,13 +10,15 @@ const (
 	ACLBucketOwnerRead        ACLType = "bucket-owner-read"
 	ACLBucketOwnerFullControl ACLType = "bucket-owner-full-control"
 	ACLLogDeliveryWrite       ACLType = "log-delivery-write"
+	ACLBucketOwnerEntrusted   ACLType = "bucket-owner-entrusted"
 )
 
 type StorageClassType string
 
 const (
-	StorageClassStandard StorageClassType = "STANDARD"
-	StorageClassIa       StorageClassType = "IA"
+	StorageClassStandard  StorageClassType = "STANDARD"
+	StorageClassIa        StorageClassType = "IA"
+	StorageClassArchiveFr StorageClassType = "ARCHIVE_FR"
 )
 
 type MetadataDirectiveType string
@@ -103,7 +105,27 @@ const (
 	DownloadEventRenameTempFileFailed  DownloadEventType = 7
 )
 
+type CertStatusType string
+
+const (
+	CertStatusBound   CertStatusType = "CertBound"
+	CertStatusUnbound CertStatusType = "CertUnbound"
+	CertStatusExpired CertStatusType = "CertExpired"
+)
+
+type StorageClassInheritDirectiveType string
+
+const (
+	StorageClassIDDestinationBucket StorageClassInheritDirectiveType = "DESTINATION_BUCKET"
+	StorageClassIDSourceObject      StorageClassInheritDirectiveType = "SOURCE_OBJECT"
+)
+
 type StatusType string
+
+const (
+	StatusEnabled  StatusType = "Enabled"
+	StatusDisabled StatusType = "Disabled"
+)
 
 const (
 	LifecycleStatusEnabled  StatusType = "Enabled"
@@ -120,4 +142,30 @@ const (
 const (
 	SSETosAlg = "AES256"
 	SSEKMS    = "kms"
+)
+
+type VersioningStatusType string
+
+const (
+	VersioningStatusEnable    VersioningStatusType = "Enabled"
+	VersioningStatusSuspended VersioningStatusType = "Suspended"
+)
+
+type ProtocolType string
+
+const (
+	ProtocolHttp  ProtocolType = "http"
+	ProtocolHttps ProtocolType = "https"
+)
+
+type CopyEventType int
+
+const (
+	CopyEventCreateMultipartUploadSucceed   CopyEventType = 1
+	CopyEventCreateMultipartUploadFailed    CopyEventType = 2
+	CopyEventUploadPartCopySuccess          CopyEventType = 3
+	CopyEventUploadPartCopyFailed           CopyEventType = 4
+	CopyEventUploadPartCopyAborted          CopyEventType = 5
+	CopyEventCompleteMultipartUploadSucceed CopyEventType = 6
+	CopyEventCompleteMultipartUploadFailed  CopyEventType = 7
 )

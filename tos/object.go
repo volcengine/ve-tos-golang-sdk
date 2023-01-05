@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"hash"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/url"
 	"os"
@@ -93,7 +92,9 @@ func (cli *ClientV2) GetObjectV2(ctx context.Context, input *GetObjectV2Input) (
 	}
 	rb := cli.newBuilder(input.Bucket, input.Key).
 		WithParams(*input).WithRetry(nil, StatusCodeClassifier{})
-	if input.RangeEnd != 0 || input.RangeStart != 0 {
+	if input.Range != "" {
+		rb.WithHeader(HeaderRange, input.Range)
+	} else if input.RangeEnd != 0 || input.RangeStart != 0 {
 		if input.RangeEnd < input.RangeStart {
 			return nil, errors.New("tos: invalid range")
 		}
@@ -112,7 +113,8 @@ func (cli *ClientV2) GetObjectV2(ctx context.Context, input *GetObjectV2Input) (
 	basic.ObjectMetaV2.fromResponseV2(res)
 	var serverCrc uint64
 	var checker hash.Hash64
-	if rb.Range == nil && input.PartNumber == 0 && cli.enableCRC {
+	// 200 为完整请求
+	if res.StatusCode == http.StatusOK && cli.enableCRC {
 		serverCrc = basic.HashCrc64ecma
 		checker = NewCRC(DefaultCrcTable(), 0)
 
@@ -177,7 +179,7 @@ func (cli *ClientV2) HeadObjectV2(ctx context.Context, input *HeadObjectV2Input)
 
 func expectedCode(rb *requestBuilder) int {
 	okCode := http.StatusOK
-	if rb.Range != nil || rb.Query.Get(QueryPartNumber) != "" {
+	if rb.Header.Get(HeaderRange) != "" || rb.Query.Get(QueryPartNumber) != "" {
 		okCode = http.StatusPartialContent
 	}
 	return okCode
@@ -252,7 +254,7 @@ func (bkt *Bucket) DeleteMultiObjects(ctx context.Context, input *DeleteMultiObj
 	res, err := bkt.client.newBuilder(bkt.name, "", options...).
 		WithHeader(HeaderContentMD5, contentMD5).
 		WithQuery("delete", "").
-		WithRetry(nil, ServerErrorClassifier{}).
+		WithRetry(OnRetryFromStart, ServerErrorClassifier{}).
 		Request(ctx, http.MethodPost, bytes.NewReader(in), bkt.client.roundTripper(http.StatusOK))
 	if err != nil {
 		return nil, err
@@ -286,7 +288,7 @@ func (cli *ClientV2) DeleteMultiObjects(ctx context.Context, input *DeleteMultiO
 	res, err := cli.newBuilder(input.Bucket, "").
 		WithQuery("delete", "").
 		WithHeader(HeaderContentMD5, contentMD5).
-		WithRetry(nil, ServerErrorClassifier{}).
+		WithRetry(OnRetryFromStart, ServerErrorClassifier{}).
 		Request(ctx, http.MethodPost, bytes.NewReader(in), cli.roundTripper(http.StatusOK))
 	if err != nil {
 		return nil, err
@@ -333,24 +335,23 @@ func (bkt *Bucket) PutObject(ctx context.Context, objectKey string, content io.R
 	classifier = NoRetryClassifier{}
 	if seeker, ok := content.(io.Seeker); ok {
 		start, err := seeker.Seek(0, io.SeekCurrent)
-		if err != nil {
-			return nil, err
-		}
-		onRetry = func(req *Request) error {
-			// PutObject/UploadPart can be treated as an idempotent semantics if the request message body
-			// supports a reset operation. e.g. the request message body is a string,
-			// a local file handle, binary data in memory
-			if seeker, ok := req.Content.(io.Seeker); ok {
-				_, err := seeker.Seek(start, io.SeekStart)
-				if err != nil {
-					return err
+		if err == nil {
+			onRetry = func(req *Request) error {
+				// PutObject/UploadPart can be treated as an idempotent semantics if the request message body
+				// supports a reset operation. e.g. the request message body is a string,
+				// a local file handle, binary data in memory
+				if seeker, ok := req.Content.(io.Seeker); ok {
+					_, err := seeker.Seek(start, io.SeekStart)
+					if err != nil {
+						return err
+					}
+				} else {
+					return newTosClientError("Io Reader not support retry", nil)
 				}
-			} else {
-				return newTosClientError("Io Reader not support retry", nil)
+				return nil
 			}
-			return nil
+			classifier = StatusCodeClassifier{}
 		}
-		classifier = StatusCodeClassifier{}
 	}
 	res, err := bkt.client.newBuilder(bkt.name, objectKey, options...).
 		WithRetry(onRetry, classifier).
@@ -408,6 +409,30 @@ type crcChecker struct {
 	serverCrc uint64
 }
 
+type nopCloser struct {
+	base io.Reader
+}
+
+func wrapCloser(reader io.Reader) io.ReadCloser {
+	return &nopCloser{base: reader}
+}
+
+func (n2 nopCloser) Seek(offset int64, whence int) (int64, error) {
+	seeker, ok := n2.base.(io.Seeker)
+	if !ok {
+		return 0, NotSupportSeek
+	}
+	return seeker.Seek(offset, whence)
+}
+
+func (n2 nopCloser) Read(p []byte) (n int, err error) {
+	return n2.base.Read(p)
+}
+
+func (n2 nopCloser) Close() error {
+	return nil
+}
+
 // wrapReader wrap reader with some extension function.
 // If reader can be interpreted as io.ReadCloser, use itself as base ReadCloser, else wrap it a NopCloser.
 func wrapReader(reader io.Reader, totalBytes int64, listener DataTransferListener, limiter RateLimiter, crcChecker *crcChecker) io.ReadCloser {
@@ -416,7 +441,7 @@ func wrapReader(reader io.Reader, totalBytes int64, listener DataTransferListene
 	if rc, ok := reader.(io.ReadCloser); ok {
 		wrapped = rc
 	} else {
-		wrapped = ioutil.NopCloser(reader)
+		wrapped = wrapCloser(reader)
 	}
 	// wrap with listener
 	if listener != nil {
@@ -473,34 +498,34 @@ func (cli *ClientV2) PutObjectV2(ctx context.Context, input *PutObjectV2Input) (
 	if contentLength <= 0 {
 		contentLength = tryResolveLength(content)
 	}
-	if content != nil {
-		content = wrapReader(content, contentLength, input.DataTransferListener, input.RateLimiter, &crcChecker{checker: checker})
-	}
+
 	var (
 		onRetry    func(req *Request) error = nil
 		classifier classifier
 	)
+	if content != nil {
+		content = wrapReader(content, contentLength, input.DataTransferListener, input.RateLimiter, &crcChecker{checker: checker})
+	}
 	classifier = NoRetryClassifier{}
 	if seeker, ok := content.(io.Seeker); ok {
 		start, err := seeker.Seek(0, io.SeekCurrent)
-		if err != nil {
-			return nil, err
-		}
-		onRetry = func(req *Request) error {
-			// PutObject/UploadPart can be treated as an idempotent semantics if the request message body
-			// supports a reset operation. e.g. the request message body is a string,
-			// a local file handle, binary data in memory
-			if seeker, ok := req.Content.(io.Seeker); ok {
-				_, err := seeker.Seek(start, io.SeekStart)
-				if err != nil {
-					return err
+		if err == nil {
+			onRetry = func(req *Request) error {
+				// PutObject/UploadPart can be treated as an idempotent semantics if the request message body
+				// supports a reset operation. e.g. the request message body is a string,
+				// a local file handle, binary data in memory
+				if seeker, ok := req.Content.(io.Seeker); ok {
+					_, err := seeker.Seek(start, io.SeekStart)
+					if err != nil {
+						return err
+					}
+				} else {
+					return newTosClientError("Io Reader not support retry", nil)
 				}
-			} else {
-				return newTosClientError("Io Reader not support retry", nil)
+				return nil
 			}
-			return nil
+			classifier = StatusCodeClassifier{}
 		}
-		classifier = StatusCodeClassifier{}
 	}
 
 	rb := cli.newBuilder(input.Bucket, input.Key).
@@ -701,7 +726,6 @@ func (bkt *Bucket) ListObjects(ctx context.Context, input *ListObjectsInput, opt
 		WithQuery("delimiter", input.Delimiter).
 		WithQuery("marker", input.Marker).
 		WithQuery("max-keys", strconv.Itoa(input.MaxKeys)).
-		WithQuery("reverse", strconv.FormatBool(input.Reverse)).
 		WithQuery("encoding-type", input.EncodingType).
 		WithRetry(nil, StatusCodeClassifier{}).
 		Request(ctx, http.MethodGet, nil, bkt.client.roundTripper(http.StatusOK))
@@ -718,6 +742,7 @@ func (bkt *Bucket) ListObjects(ctx context.Context, input *ListObjectsInput, opt
 }
 
 // ListObjectsV2 list objects of a bucket
+// Deprecated: use ListObjectsType2 of ClientV2 instead
 func (cli *ClientV2) ListObjectsV2(ctx context.Context, input *ListObjectsV2Input) (*ListObjectsV2Output, error) {
 	if err := IsValidBucketName(input.Bucket); err != nil {
 		return nil, err
@@ -776,10 +801,7 @@ func (cli *ClientV2) ListObjectsV2(ctx context.Context, input *ListObjectsV2Inpu
 	return &output, nil
 }
 
-func (cli *ClientV2) ListObjectsType2(ctx context.Context, input *ListObjectsType2Input) (*ListObjectsType2Output, error) {
-	if err := IsValidBucketName(input.Bucket); err != nil {
-		return nil, err
-	}
+func (cli *ClientV2) listObjectsType2(ctx context.Context, input *ListObjectsType2Input) (*ListObjectsType2Output, error) {
 	res, err := cli.newBuilder(input.Bucket, "").
 		WithParams(*input).
 		WithQuery("list-type", "2").
@@ -834,6 +856,43 @@ func (cli *ClientV2) ListObjectsType2(ctx context.Context, input *ListObjectsTyp
 		Contents:              contents,
 	}
 	return &output, nil
+}
+
+func (cli *ClientV2) ListObjectsType2(ctx context.Context, input *ListObjectsType2Input) (*ListObjectsType2Output, error) {
+	if err := IsValidBucketName(input.Bucket); err != nil {
+		return nil, err
+	}
+	copyInput := *input
+	input = &copyInput
+	if input.MaxKeys == 0 {
+		input.MaxKeys = DefaultListMaxKeys
+	}
+	if input.ListOnlyOnce {
+		return cli.listObjectsType2(ctx, input)
+	}
+	var output *ListObjectsType2Output
+	for {
+		res, err := cli.listObjectsType2(ctx, input)
+		if err != nil {
+			return nil, err
+		}
+		if output == nil {
+			output = res
+		} else {
+			output.KeyCount += res.KeyCount
+			output.IsTruncated = res.IsTruncated
+			output.NextContinuationToken = res.NextContinuationToken
+			output.Contents = append(output.Contents, res.Contents...)
+			output.CommonPrefixes = append(output.CommonPrefixes, res.CommonPrefixes...)
+		}
+		if !res.IsTruncated || len(res.Contents) >= input.MaxKeys {
+			break
+		}
+		input.ContinuationToken = res.NextContinuationToken
+		input.MaxKeys = input.MaxKeys - res.KeyCount
+	}
+
+	return output, nil
 }
 
 // ListObjectVersions list multi-version objects of a bucket

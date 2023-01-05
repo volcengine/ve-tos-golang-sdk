@@ -7,7 +7,7 @@ import (
 
 const (
 	// Version tos-go-sdk version
-	Version = "v2.4.6"
+	Version = "v2.5.0"
 )
 
 const TempFileSuffix = ".temp"
@@ -18,6 +18,7 @@ var DefaultCrcTable = func() *crc64.Table {
 }
 
 const DefaultTaskBufferSize = 100
+const DefaultListMaxKeys = 1000
 
 func SupportedRegion() map[string]string {
 	return map[string]string{

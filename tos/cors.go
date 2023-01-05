@@ -47,7 +47,7 @@ func (cli *ClientV2) PutBucketCORS(ctx context.Context, input *PutBucketCORSInpu
 	res, err := cli.newBuilder(input.Bucket, "").
 		WithQuery("cors", "").
 		WithHeader(HeaderContentMD5, contentMD5).
-		WithRetry(nil, StatusCodeClassifier{}).
+		WithRetry(OnRetryFromStart, StatusCodeClassifier{}).
 		Request(ctx, http.MethodPut, bytes.NewReader(data), cli.roundTripper(http.StatusOK))
 	if err != nil {
 		return nil, err

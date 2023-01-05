@@ -50,6 +50,14 @@ func (req *Request) URL() string {
 	return u.String()
 }
 
+func OnRetryFromStart(req *Request) error {
+	if seek, ok := req.Content.(io.Seeker); ok {
+		_, err := seek.Seek(0, io.SeekStart)
+		return err
+	}
+	return nil
+}
+
 // Range represents a range of an object
 type Range struct {
 	Start int64

@@ -94,10 +94,11 @@ type GetObjectACLInput struct {
 }
 
 type GetObjectACLOutput struct {
-	RequestInfo `json:"-"`
-	VersionID   string    `json:"VersionID,omitempty"`
-	Owner       Owner     `json:"Owner,omitempty"`
-	Grants      []GrantV2 `json:"Grants,omitempty"`
+	RequestInfo          `json:"-"`
+	VersionID            string    `json:"VersionID,omitempty"`
+	Owner                Owner     `json:"Owner,omitempty"`
+	Grants               []GrantV2 `json:"Grants,omitempty"`
+	BucketOwnerEntrusted bool      `json:"BucketOwnerEntrusted"`
 }
 
 // PutObjectAclInput AclGrant, AclRules can not set both.
@@ -118,10 +119,11 @@ type PutObjectACLInput struct {
 	GrantReadAcp     string       `location:"header" locationName:"X-Tos-Grant-Read-Acp"`     // optional
 
 	// Deprecated
-	GrantWrite    string `location:"header" locationName:"X-Tos-Grant-Write"`     // optional
-	GrantWriteAcp string `location:"header" locationName:"X-Tos-Grant-Write-Acp"` // optional
-	Owner         Owner
-	Grants        []GrantV2
+	GrantWrite           string `location:"header" locationName:"X-Tos-Grant-Write"`     // optional
+	GrantWriteAcp        string `location:"header" locationName:"X-Tos-Grant-Write-Acp"` // optional
+	Owner                Owner
+	Grants               []GrantV2
+	BucketOwnerEntrusted bool
 }
 
 type PutObjectAclOutput struct {
@@ -572,6 +574,7 @@ type ListObjectsType2Input struct {
 	ContinuationToken string `location:"query" locationName:"continuation-token"`
 	MaxKeys           int    `location:"query" locationName:"max-keys"`
 	EncodingType      string `location:"query" locationName:"encoding-type"`
+	ListOnlyOnce      bool
 }
 
 type ListObjectsType2Output struct {
@@ -594,8 +597,10 @@ type ListObjectsInput struct {
 	Delimiter    string `location:"query" locationName:"delimiter"`
 	Marker       string `location:"query" locationName:"marker"`
 	MaxKeys      int    `location:"query" locationName:"max-keys"`
-	Reverse      bool   `location:"query" locationName:"reverse"`
 	EncodingType string `location:"query" locationName:"encoding-type"` // "" or "url"
+
+	// Deprecated
+	Reverse bool
 }
 
 type ListedObject struct {
@@ -836,6 +841,7 @@ type GetObjectV2Input struct {
 
 	RangeStart int64
 	RangeEnd   int64
+	Range      string
 
 	DataTransferListener DataTransferListener
 	RateLimiter          RateLimiter
@@ -970,10 +976,14 @@ type CopyObjectInput struct {
 	CopySourceIfNoneMatch       string    `location:"header" locationName:"X-Tos-Copy-Source-If-None-Match"`
 	CopySourceIfUnmodifiedSince time.Time `location:"header" locationName:"X-Tos-Copy-Source-If-Unmodified-Since"`
 
-	CopySourceSSECAlgorithm string `location:"header" locationName:"X-Tos-Server-Side-Encryption-Customer-Algorithm"`
-	CopySourceSSECKey       string `location:"header" locationName:"X-Tos-Server-Side-Encryption-Customer-Key"`
-	CopySourceSSECKeyMD5    string `location:"header" locationName:"X-Tos-Server-Side-Encryption-Customer-Key-MD5"`
+	CopySourceSSECAlgorithm string `location:"header" locationName:"X-Tos-Copy-Source-Server-Side-Encryption-Customer-Algorithm"`
+	CopySourceSSECKey       string `location:"header" locationName:"X-Tos-Copy-Source-Server-Side-Encryption-Customer-Key"`
+	CopySourceSSECKeyMD5    string `location:"header" locationName:"X-Tos-Copy-Source-Server-Side-Encryption-Customer-Key-MD5"`
 	ServerSideEncryption    string `location:"header" locationName:"X-Tos-Server-Side-Encryption"`
+
+	SSECKey       string `location:"header" locationName:"X-Tos-Server-Side-Encryption-Customer-Key"`
+	SSECKeyMD5    string `location:"header" locationName:"X-Tos-Server-Side-Encryption-Customer-Key-MD5"`
+	SSECAlgorithm string `location:"header" locationName:"X-Tos-Server-Side-Encryption-Customer-Algorithm"`
 
 	MetadataDirective enum.MetadataDirectiveType `location:"header" locationName:"X-Tos-Metadata-Directive"`
 	Meta              map[string]string          `location:"headers"`
@@ -1024,15 +1034,20 @@ type UploadPartCopyV2Input struct {
 	SrcVersionID         string `location:"query" locationName:"versionId"`
 	CopySourceRangeStart int64
 	CopySourceRangeEnd   int64
+	CopySourceRange      string
 
 	CopySourceIfMatch           string    `location:"header" locationName:"X-Tos-Copy-Source-If-Match"`
 	CopySourceIfModifiedSince   time.Time `location:"header" locationName:"X-Tos-Copy-Source-If-Modified-Since"`
 	CopySourceIfNoneMatch       string    `location:"header" locationName:"X-Tos-Copy-Source-If-None-Match"`
 	CopySourceIfUnmodifiedSince time.Time `location:"header" locationName:"X-Tos-Copy-Source-If-Unmodified-Since"`
 
-	CopySourceSSECAlgorithm string `location:"header" locationName:"X-Tos-Server-Side-Encryption-Customer-Algorithm"`
-	CopySourceSSECKey       string `location:"header" locationName:"X-Tos-Server-Side-Encryption-Customer-Key"`
-	CopySourceSSECKeyMD5    string `location:"header" locationName:"X-Tos-Server-Side-Encryption-Customer-Key-MD5"`
+	CopySourceSSECAlgorithm string `location:"header" locationName:"X-Tos-Copy-Source-Server-Side-Encryption-Customer-Algorithm"`
+	CopySourceSSECKey       string `location:"header" locationName:"X-Tos-Copy-Source-Server-Side-Encryption-Customer-Key"`
+	CopySourceSSECKeyMD5    string `location:"header" locationName:"X-Tos-Copy-Source-Server-Side-Encryption-Customer-Key-MD5"`
+
+	SSECKey       string `location:"header" locationName:"X-Tos-Server-Side-Encryption-Customer-Key"`
+	SSECKeyMD5    string `location:"header" locationName:"X-Tos-Server-Side-Encryption-Customer-Key-MD5"`
+	SSECAlgorithm string `location:"header" locationName:"X-Tos-Server-Side-Encryption-Customer-Algorithm"`
 }
 
 type UploadPartCopyV2Output struct {
@@ -1673,6 +1688,349 @@ type DataTransferStatus struct {
 	ConsumedBytes int64 // bytes read/written
 	RWOnceBytes   int64 // bytes read/written this time
 	Type          enum.DataTransferType
+}
+
+type putBucketNotificationInput struct {
+	CloudFunctionConfigurations []CloudFunctionConfiguration `json:"CloudFunctionConfigurations"`
+}
+
+type PutBucketNotificationInput struct {
+	Bucket                      string                       `json:"-"`
+	CloudFunctionConfigurations []CloudFunctionConfiguration `json:"CloudFunctionConfigurations"`
+}
+
+type PutBucketNotificationOutput struct {
+	RequestInfo
+}
+
+type CloudFunctionConfiguration struct {
+	ID            string   `json:"RuleId"`
+	Events        []string `json:"Events"`
+	Filter        Filter   `json:"Filter"`
+	CloudFunction string   `json:"CloudFunction"`
+}
+
+type Filter struct {
+	Key FilterKey `json:"TOSKey"`
+}
+
+type FilterKey struct {
+	Rules []FilterRule `json:"FilterRules"`
+}
+
+type FilterRule struct {
+	Name  string `json:"Name"`
+	Value string `json:"Value"`
+}
+
+type GetBucketNotificationInput struct {
+	Bucket string
+}
+
+type GetBucketNotificationOutput struct {
+	RequestInfo
+	CloudFunctionConfigurations []CloudFunctionConfiguration `json:"CloudFunctionConfigurations"`
+}
+
+type putBucketVersioningInput struct {
+	Status enum.VersioningStatusType `json:"Status"`
+}
+
+type PutBucketVersioningInput struct {
+	Bucket string
+	Status enum.VersioningStatusType
+}
+
+type PutBucketVersioningOutput struct {
+	RequestInfo
+}
+
+type GetBucketVersioningInput struct {
+	Bucket string
+}
+
+type GetBucketVersioningOutputV2 struct {
+	RequestInfo
+	Status enum.VersioningStatusType `json:"Status"`
+}
+
+type putBucketWebsiteInput struct {
+	RedirectAllRequestsTo *RedirectAllRequestsTo `json:"RedirectAllRequestsTo,omitempty"`
+	IndexDocument         *IndexDocument         `json:"IndexDocument,omitempty"`
+	ErrorDocument         *ErrorDocument         `json:"ErrorDocument,omitempty"`
+	RoutingRules          []RoutingRule          `json:"RoutingRules,omitempty"`
+}
+
+type PutBucketWebsiteInput struct {
+	Bucket                string
+	RedirectAllRequestsTo *RedirectAllRequestsTo `json:"RedirectAllRequestsTo,omitempty"`
+	IndexDocument         *IndexDocument         `json:"IndexDocument,omitempty"`
+	ErrorDocument         *ErrorDocument         `json:"ErrorDocument,omitempty"`
+	RoutingRules          *RoutingRules          `json:"RoutingRules,omitempty"`
+}
+
+type RedirectAllRequestsTo struct {
+	HostName string `json:"HostName"`
+	Protocol string `json:"Protocol,omitempty"`
+}
+
+type IndexDocument struct {
+	Suffix          string `json:"Suffix"`
+	ForbiddenSubDir bool   `json:"ForbiddenSubDir,omitempty"`
+}
+
+type ErrorDocument struct {
+	Key string `json:"Key"`
+}
+
+type RoutingRules struct {
+	Rules []RoutingRule `json:"RoutingRules,omitempty"`
+}
+
+type RoutingRule struct {
+	Condition RoutingRuleCondition `json:"Condition"`
+	Redirect  RoutingRuleRedirect  `json:"Redirect"`
+}
+
+type RoutingRuleCondition struct {
+	KeyPrefixEquals             string `json:"KeyPrefixEquals,omitempty"`
+	HttpErrorCodeReturnedEquals int    `json:"HttpErrorCodeReturnedEquals,omitempty"`
+}
+
+type RoutingRuleRedirect struct {
+	Protocol             enum.ProtocolType `json:"Protocol,omitempty"`
+	HostName             string            `json:"HostName,omitempty"`
+	ReplaceKeyPrefixWith string            `json:"ReplaceKeyPrefixWith,omitempty"`
+	ReplaceKeyWith       string            `json:"ReplaceKeyWith,omitempty"`
+	HttpRedirectCode     int               `json:"HttpRedirectCode,omitempty"`
+}
+
+type PutBucketWebsiteOutput struct {
+	RequestInfo
+}
+
+type GetBucketWebsiteInput struct {
+	Bucket string
+}
+
+type GetBucketWebsiteOutput struct {
+	RequestInfo
+	RedirectAllRequestsTo *RedirectAllRequestsTo `json:"RedirectAllRequestsTo,omitempty"`
+	IndexDocument         *IndexDocument         `json:"IndexDocument,omitempty"`
+	ErrorDocument         *ErrorDocument         `json:"ErrorDocument,omitempty"`
+	RoutingRules          []RoutingRule          `json:"RoutingRules,omitempty"`
+}
+
+type DeleteBucketWebsiteInput struct {
+	Bucket string
+}
+
+type DeleteBucketWebsiteOutput struct {
+	RequestInfo
+}
+
+type putBucketReplicationInput struct {
+	Role  string            `json:"Role"`
+	Rules []ReplicationRule `json:"Rules"`
+}
+
+type PutBucketReplicationInput struct {
+	Bucket string
+	Role   string
+	Rules  []ReplicationRule
+}
+
+type ReplicationRuleWithProgress struct {
+	ReplicationRule
+	Progress *Progress `json:"Progress,omitempty"`
+}
+
+type ReplicationRule struct {
+	ID                          string          `json:"ID"`
+	Status                      enum.StatusType `json:"Status"`
+	PrefixSet                   []string        `json:"PrefixSet,omitempty"`
+	Destination                 Destination     `json:"Destination"`
+	HistoricalObjectReplication enum.StatusType `json:"HistoricalObjectReplication"`
+}
+
+type Destination struct {
+	Bucket                       string                                `json:"Bucket"`
+	Location                     string                                `json:"Location"`
+	StorageClass                 enum.StorageClassType                 `json:"StorageClass,omitempty"`
+	StorageClassInheritDirective enum.StorageClassInheritDirectiveType `json:"StorageClassInheritDirective,omitempty"`
+}
+
+type Progress struct {
+	HistoricalObject float64 `json:"HistoricalObject"`
+	NewObject        string  `json:"NewObject"`
+}
+
+type PutBucketReplicationOutput struct {
+	RequestInfo
+}
+
+type GetBucketReplicationInput struct {
+	Bucket string
+	RuleID string
+}
+
+type GetBucketReplicationOutput struct {
+	RequestInfo
+	Role  string                        `json:"Role"`
+	Rules []ReplicationRuleWithProgress `json:"Rules"`
+}
+type DeleteBucketReplicationInput struct {
+	Bucket string
+}
+
+type DeleteBucketReplicationOutput struct {
+	RequestInfo
+}
+
+type putBucketRealTimeLogInput struct {
+	Configuration RealTimeLogConfiguration `json:"RealTimeLogConfiguration"`
+}
+
+type PutBucketRealTimeLogInput struct {
+	Bucket        string
+	Configuration RealTimeLogConfiguration
+}
+
+type RealTimeLogConfiguration struct {
+	Role          string                 `json:"Role"`
+	Configuration AccessLogConfiguration `json:"AccessLogConfiguration"`
+}
+
+type AccessLogConfiguration struct {
+	UseServiceTopic bool   `json:"UseServiceTopic"`
+	TLSProjectID    string `json:"TLSProjectID"`
+	TLSTopicID      string `json:"TLSTopicID"`
+}
+
+type PutBucketRealTimeLogOutput struct {
+	RequestInfo
+}
+
+type GetBucketRealTimeLogInput struct {
+	Bucket string
+}
+
+type GetBucketRealTimeLogOutput struct {
+	RequestInfo
+	Configuration RealTimeLogConfiguration `json:"RealTimeLogConfiguration"`
+}
+
+type DeleteBucketRealTimeLogInput struct {
+	Bucket string
+}
+
+type DeleteBucketRealTimeLogOutput struct {
+	RequestInfo
+}
+type putBucketCustomDomainInput struct {
+	Rule CustomDomainRule `json:"CustomDomainRule,omitempty"`
+}
+
+type PutBucketCustomDomainInput struct {
+	Bucket string
+	Rule   CustomDomainRule
+}
+
+type CustomDomainRule struct {
+	CertID          string              `json:"CertId"`
+	CertStatus      enum.CertStatusType `json:"CertStatus"`
+	Domain          string              `json:"Domain"`
+	Forbidden       bool                `json:"Forbidden"`
+	ForbiddenReason string              `json:"ForbiddenReason"`
+	Cname           string              `json:"Cname"`
+}
+
+type PutBucketCustomDomainOutput struct {
+	RequestInfo
+}
+
+type ListBucketCustomDomainInput struct {
+	Bucket string
+}
+
+type ListBucketCustomDomainOutput struct {
+	RequestInfo
+	Rules []CustomDomainRule `json:"CustomDomainRules"`
+}
+
+type DeleteBucketCustomDomainInput struct {
+	Bucket string
+	Domain string
+}
+
+type DeleteBucketCustomDomainOutput struct {
+	RequestInfo
+}
+
+type ResumableCopyObjectInput struct {
+	CreateMultipartUploadV2Input
+
+	SrcBucket    string
+	SrcKey       string
+	SrcVersionID string
+
+	CopySourceIfMatch           string
+	CopySourceIfModifiedSince   time.Time
+	CopySourceIfNoneMatch       string
+	CopySourceIfUnmodifiedSince time.Time
+
+	CopySourceSSECAlgorithm string
+	CopySourceSSECKey       string
+	CopySourceSSECKeyMD5    string
+
+	PartSize         int64
+	TaskNum          int
+	EnableCheckpoint bool
+	CheckpointFile   string
+
+	CopyEventListener CopyEventListener
+	CancelHook        CancelHook
+}
+
+type CopyPartInfo struct {
+	PartNumber           int
+	CopySourceRangeStart int64
+	CopySourceRangeEnd   int64
+
+	// upload part copy succeed 时有值
+	Etag *string
+}
+
+type CopyEvent struct {
+	Type enum.CopyEventType
+	Err  error
+
+	Bucket         string
+	Key            string
+	UploadID       *string
+	SrcBucket      string
+	SrcKey         string
+	SrcVersionID   string
+	CheckpointFile *string
+	CopyPartInfo   *copyPartInfo
+}
+
+type CopyEventListener interface {
+	EventChange(event *CopyEvent)
+}
+
+type ResumableCopyObjectOutput struct {
+	RequestInfo
+	Bucket        string
+	Key           string
+	UploadID      string
+	Etag          string
+	Location      string
+	VersionID     string
+	HashCrc64ecma uint64
+	SSECAlgorithm string
+	SSECKeyMD5    string
+	EncodingType  string
 }
 
 type DataTransferListener interface {

@@ -11,20 +11,26 @@ import (
 )
 
 type testEnv struct {
-	endpoint  string
-	region    string
-	accessKey string
-	secretKey string
-	t         *testing.T
+	endpoint      string
+	region        string
+	endpoint2     string
+	region2       string
+	accessKey     string
+	secretKey     string
+	cloudFunction string
+	t             *testing.T
 }
 
 func newTestEnv(t *testing.T) *testEnv {
 	return &testEnv{
-		endpoint:  os.Getenv("TOS_GO_SDK_ENDPOINT"),
-		region:    os.Getenv("TOS_GO_SDK_REGION"),
-		accessKey: os.Getenv("TOS_GO_SDK_AK"),
-		secretKey: os.Getenv("TOS_GO_SDK_SK"),
-		t:         t,
+		endpoint:      os.Getenv("TOS_GO_SDK_ENDPOINT"),
+		region:        os.Getenv("TOS_GO_SDK_REGION"),
+		accessKey:     os.Getenv("TOS_GO_SDK_AK"),
+		secretKey:     os.Getenv("TOS_GO_SDK_SK"),
+		endpoint2:     os.Getenv("TOS_GO_SDK_ENDPOINT2"),
+		region2:       os.Getenv("TOS_GO_SDK_REGION2"),
+		cloudFunction: os.Getenv("TOS_GO_SDK_CLOUD_FUNCTION"),
+		t:             t,
 	}
 }
 

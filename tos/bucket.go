@@ -1,6 +1,7 @@
 package tos
 
 import (
+	"bytes"
 	"context"
 	"net/http"
 
@@ -210,5 +211,54 @@ func (cli *ClientV2) GetBucketLocation(ctx context.Context, input *GetBucketLoca
 		return nil, err
 	}
 	return &output, nil
+}
 
+func (cli *ClientV2) PutBucketVersioning(ctx context.Context, input *PutBucketVersioningInput) (*PutBucketVersioningOutput, error) {
+	if input == nil {
+		return nil, InputIsNilClientError
+	}
+	if err := IsValidBucketName(input.Bucket); err != nil {
+		return nil, err
+	}
+
+	data, contentMD5, err := marshalInput("PutBucketVersioning", putBucketVersioningInput{
+		Status: input.Status,
+	})
+	if err != nil {
+		return nil, err
+	}
+	res, err := cli.newBuilder(input.Bucket, "").
+		WithQuery("versioning", "").
+		WithHeader(HeaderContentMD5, contentMD5).
+		WithRetry(OnRetryFromStart, StatusCodeClassifier{}).
+		Request(ctx, http.MethodPut, bytes.NewReader(data), cli.roundTripper(http.StatusOK))
+
+	if err != nil {
+		return nil, err
+	}
+	defer res.Close()
+	output := PutBucketVersioningOutput{RequestInfo: res.RequestInfo()}
+	return &output, nil
+}
+
+func (cli *ClientV2) GetBucketVersioning(ctx context.Context, input *GetBucketVersioningInput) (*GetBucketVersioningOutputV2, error) {
+	if input == nil {
+		return nil, InputIsNilClientError
+	}
+	if err := IsValidBucketName(input.Bucket); err != nil {
+		return nil, err
+	}
+	res, err := cli.newBuilder(input.Bucket, "").
+		WithQuery("versioning", "").
+		WithRetry(nil, StatusCodeClassifier{}).
+		Request(ctx, http.MethodGet, nil, cli.roundTripper(http.StatusOK))
+	if err != nil {
+		return nil, err
+	}
+	defer res.Close()
+	output := GetBucketVersioningOutputV2{RequestInfo: res.RequestInfo()}
+	if err = marshalOutput(output.RequestID, res.Body, &output); err != nil {
+		return nil, err
+	}
+	return &output, nil
 }

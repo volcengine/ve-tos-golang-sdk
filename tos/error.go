@@ -34,6 +34,8 @@ var (
 	InvalidFilePath                   = newTosClientError("invalid file path", nil)
 	InvalidCheckpointFilePath         = newTosClientError("invalid checkpoint file path", nil)
 	CrcCheckFail                      = newTosClientError("crc check not equal", nil)
+	InvalidS3Endpoint                 = newTosClientError("do not support s3 endpoint, please use tos endpoint", nil)
+	NotSupportSeek                    = newTosClientError("reader not support seek", nil)
 )
 
 type TosError struct {

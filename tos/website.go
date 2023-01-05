@@ -6,22 +6,27 @@ import (
 	"net/http"
 )
 
-func (cli *ClientV2) PutObjectTagging(ctx context.Context, input *PutObjectTaggingInput) (*PutObjectTaggingOutput, error) {
+func (cli *ClientV2) PutBucketWebsite(ctx context.Context, input *PutBucketWebsiteInput) (*PutBucketWebsiteOutput, error) {
 	if input == nil {
 		return nil, InputIsNilClientError
 	}
 	if err := IsValidBucketName(input.Bucket); err != nil {
 		return nil, err
 	}
-	data, contentMD5, err := marshalInput("PutObjectTaggingInput", putObjectTaggingInput{
-		TagSet: input.TagSet,
-	})
+	body := putBucketWebsiteInput{
+		RedirectAllRequestsTo: input.RedirectAllRequestsTo,
+		IndexDocument:         input.IndexDocument,
+		ErrorDocument:         input.ErrorDocument,
+	}
+	if input.RoutingRules != nil {
+		body.RoutingRules = input.RoutingRules.Rules
+	}
+	data, contentMD5, err := marshalInput("PutBucketWebsiteInput", body)
 	if err != nil {
 		return nil, err
 	}
-	res, err := cli.newBuilder(input.Bucket, input.Key).
-		WithQuery("tagging", "").
-		WithParams(*input).
+	res, err := cli.newBuilder(input.Bucket, "").
+		WithQuery("website", "").
 		WithHeader(HeaderContentMD5, contentMD5).
 		WithRetry(OnRetryFromStart, StatusCodeClassifier{}).
 		Request(ctx, http.MethodPut, bytes.NewReader(data), cli.roundTripper(http.StatusOK))
@@ -29,45 +34,41 @@ func (cli *ClientV2) PutObjectTagging(ctx context.Context, input *PutObjectTaggi
 		return nil, err
 	}
 	defer res.Close()
-	output := PutObjectTaggingOutput{RequestInfo: res.RequestInfo()}
-	output.VersionID = res.Header.Get(HeaderVersionID)
+	output := PutBucketWebsiteOutput{RequestInfo: res.RequestInfo()}
 	return &output, nil
 }
 
-func (cli *ClientV2) GetObjectTagging(ctx context.Context, input *GetObjectTaggingInput) (*GetObjectTaggingOutput, error) {
+func (cli *ClientV2) GetBucketWebsite(ctx context.Context, input *GetBucketWebsiteInput) (*GetBucketWebsiteOutput, error) {
 	if input == nil {
 		return nil, InputIsNilClientError
 	}
 	if err := IsValidBucketName(input.Bucket); err != nil {
 		return nil, err
 	}
-	res, err := cli.newBuilder(input.Bucket, input.Key).
-		WithQuery("tagging", "").
-		WithParams(*input).
+	res, err := cli.newBuilder(input.Bucket, "").
+		WithQuery("website", "").
 		WithRetry(nil, StatusCodeClassifier{}).
 		Request(ctx, http.MethodGet, nil, cli.roundTripper(http.StatusOK))
 	if err != nil {
 		return nil, err
 	}
 	defer res.Close()
-	output := GetObjectTaggingOutput{RequestInfo: res.RequestInfo()}
+	output := GetBucketWebsiteOutput{RequestInfo: res.RequestInfo()}
 	if err = marshalOutput(output.RequestID, res.Body, &output); err != nil {
 		return nil, err
 	}
-	output.VersionID = res.Header.Get(HeaderVersionID)
 	return &output, nil
 }
 
-func (cli *ClientV2) DeleteObjectTagging(ctx context.Context, input *DeleteObjectTaggingInput) (*DeleteObjectTaggingOutput, error) {
+func (cli *ClientV2) DeleteBucketWebsite(ctx context.Context, input *DeleteBucketWebsiteInput) (*DeleteBucketWebsiteOutput, error) {
 	if input == nil {
 		return nil, InputIsNilClientError
 	}
 	if err := IsValidBucketName(input.Bucket); err != nil {
 		return nil, err
 	}
-	res, err := cli.newBuilder(input.Bucket, input.Key).
-		WithQuery("tagging", "").
-		WithParams(*input).
+	res, err := cli.newBuilder(input.Bucket, "").
+		WithQuery("website", "").
 		WithRetry(nil, StatusCodeClassifier{}).
 		Request(ctx, http.MethodDelete, nil, cli.roundTripper(http.StatusNoContent))
 	if err != nil {
@@ -75,9 +76,7 @@ func (cli *ClientV2) DeleteObjectTagging(ctx context.Context, input *DeleteObjec
 	}
 	defer res.Close()
 
-	output := DeleteObjectTaggingOutput{RequestInfo: res.RequestInfo()}
-	output.VersionID = res.Header.Get(HeaderVersionID)
-
+	output := DeleteBucketWebsiteOutput{RequestInfo: res.RequestInfo()}
 	return &output, nil
 
 }

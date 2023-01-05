@@ -80,8 +80,9 @@ type deleteMultiObjectsInput struct {
 
 // only for Marshal
 type accessControlList struct {
-	Owner  Owner
-	Grants []GrantV2
+	Owner                Owner     `json:"Owner,omitempty"`
+	Grants               []GrantV2 `json:"Grants,omitempty"`
+	BucketOwnerEntrusted bool      `json:"BucketOwnerEntrusted,omitempty"`
 }
 
 type canceler struct {
@@ -113,7 +114,96 @@ func (c *canceler) Cancel(isAbort bool) {
 // do nothing
 func (c *canceler) internal() {}
 
-type downloadObjectInfo struct {
+type copyPartInfo struct {
+	PartNumber           int64  `json:"part_number"`
+	CopySourceRange      string `json:"copy_source_range"`
+	CopySourceRangeStart int64  `json:"copy_source_range_start"`
+	CopySourceRangeEnd   int64  `json:"copy_source_range_end"`
+	Etag                 string `json:"etag"`
+	IsCompleted          bool   `json:"is_completed"`
+	IsZeroSize           bool   `json:"is_zero_size"`
+}
+
+type copyObjectCheckpoint struct {
+	Bucket                      string         `json:"bucket"`
+	Key                         string         `json:"key"`
+	SrcBucket                   string         `json:"src_bucket"`
+	SrcVersionID                string         `json:"src_version_id"`
+	PartSize                    int64          `json:"part_size"`
+	UploadID                    string         `json:"upload_id"`
+	CopySourceIfMatch           string         `json:"copy_source_if_match"`
+	CopySourceIfModifiedSince   time.Time      `json:"copy_source_if_modified_since"`
+	CopySourceIfNoneMatch       string         `json:"copy_source_if_none_match"`
+	CopySourceIfUnmodifiedSince time.Time      `json:"copy_source_if_unmodified_since"`
+	CopySourceSSECAlgorithm     string         `json:"copy_source_ssec_algorithm"`
+	CopySourceSSECKeyMD5        string         `json:"copy_source_ssec_key_md5"`
+	SSECAlgorithm               string         `json:"ssec_algorithm"`
+	SSECKeyMD5                  string         `json:"ssec_key_md5"`
+	EncodingType                string         `json:"encoding_type"`
+	CopySourceObjectInfo        objectInfo     `json:"copy_source_object_info"`
+	PartsInfo                   []copyPartInfo `json:"parts_info"`
+	CheckpointPath              string         `json:"checkpoint_path"`
+}
+
+func (c *copyObjectCheckpoint) Valid(input *ResumableCopyObjectInput, headOutput *HeadObjectV2Output) bool {
+	// 源对象发生改变
+	if c.CopySourceObjectInfo.ObjectSize != headOutput.ContentLength || c.CopySourceObjectInfo.Etag != headOutput.ETag ||
+		c.CopySourceObjectInfo.LastModified != headOutput.LastModified || c.CopySourceObjectInfo.HashCrc64ecma != headOutput.HashCrc64ecma {
+		return false
+	}
+	// 复制基本信息发生改变
+	if c.Bucket != input.Bucket || input.Key != c.Key ||
+		input.SrcBucket != c.SrcBucket || input.SrcVersionID != c.SrcVersionID ||
+		input.PartSize != c.PartSize || input.EncodingType != c.EncodingType {
+		return false
+	}
+
+	// 复制条件发生改变
+	if c.CopySourceIfMatch != input.CopySourceIfMatch || c.CopySourceIfModifiedSince != input.CopySourceIfModifiedSince ||
+		c.CopySourceIfUnmodifiedSince != input.CopySourceIfUnmodifiedSince || c.CopySourceIfNoneMatch != input.CopySourceIfNoneMatch {
+		return false
+	}
+	// 加密发生改变
+	if c.SSECAlgorithm != input.SSECAlgorithm || c.SSECKeyMD5 != input.SSECKeyMD5 ||
+		c.CopySourceSSECAlgorithm != input.CopySourceSSECAlgorithm || c.CopySourceSSECKeyMD5 != input.CopySourceSSECKeyMD5 {
+		return false
+	}
+	return true
+}
+func (c *copyObjectCheckpoint) WriteToFile() error {
+
+	buffer, err := json.Marshal(c)
+	if err != nil {
+		return InvalidMarshal
+	}
+	err = ioutil.WriteFile(c.CheckpointPath, buffer, 0600)
+	if err != nil {
+		return newTosClientError(err.Error(), err)
+	}
+	return nil
+}
+
+func (c *copyObjectCheckpoint) UpdatePartsInfo(result interface{}) {
+	part := result.(copyPartInfo)
+	c.PartsInfo[part.PartNumber-1] = part
+}
+
+func (c *copyObjectCheckpoint) GetCheckPointFilePath() string {
+	return c.CheckpointPath
+}
+
+func (c *copyObjectCheckpoint) GetParts() []UploadedPartV2 {
+	parts := make([]UploadedPartV2, 0, len(c.PartsInfo))
+	for _, p := range c.PartsInfo {
+		parts = append(parts, UploadedPartV2{
+			PartNumber: int(p.PartNumber),
+			ETag:       p.Etag,
+		})
+	}
+	return parts
+}
+
+type objectInfo struct {
 	Etag          string    `json:"Etag,omitempty"`
 	HashCrc64ecma uint64    `json:"HashCrc64Ecma,omitempty"`
 	LastModified  time.Time `json:"LastModified,omitempty"`
@@ -148,7 +238,7 @@ type downloadCheckpoint struct {
 
 	SSECAlgorithm string             `json:"SSECAlgorithm,omitempty"`
 	SSECKeyMD5    string             `json:"SSECKeyMD5,omitempty"`
-	ObjectInfo    downloadObjectInfo `json:"ObjectInfo,omitempty"`
+	ObjectInfo    objectInfo         `json:"ObjectInfo,omitempty"`
 	FileInfo      downloadFileInfo   `json:"FileInfo,omitempty"`
 	PartsInfo     []downloadPartInfo `json:"PartsInfo,omitempty"`
 }
@@ -168,7 +258,7 @@ func (c *downloadCheckpoint) WriteToFile() error {
 	if err != nil {
 		return InvalidMarshal
 	}
-	err = ioutil.WriteFile(c.checkpointPath, buffer, 0666)
+	err = ioutil.WriteFile(c.checkpointPath, buffer, 0600)
 	if err != nil {
 		return newTosClientError(err.Error(), err)
 	}
@@ -259,11 +349,52 @@ func (u *uploadCheckpoint) WriteToFile() error {
 	if err != nil {
 		return InvalidMarshal
 	}
-	err = ioutil.WriteFile(u.checkpointPath, result, 0666)
+	err = ioutil.WriteFile(u.checkpointPath, result, 0600)
 	if err != nil {
 		return newTosClientError(err.Error(), err)
 	}
 	return nil
+}
+
+type copyEvent struct {
+	input    *ResumableCopyObjectInput
+	uploadID string
+}
+
+func (c *copyEvent) postCopyEvent(event *CopyEvent) {
+	if c.input.CopyEventListener != nil {
+		c.input.CopyEventListener.EventChange(event)
+	}
+}
+func (c *copyEvent) PostEvent(eventType int, result interface{}, taskErr error) {
+
+	event := &CopyEvent{
+		Bucket:         c.input.Bucket,
+		Key:            c.input.Key,
+		UploadID:       &c.uploadID,
+		SrcBucket:      c.input.SrcBucket,
+		SrcKey:         c.input.SrcKey,
+		SrcVersionID:   c.input.SrcVersionID,
+		CheckpointFile: &c.input.CheckpointFile,
+	}
+	switch eventType {
+	case EventPartSucceed:
+		part, ok := result.(copyPartInfo)
+		if !ok {
+			return
+		}
+		event.CopyPartInfo = &part
+		event.Type = enum.CopyEventUploadPartCopySuccess
+		c.postCopyEvent(event)
+	case EventPartFailed:
+		event.Type = enum.CopyEventUploadPartCopyFailed
+		c.postCopyEvent(event)
+	case EventPartAborted:
+		event.Type = enum.CopyEventUploadPartCopyAborted
+		event.Err = taskErr
+		c.postCopyEvent(event)
+	default:
+	}
 }
 
 type downloadEvent struct {
@@ -582,6 +713,19 @@ type readCloserWithCRC struct {
 	base      io.ReadCloser
 }
 
+func (r *readCloserWithCRC) Seek(offset int64, whence int) (int64, error) {
+	seeker, ok := r.base.(io.Seeker)
+	if !ok {
+		return 0, NotSupportSeek
+	}
+
+	if whence != io.SeekCurrent {
+		r.checker.Reset()
+	}
+
+	return seeker.Seek(offset, whence)
+}
+
 func (r *readCloserWithCRC) Read(p []byte) (n int, err error) {
 	n, err = r.base.Read(p)
 	if n > 0 {
@@ -672,6 +816,21 @@ type readCloserWithListener struct {
 	onceEof  bool
 }
 
+func (r *readCloserWithListener) Seek(offset int64, whence int) (int64, error) {
+	seeker, ok := r.base.(io.Seeker)
+	if !ok {
+		return 0, NotSupportSeek
+	}
+	if whence != io.SeekCurrent {
+		r.consumed = 0
+		r.subtotal = 0
+		r.total = 0
+		r.onceEof = false
+	}
+
+	return seeker.Seek(offset, whence)
+}
+
 func (r *readCloserWithListener) Read(p []byte) (n int, err error) {
 	if r.consumed == 0 {
 		postDataTransferStatus(r.listener, &DataTransferStatus{
@@ -736,22 +895,112 @@ func (r *readCloserWithListener) Close() error {
 
 // ReadCloserWithLimiter warp io.ReadCloser with DataTransferListener
 type ReadCloserWithLimiter struct {
-	limiter RateLimiter
-	base    io.ReadCloser
+	limiter  RateLimiter
+	acquireN int
+	base     io.ReadCloser
 }
 
-func (r ReadCloserWithLimiter) Read(p []byte) (n int, err error) {
-	want := len(p)
-	for {
-		ok, timeToWait := r.limiter.Acquire(int64(want))
-		if ok {
-			break
-		}
-		time.Sleep(timeToWait)
+func (r *ReadCloserWithLimiter) Seek(offset int64, whence int) (int64, error) {
+	seeker, ok := r.base.(io.Seeker)
+	if !ok {
+		return 0, NotSupportSeek
 	}
-	return r.base.Read(p)
+	r.acquireN = 0
+	return seeker.Seek(offset, whence)
 }
 
-func (r ReadCloserWithLimiter) Close() error {
+func (r *ReadCloserWithLimiter) Read(p []byte) (n int, err error) {
+	want := len(p)
+	if want > r.acquireN {
+		// 需要申请的配额
+		want = want - r.acquireN
+		for {
+			ok, timeToWait := r.limiter.Acquire(int64(want))
+			if ok {
+				break
+			}
+			time.Sleep(timeToWait)
+		}
+		r.acquireN += want
+	}
+	n, err = r.base.Read(p)
+	// 实际消耗的配额
+	r.acquireN = r.acquireN - n
+	return n, err
+
+}
+
+func (r *ReadCloserWithLimiter) Close() error {
 	return r.base.Close()
+}
+
+type copyTask struct {
+	cli        *ClientV2
+	input      *ResumableCopyObjectInput
+	ctx        context.Context
+	UploadID   string
+	ContentMD5 string
+	PartNumber int64
+	Offset     uint64
+	PartSize   int64
+	PartInfo   copyPartInfo
+}
+
+func (c *copyTask) do() (interface{}, error) {
+	uploadInput, ok := c.getBaseInput().(UploadPartV2Input)
+	if ok {
+		part, err := c.cli.UploadPartV2(c.ctx, &uploadInput)
+		if err != nil {
+			return nil, err
+		}
+		return copyPartInfo{PartNumber: int64(part.PartNumber), Etag: part.ETag, IsCompleted: true}, nil
+	}
+	input := c.getBaseInput().(UploadPartCopyV2Input)
+	output, err := c.cli.UploadPartCopyV2(c.ctx, &input)
+	if err != nil {
+		return nil, err
+	}
+	return copyPartInfo{
+		PartNumber:      int64(output.PartNumber),
+		CopySourceRange: input.CopySourceRange,
+		Etag:            output.ETag,
+		IsCompleted:     true,
+	}, nil
+
+}
+
+func (c *copyTask) getBaseInput() interface{} {
+	if c.PartInfo.IsZeroSize {
+		return UploadPartV2Input{UploadPartBasicInput: UploadPartBasicInput{
+			Bucket:        c.input.Bucket,
+			Key:           c.input.Key,
+			UploadID:      c.UploadID,
+			PartNumber:    1,
+			SSECAlgorithm: c.input.SSECAlgorithm,
+			SSECKey:       c.input.SSECKey,
+			SSECKeyMD5:    c.input.SSECKeyMD5,
+		}}
+	}
+	return UploadPartCopyV2Input{
+		Bucket:                      c.input.Bucket,
+		Key:                         c.input.Key,
+		UploadID:                    c.UploadID,
+		PartNumber:                  int(c.PartNumber),
+		SrcBucket:                   c.input.SrcBucket,
+		SrcKey:                      c.input.SrcKey,
+		SrcVersionID:                c.input.SrcVersionID,
+		CopySourceRangeStart:        c.PartInfo.CopySourceRangeStart,
+		CopySourceRangeEnd:          c.PartInfo.CopySourceRangeEnd,
+		CopySourceRange:             c.PartInfo.CopySourceRange,
+		CopySourceIfMatch:           c.input.CopySourceIfMatch,
+		CopySourceIfModifiedSince:   c.input.CopySourceIfModifiedSince,
+		CopySourceIfNoneMatch:       c.input.CopySourceIfNoneMatch,
+		CopySourceIfUnmodifiedSince: c.input.CopySourceIfUnmodifiedSince,
+		CopySourceSSECAlgorithm:     c.input.CopySourceSSECAlgorithm,
+		CopySourceSSECKey:           c.input.CopySourceSSECKey,
+		CopySourceSSECKeyMD5:        c.input.CopySourceSSECKeyMD5,
+		SSECKey:                     c.input.SSECKey,
+		SSECKeyMD5:                  c.input.SSECKeyMD5,
+		SSECAlgorithm:               c.input.SSECAlgorithm,
+	}
 }

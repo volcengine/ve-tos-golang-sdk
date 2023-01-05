@@ -223,7 +223,7 @@ func initDownloadCheckpoint(input *DownloadFileInput, headOutput *HeadObjectV2Ou
 		IfUnmodifiedSince: input.IfUnmodifiedSince,
 		SSECAlgorithm:     input.SSECAlgorithm,
 		SSECKeyMD5:        input.SSECKey,
-		ObjectInfo: downloadObjectInfo{
+		ObjectInfo: objectInfo{
 			Etag:          headOutput.ETag,
 			HashCrc64ecma: headOutput.HashCrc64ecma,
 			LastModified:  headOutput.LastModified,

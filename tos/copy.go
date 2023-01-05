@@ -260,10 +260,16 @@ func (cli *ClientV2) UploadPartCopyV2(
 		return nil, err
 	}
 
-	res, err := cli.newBuilder(input.Bucket, input.Key).
-		WithParams(*input).
-		WithHeader(HeaderCopySourceRange, copyRangeV2(input.CopySourceRangeStart, input.CopySourceRangeEnd)).
-		WithCopySource(input.SrcBucket, input.SrcKey).
+	req := cli.newBuilder(input.Bucket, input.Key).
+		WithParams(*input)
+
+	if input.CopySourceRange != "" {
+		req = req.WithHeader(HeaderCopySourceRange, input.CopySourceRange)
+	} else if input.CopySourceRangeEnd != 0 {
+		req = req.WithHeader(HeaderCopySourceRange, copyRangeV2(input.CopySourceRangeStart, input.CopySourceRangeEnd))
+	}
+
+	res, err := req.WithCopySource(input.SrcBucket, input.SrcKey).
 		WithRetry(nil, ServerErrorClassifier{}).
 		Request(ctx, http.MethodPut, nil, cli.roundTripper(http.StatusOK))
 	if err != nil {
