@@ -98,13 +98,15 @@ func TestPutWithAllParams(t *testing.T) {
 		bucket       = generateBucketName("put-all-params")
 		client       = env.prepareClient(bucket)
 		key          = "key123"
-		value        = randomString(4 * 1024)
+		value        = randomString(5 * 1024 * 1024)
 		md5Sum       = md5s(value)
 		expires      = time.Now().UTC().Add(time.Hour)
 		acl          = enum.ACLAuthRead
 		meta         = map[string]string{"Hello": "world"}
 		ssecKey      = randomString(32)
+		ssecCopyKey  = randomString(32)
 		ssecMd5      = md5s(ssecKey)
+		ssecCopyMd5  = md5s(ssecCopyKey)
 		storageClass = enum.StorageClassIa
 		// sse          = "AES256"
 	)
@@ -155,6 +157,79 @@ func TestPutWithAllParams(t *testing.T) {
 	require.Equal(t, "中文测试", get.ContentDisposition)
 	require.Equal(t, expires.Format(time.UnixDate), get.Expires.Format(time.UnixDate))
 	require.Equal(t, storageClass, get.StorageClass)
+	ctx := context.Background()
+	copyKey := "ssec_copy_key"
+	algorithm := "AES256"
+
+	multi, err := client.CreateMultipartUploadV2(ctx, &tos.CreateMultipartUploadV2Input{Bucket: bucket, Key: copyKey,
+		SSECAlgorithm: algorithm,
+		SSECKey:       base64.StdEncoding.EncodeToString([]byte(ssecCopyKey)),
+		SSECKeyMD5:    ssecCopyMd5})
+	require.Nil(t, err)
+	partOut, err := client.UploadPartCopyV2(ctx, &tos.UploadPartCopyV2Input{
+		Bucket:                  bucket,
+		Key:                     copyKey,
+		UploadID:                multi.UploadID,
+		PartNumber:              1,
+		SrcBucket:               bucket,
+		SrcKey:                  key,
+		CopySourceSSECAlgorithm: algorithm,
+		CopySourceSSECKey:       base64.StdEncoding.EncodeToString([]byte(ssecKey)),
+		CopySourceSSECKeyMD5:    ssecMd5,
+		SSECKey:                 base64.StdEncoding.EncodeToString([]byte(ssecCopyKey)),
+		SSECKeyMD5:              ssecCopyMd5,
+		SSECAlgorithm:           algorithm,
+	})
+	require.Nil(t, err)
+	_, err = client.CompleteMultipartUploadV2(ctx, &tos.CompleteMultipartUploadV2Input{
+		Bucket:   bucket,
+		Key:      copyKey,
+		UploadID: multi.UploadID,
+		Parts: []tos.UploadedPartV2{{
+			PartNumber: 1,
+			ETag:       partOut.ETag,
+		}},
+	})
+	require.Nil(t, err)
+	obj, err := client.GetObjectV2(ctx, &tos.GetObjectV2Input{
+		Bucket:        bucket,
+		Key:           copyKey,
+		SSECAlgorithm: "AES256",
+		SSECKey:       base64.StdEncoding.EncodeToString([]byte(ssecCopyKey)),
+		SSECKeyMD5:    ssecCopyMd5,
+	})
+	require.Nil(t, err)
+	buffer, err = ioutil.ReadAll(obj.Content)
+	require.Nil(t, err)
+	require.Equal(t, string(buffer), value)
+	require.Equal(t, md5Sum, md5s(string(buffer)))
+
+	copyKey = randomString(6)
+	_, err = client.CopyObject(ctx, &tos.CopyObjectInput{
+		Bucket:                  bucket,
+		Key:                     copyKey,
+		SrcBucket:               bucket,
+		SrcKey:                  key,
+		CopySourceSSECAlgorithm: algorithm,
+		CopySourceSSECKey:       base64.StdEncoding.EncodeToString([]byte(ssecKey)),
+		CopySourceSSECKeyMD5:    ssecMd5,
+		SSECAlgorithm:           algorithm,
+		SSECKey:                 base64.StdEncoding.EncodeToString([]byte(ssecCopyKey)),
+		SSECKeyMD5:              ssecCopyMd5,
+	})
+	require.Nil(t, err)
+	obj, err = client.GetObjectV2(ctx, &tos.GetObjectV2Input{
+		Bucket:        bucket,
+		Key:           copyKey,
+		SSECAlgorithm: "AES256",
+		SSECKey:       base64.StdEncoding.EncodeToString([]byte(ssecCopyKey)),
+		SSECKeyMD5:    ssecCopyMd5,
+	})
+	require.Nil(t, err)
+	buffer, err = ioutil.ReadAll(obj.Content)
+	require.Nil(t, err)
+	require.Equal(t, string(buffer), value)
+	require.Equal(t, md5Sum, md5s(string(buffer)))
 }
 
 func TestPutEmptyObject(t *testing.T) {
@@ -271,7 +346,7 @@ func TestCopyObject(t *testing.T) {
 	var (
 		env       = newTestEnv(t)
 		bucket    = generateBucketName("copy-object")
-		key       = "key123"
+		key       = "1.jpg"
 		value     = "value123"
 		copyedKey = "copyedKey"
 		client    = env.prepareClient(bucket)
@@ -303,6 +378,70 @@ func TestCopyObject(t *testing.T) {
 	require.Nil(t, err)
 	require.Equal(t, string(buffer), value)
 	require.Nil(t, err)
+	require.Equal(t, get.ContentType, "image/jpeg")
+}
+
+func TestCopyObjectContentType(t *testing.T) {
+	var (
+		env       = newTestEnv(t)
+		bucket    = generateBucketName("copy-object")
+		key       = "key123"
+		value     = "value123"
+		copyedKey = "copyedKey"
+		client    = env.prepareClient(bucket)
+	)
+	defer func() {
+		cleanBucket(t, client, bucket)
+	}()
+	// Case 1: 源对象是 jpeg
+	put, err := client.PutObjectV2(context.Background(), &tos.PutObjectV2Input{
+		PutObjectBasicInput: tos.PutObjectBasicInput{Bucket: bucket, Key: key, ContentType: "image/jpeg"},
+		Content:             strings.NewReader(value),
+	})
+	checkSuccess(t, put, err, 200)
+	copyRes, err := client.CopyObject(context.Background(), &tos.CopyObjectInput{
+		Bucket:      bucket,
+		Key:         copyedKey,
+		SrcBucket:   bucket,
+		SrcKey:      key,
+		ContentType: "image/jpeg",
+	})
+	require.Nil(t, err)
+	require.NotNil(t, copyRes.ETag)
+	require.NotNil(t, copyRes.LastModified)
+	get, err := client.GetObjectV2(context.Background(), &tos.GetObjectV2Input{
+		Bucket: bucket,
+		Key:    copyedKey,
+	})
+	require.Nil(t, err)
+	buffer, err := ioutil.ReadAll(get.Content)
+	require.NotNil(t, get)
+	require.Nil(t, err)
+	require.Equal(t, string(buffer), value)
+	require.Nil(t, err)
+	require.Equal(t, get.ContentType, "image/jpeg")
+
+	// Case2: Copy 时指定新的ContentType
+	put, err = client.PutObjectV2(context.Background(), &tos.PutObjectV2Input{
+		PutObjectBasicInput: tos.PutObjectBasicInput{Bucket: bucket, Key: key},
+		Content:             strings.NewReader(value),
+	})
+	checkSuccess(t, put, err, 200)
+	copyRes, err = client.CopyObject(context.Background(), &tos.CopyObjectInput{
+		Bucket:            bucket,
+		Key:               copyedKey,
+		SrcBucket:         bucket,
+		SrcKey:            key,
+		ContentType:       "image/jpeg",
+		MetadataDirective: enum.MetadataDirectiveReplace,
+	})
+	require.Nil(t, err)
+	get, err = client.GetObjectV2(context.Background(), &tos.GetObjectV2Input{
+		Bucket: bucket,
+		Key:    copyedKey,
+	})
+	require.Nil(t, err)
+	require.Equal(t, get.ContentType, "image/jpeg")
 }
 
 func TestCopyObjectVersion(t *testing.T) {
@@ -367,17 +506,6 @@ func TestValidObjectKey(t *testing.T) {
 	)
 	testValidObjectKey(t, client, bucket, ".")
 	testValidObjectKey(t, client, bucket, "..")
-}
-
-func TestInvalidObjectKey(t *testing.T) {
-	var (
-		env    = newTestEnv(t)
-		bucket = generateBucketName("test-invalid-object-key")
-		client = env.prepareClient(bucket)
-	)
-	testInvalidObjectKey(t, client, randomString(1001))
-	testInvalidObjectKey(t, client, "\\key")
-
 }
 
 func TestUnmatchedMD5(t *testing.T) {
@@ -475,7 +603,12 @@ func TestSSEC(t *testing.T) {
 	require.Nil(t, err)
 	require.NotNil(t, put)
 	require.Equal(t, 200, put.StatusCode)
-
+	_, err = client.CopyObject(context.Background(), &tos.CopyObjectInput{Bucket: bucket, Key: key + "1", SrcBucket: bucket, SrcKey: key})
+	if serr, ok := err.(*tos.TosServerError); ok {
+		t.Log(serr.Code)
+		t.Log(serr.Resource)
+	}
+	t.Log(err)
 	// GetObjectV2 without SSEC will fail
 	get, err := client.GetObjectV2(context.Background(), &tos.GetObjectV2Input{
 		Bucket: bucket,
@@ -1397,7 +1530,7 @@ func TestObjectKey(t *testing.T) {
 	require.Nil(t, err)
 	require.Equal(t, len(listRes.Contents), len(validKeys))
 
-	invalidKey := []string{string('·'), string(rune(128)), "\\avas", string(rune(31))}
+	invalidKey := []string{""}
 	for _, key := range invalidKey {
 		value := randomString(4 * 1024)
 		_, err = client.PutObjectV2(ctx, &tos.PutObjectV2Input{
@@ -1475,4 +1608,289 @@ func TestUpload(t *testing.T) {
 	require.Nil(t, err)
 	t.Log("request id:", out.RequestID)
 	require.Equal(t, c.count > 33, true)
+	defer cleanBucket(t, client, bucket)
+	putRandomObject(t, client, bucket, key, 4096)
+
+	// When Range and RangeStart & RangeEnd appear together, range is preferred
+	res, err := client.GetObjectV2(ctx, &tos.GetObjectV2Input{Bucket: bucket, Key: key, Range: fmt.Sprintf("bytes=0-0"), RangeStart: 0, RangeEnd: 100})
+	require.Nil(t, err)
+	require.Equal(t, res.ContentLength, int64(1))
+	body, err := ioutil.ReadAll(res.Content)
+	require.Nil(t, err)
+	require.Equal(t, len(body), 1)
+	defer res.Content.Close()
+
+	// only range
+	res, err = client.GetObjectV2(ctx, &tos.GetObjectV2Input{Bucket: bucket, Key: key, Range: fmt.Sprintf("bytes=0-1")})
+	require.Nil(t, err)
+	require.Equal(t, res.ContentLength, int64(2))
+	body, err = ioutil.ReadAll(res.Content)
+	require.Nil(t, err)
+	require.Equal(t, len(body), 2)
+	defer res.Content.Close()
+
+	// only RangeStart & RangeEnd
+	res, err = client.GetObjectV2(ctx, &tos.GetObjectV2Input{Bucket: bucket, Key: key, RangeStart: 0, RangeEnd: 1})
+	require.Nil(t, err)
+	require.Equal(t, res.ContentLength, int64(2))
+	body, err = ioutil.ReadAll(res.Content)
+	require.Nil(t, err)
+	require.Equal(t, len(body), 2)
+	defer res.Content.Close()
+}
+
+func TestObjectWithRateLimit(t *testing.T) {
+	var (
+		env    = newTestEnv(t)
+		bucket = generateBucketName("object-with-rate-limit")
+		client = env.prepareClient(bucket)
+		key    = randomString(6)
+		ctx    = context.Background()
+	)
+	defer cleanBucket(t, client, bucket)
+	rowData := randomString(1024 * 1024 * 7)
+	data := strings.NewReader(rowData)
+	now := time.Now()
+	limiter := tos.NewDefaultRateLimit(1024*1024, 1024*1024)
+	putoutput, err := client.PutObjectV2(ctx, &tos.PutObjectV2Input{
+		PutObjectBasicInput: tos.PutObjectBasicInput{
+			Bucket:      bucket,
+			Key:         key,
+			RateLimiter: limiter,
+		},
+		Content: data,
+	})
+	require.Nil(t, err)
+	t.Log(putoutput.RequestID)
+	t.Logf("putobject cost: %v", time.Now().Sub(now).Seconds())
+	require.True(t, time.Now().Sub(now) >= time.Second*5)
+	require.True(t, time.Now().Sub(now) <= time.Second*10)
+
+	// 限流耗时应大于不限流
+	start := time.Now()
+	getoutput, err := client.GetObjectV2(ctx, &tos.GetObjectV2Input{Bucket: bucket, Key: key, RateLimiter: limiter})
+	require.Nil(t, err)
+	getData, err := ioutil.ReadAll(getoutput.Content)
+	require.Nil(t, err)
+	require.Equal(t, string(getData), rowData)
+	t.Logf("getobject cost: %v", time.Now().Sub(start).Seconds())
+	limiterCost := time.Now().Sub(start)
+
+	noLimiterStart := time.Now()
+	getoutput, err = client.GetObjectV2(ctx, &tos.GetObjectV2Input{Bucket: bucket, Key: key})
+	require.Nil(t, err)
+	getData, err = ioutil.ReadAll(getoutput.Content)
+	require.Nil(t, err)
+	require.Equal(t, string(getData), rowData)
+	t.Logf("getobject cost: %v", time.Now().Sub(noLimiterStart).Seconds())
+	require.True(t, time.Now().Sub(noLimiterStart) < limiterCost)
+
+}
+
+type retryReader struct {
+	count  int
+	reader io.Reader
+	n      int
+	t      *testing.T
+}
+
+func (r *retryReader) Read(p []byte) (n int, err error) {
+	if r.count == 5 {
+
+		r.t.Log("Already Read:", r.n)
+		require.True(r.t, r.n > 0)
+		return r.reader.Read(p)
+	}
+
+	time.Sleep(time.Second * 3)
+	n, err = r.reader.Read(p)
+	r.n += n
+	return n, err
+}
+
+func (r *retryReader) Seek(offset int64, whence int) (int64, error) {
+	r.count++
+	seek := r.reader.(io.Seeker)
+	return seek.Seek(offset, whence)
+}
+
+type noRetryReader struct {
+	count  int
+	reader io.Reader
+}
+
+func (r *noRetryReader) Read(p []byte) (n int, err error) {
+	time.Sleep(time.Second * 3)
+	return r.reader.Read(p)
+}
+
+func TestObjectWithRetry(t *testing.T) {
+	var (
+		env    = newTestEnv(t)
+		bucket = generateBucketName("object-with-retry")
+		key    = randomString(6)
+		ctx    = context.Background()
+	)
+	tsConfig := tos.DefaultTransportConfig()
+	tsConfig.ReadTimeout = time.Millisecond * 500
+	tsConfig.WriteTimeout = time.Millisecond * 500
+	client := env.prepareClient(bucket, tos.WithTransportConfig(&tsConfig), tos.WithMaxRetryCount(5))
+	defer cleanBucket(t, client, bucket)
+	// Case 1: 测试内存流
+	rawData := "hello world"
+	data := &retryReader{reader: strings.NewReader(rawData), t: t}
+	_, err := client.PutObjectV2(ctx, &tos.PutObjectV2Input{
+		PutObjectBasicInput: tos.PutObjectBasicInput{
+			Bucket: bucket,
+			Key:    key,
+		},
+		Content: data,
+	})
+	require.Nil(t, err)
+	require.Equal(t, data.count, 5)
+
+	getOutput, err := client.GetObjectV2(ctx, &tos.GetObjectV2Input{Bucket: bucket, Key: key})
+	require.Nil(t, err)
+	getData, err := ioutil.ReadAll(getOutput.Content)
+	require.Nil(t, err)
+	require.Equal(t, string(getData), rawData)
+
+	// case 2: 测试文件流重试
+	fileName := randomString(5)
+	file, err := os.Create(fileName)
+	require.Nil(t, err)
+	defer os.Remove(fileName)
+	fileSize := 1024
+	readOffset := 1000
+	value := randomString(fileSize)
+	_, err = file.Write([]byte(value))
+	require.Nil(t, err)
+	err = file.Sync()
+	require.Nil(t, err)
+	// Seek 到 1000
+	_, err = file.Seek(int64(readOffset), io.SeekStart)
+	require.Nil(t, err)
+	data = &retryReader{reader: file, t: t}
+	_, err = client.PutObjectV2(ctx, &tos.PutObjectV2Input{
+		PutObjectBasicInput: tos.PutObjectBasicInput{
+			Bucket: bucket,
+			Key:    key,
+		},
+		Content: data,
+	})
+	require.Nil(t, err)
+	require.Equal(t, data.count, 5)
+	getOutput, err = client.GetObjectV2(ctx, &tos.GetObjectV2Input{Bucket: bucket, Key: key})
+	require.Nil(t, err)
+	getData, err = ioutil.ReadAll(getOutput.Content)
+	require.Nil(t, err)
+	t.Log("getData:", string(getData), "RealValue:", value[1000:])
+	require.Equal(t, string(getData), string(value[1000:]))
+
+	// Case3: 网络流不可重试
+	res, err := http.Get("https://www.volcengine.com/")
+	require.Nil(t, err)
+	nrReader := &noRetryReader{reader: res.Body}
+	_, err = client.PutObjectV2(ctx, &tos.PutObjectV2Input{
+		PutObjectBasicInput: tos.PutObjectBasicInput{
+			Bucket: bucket,
+			Key:    key,
+		},
+		Content: nrReader,
+	})
+	require.NotNil(t, err)
+
+}
+
+type contentType struct {
+	bucket            string
+	client            *tos.ClientV2
+	keySuffix         string
+	expectContentType string
+	inputContentType  string
+}
+
+func (c *contentType) testContentType(t *testing.T, ctx context.Context) {
+	key := randomString(6) + "." + c.keySuffix
+	_, err := c.client.PutObjectV2(ctx, &tos.PutObjectV2Input{
+		PutObjectBasicInput: tos.PutObjectBasicInput{Bucket: c.bucket, Key: key, ContentType: c.inputContentType},
+		Content:             strings.NewReader(randomString(1)),
+	})
+	require.Nil(t, err)
+	houtput, err := c.client.HeadObjectV2(ctx, &tos.HeadObjectV2Input{
+		Bucket: c.bucket,
+		Key:    key,
+	})
+	require.Nil(t, err)
+	require.Equal(t, houtput.ContentType, c.expectContentType)
+
+	// 1.2: AppendObject
+	key = randomString(6) + "." + c.keySuffix
+	_, err = c.client.AppendObjectV2(ctx, &tos.AppendObjectV2Input{Bucket: c.bucket,
+		Key:         key,
+		ContentType: c.inputContentType,
+		Content:     strings.NewReader(randomString(128 * 1024)),
+	})
+	require.Nil(t, err)
+	houtput, err = c.client.HeadObjectV2(ctx, &tos.HeadObjectV2Input{
+		Bucket: c.bucket,
+		Key:    key,
+	})
+	require.Nil(t, err)
+	require.Equal(t, houtput.ContentType, c.expectContentType)
+
+	// 1.3: MultiPart
+	key = randomString(6) + "." + c.keySuffix
+	createMultiOutput, err := c.client.CreateMultipartUploadV2(ctx, &tos.CreateMultipartUploadV2Input{
+		Bucket: c.bucket, Key: key,
+		ContentType: c.inputContentType,
+	})
+	require.Nil(t, err)
+	part, err := c.client.UploadPartV2(ctx, &tos.UploadPartV2Input{
+		UploadPartBasicInput: tos.UploadPartBasicInput{Bucket: c.bucket, Key: key, UploadID: createMultiOutput.UploadID, PartNumber: 1},
+		Content:              strings.NewReader(randomString(1024)),
+	})
+	require.Nil(t, err)
+	_, err = c.client.CompleteMultipartUploadV2(ctx, &tos.CompleteMultipartUploadV2Input{Bucket: c.bucket, Key: key, UploadID: createMultiOutput.UploadID, Parts: []tos.UploadedPartV2{{
+		PartNumber: 1,
+		ETag:       part.ETag,
+	}}})
+	require.Nil(t, err)
+	houtput, err = c.client.HeadObjectV2(ctx, &tos.HeadObjectV2Input{
+		Bucket: c.bucket,
+		Key:    key,
+	})
+	require.Nil(t, err)
+	require.Equal(t, houtput.ContentType, c.expectContentType)
+
+}
+
+func TestContentType(t *testing.T) {
+	var (
+		env    = newTestEnv(t)
+		bucket = generateBucketName("object-with-content-type")
+		client = env.prepareClient(bucket)
+		ctx    = context.Background()
+	)
+	defer cleanBucket(t, client, bucket)
+	ct := contentType{
+		bucket:            bucket,
+		client:            client,
+		keySuffix:         "",
+		expectContentType: "binary/octet-stream",
+		inputContentType:  "",
+	}
+	// Case 1: 测试 default content type
+	ct.testContentType(t, ctx)
+
+	// Case 2: 测试 SDK 推断 content type
+	ct.keySuffix = ".jpg"
+	ct.expectContentType = "image/jpeg"
+	ct.testContentType(t, ctx)
+
+	// Case 3: 测试指定 ContentType
+	ct.inputContentType = "text/html"
+	ct.expectContentType = "text/html"
+	ct.testContentType(t, ctx)
+
 }

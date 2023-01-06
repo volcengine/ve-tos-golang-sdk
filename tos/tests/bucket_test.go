@@ -170,6 +170,16 @@ func TestPutBucketStorageClass(t *testing.T) {
 
 	output, err = client.PutBucketStorageClass(ctx, &tos.PutBucketStorageClassInput{
 		Bucket:       bucket,
+		StorageClass: enum.StorageClassArchiveFr,
+	})
+	require.Nil(t, err)
+	require.NotNil(t, output)
+	headRes, err = client.HeadBucket(ctx, &tos.HeadBucketInput{Bucket: bucket})
+	require.Nil(t, err)
+	require.Equal(t, headRes.StorageClass, enum.StorageClassArchiveFr)
+
+	output, err = client.PutBucketStorageClass(ctx, &tos.PutBucketStorageClassInput{
+		Bucket:       bucket,
 		StorageClass: "ci-test-storage",
 	})
 	require.NotNil(t, err)
@@ -178,7 +188,7 @@ func TestPutBucketStorageClass(t *testing.T) {
 func TestListObjectType2(t *testing.T) {
 	var (
 		env    = newTestEnv(t)
-		bucket = generateBucketName("storage-class")
+		bucket = generateBucketName("list-object-type2")
 		client = env.prepareClient(bucket)
 		ctx    = context.Background()
 		value  = randomString(1024)
@@ -223,5 +233,86 @@ func TestListObjectType2(t *testing.T) {
 	require.Equal(t, len(out.Contents), 2)
 	require.Equal(t, out.Contents[0].Key, "0/1/2")
 	require.Equal(t, out.Contents[1].Key, "0/2/0")
+}
 
+func TestListObjectType2MaxKeys(t *testing.T) {
+	var (
+		env    = newTestEnv(t)
+		bucket = generateBucketName("list-object-type2")
+		client = env.prepareClient(bucket)
+		ctx    = context.Background()
+		value  = randomString(1024)
+	)
+	defer func() {
+		cleanBucket(t, client, bucket)
+	}()
+	length := 5
+	for i := 0; i < length; i++ {
+		for j := 0; j < length; j++ {
+			for k := 0; k < length; k++ {
+				_, err := client.PutObjectV2(ctx, &tos.PutObjectV2Input{
+					PutObjectBasicInput: tos.PutObjectBasicInput{Bucket: bucket, Key: fmt.Sprintf("%d/%d/%d", i, j, k)},
+					Content:             bytes.NewBufferString(value),
+				})
+				require.Nil(t, err)
+			}
+		}
+	}
+	maxKeys := 100
+	input := &tos.ListObjectsType2Input{
+		Bucket:  bucket,
+		MaxKeys: maxKeys,
+	}
+	out, err := client.ListObjectsType2(ctx, input)
+	require.Nil(t, err)
+	require.Equal(t, len(out.Contents), maxKeys)
+	require.Equal(t, input.MaxKeys, maxKeys)
+	out, err = client.ListObjectsType2(ctx, &tos.ListObjectsType2Input{Bucket: bucket,
+		MaxKeys:           maxKeys,
+		ContinuationToken: out.NextContinuationToken})
+	require.Nil(t, err)
+	require.Equal(t, len(out.Contents), length*length*length-maxKeys)
+
+	input = &tos.ListObjectsType2Input{Bucket: bucket}
+	out, err = client.ListObjectsType2(ctx, input)
+	require.Nil(t, err)
+	require.Equal(t, len(out.Contents), length*length*length)
+	require.Equal(t, input.MaxKeys, 0)
+}
+
+func TestEnableBucketVersion(t *testing.T) {
+	var (
+		env    = newTestEnv(t)
+		bucket = generateBucketName("bucket-version")
+		client = env.prepareClient(bucket)
+		ctx    = context.Background()
+	)
+	enableMultiVersion(t, client, bucket)
+	output, err := client.PutBucketVersioning(ctx, &tos.PutBucketVersioningInput{
+		Bucket: bucket,
+		Status: enum.VersioningStatusEnable,
+	})
+	require.Nil(t, err)
+	t.Log(output.RequestID)
+
+	getoutput, err := client.GetBucketVersioning(ctx, &tos.GetBucketVersioningInput{
+		Bucket: bucket,
+	})
+	require.Nil(t, err)
+	t.Log(getoutput.RequestID)
+	require.Equal(t, getoutput.Status, enum.VersioningStatusEnable)
+
+	output, err = client.PutBucketVersioning(ctx, &tos.PutBucketVersioningInput{
+		Bucket: bucket,
+		Status: enum.VersioningStatusSuspended,
+	})
+	require.Nil(t, err)
+	t.Log(output.RequestID)
+
+	getoutput, err = client.GetBucketVersioning(ctx, &tos.GetBucketVersioningInput{
+		Bucket: bucket,
+	})
+	require.Nil(t, err)
+	t.Log(getoutput.RequestID)
+	require.Equal(t, getoutput.Status, enum.VersioningStatusSuspended)
 }

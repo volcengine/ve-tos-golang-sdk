@@ -37,7 +37,7 @@ func (bkt *Bucket) PutObjectAcl(ctx context.Context, input *PutObjectAclInput, o
 			WithHeader(HeaderGrantWriteAcp, grant.GrantWriteAcp)
 	}
 
-	res, err := builder.WithRetry(nil, StatusCodeClassifier{}).Request(ctx, http.MethodPut, content, bkt.client.roundTripper(http.StatusOK))
+	res, err := builder.WithRetry(OnRetryFromStart, StatusCodeClassifier{}).Request(ctx, http.MethodPut, content, bkt.client.roundTripper(http.StatusOK))
 	if err != nil {
 		return nil, err
 	}
@@ -74,8 +74,9 @@ func (cli *ClientV2) PutObjectACL(ctx context.Context, input *PutObjectACLInput)
 		}
 
 		data, err := json.Marshal(&accessControlList{
-			Owner:  input.Owner,
-			Grants: input.Grants,
+			Owner:                input.Owner,
+			Grants:               input.Grants,
+			BucketOwnerEntrusted: input.BucketOwnerEntrusted,
 		})
 		if err != nil {
 			return nil, InvalidMarshal
@@ -85,7 +86,7 @@ func (cli *ClientV2) PutObjectACL(ctx context.Context, input *PutObjectACLInput)
 	builder := cli.newBuilder(input.Bucket, input.Key).
 		WithQuery("acl", "").
 		WithParams(*input)
-	res, err := builder.WithRetry(nil, StatusCodeClassifier{}).Request(ctx, http.MethodPut, content, cli.roundTripper(http.StatusOK))
+	res, err := builder.WithRetry(OnRetryFromStart, StatusCodeClassifier{}).Request(ctx, http.MethodPut, content, cli.roundTripper(http.StatusOK))
 	if err != nil {
 		return nil, err
 	}
@@ -108,7 +109,7 @@ func (bkt *Bucket) GetObjectAcl(ctx context.Context, objectKey string, options .
 
 	res, err := bkt.client.newBuilder(bkt.name, objectKey, options...).
 		WithQuery("acl", "").
-		WithRetry(nil, StatusCodeClassifier{}).
+		WithRetry(OnRetryFromStart, StatusCodeClassifier{}).
 		Request(ctx, http.MethodGet, nil, bkt.client.roundTripper(http.StatusOK))
 	if err != nil {
 		return nil, err
@@ -184,7 +185,7 @@ func (cli *ClientV2) PutBucketACL(ctx context.Context, input *PutBucketACLInput)
 
 	reqBuilder := cli.newBuilder(input.Bucket, "").
 		WithQuery("acl", "").
-		WithRetry(nil, StatusCodeClassifier{}).
+		WithRetry(OnRetryFromStart, StatusCodeClassifier{}).
 		WithParams(*input)
 	var reqData io.Reader
 

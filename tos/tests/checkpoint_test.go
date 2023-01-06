@@ -96,6 +96,47 @@ func TestUploadFile(t *testing.T) {
 	require.Equal(t, md5s(string(data)), md5s(value1))
 }
 
+func TestUploadEmptyFile(t *testing.T) {
+	var (
+		env      = newTestEnv(t)
+		bucket   = generateBucketName("upload-file")
+		key      = "key123"
+		value1   = ""
+		client   = env.prepareClient(bucket, LongTimeOutClientOption...)
+		fileName = randomString(16) + ".file"
+	)
+	defer func() {
+		cleanBucket(t, client, bucket)
+		cleanTestFile(t, fileName)
+	}()
+	value1 = ""
+	file, err := os.Create(fileName)
+	require.Nil(t, err)
+	n, err := file.Write([]byte(value1))
+	require.Nil(t, err)
+	require.Equal(t, len(value1), n)
+	defer file.Close()
+	upload, err := client.UploadFile(context.Background(), &tos.UploadFileInput{
+		CreateMultipartUploadV2Input: tos.CreateMultipartUploadV2Input{
+			Bucket: bucket,
+			Key:    key,
+		},
+		FilePath:         fileName,
+		PartSize:         5 * 1024 * 1024,
+		TaskNum:          4,
+		EnableCheckpoint: false,
+	})
+	checkSuccess(t, upload, err, 200)
+	get, err := client.GetObjectV2(context.Background(), &tos.GetObjectV2Input{
+		Bucket: bucket,
+		Key:    key,
+	})
+	checkSuccess(t, get, err, 200)
+	data, err := ioutil.ReadAll(get.Content)
+	require.Nil(t, err)
+	require.Equal(t, md5s(string(data)), md5s(value1))
+}
+
 func TestUploadFileWithCheckpoint(t *testing.T) {
 	var (
 		env      = newTestEnv(t)

@@ -121,24 +121,23 @@ func (bkt *Bucket) UploadPart(ctx context.Context, input *UploadPartInput, optio
 	cf = NoRetryClassifier{}
 	if seeker, ok := content.(io.Seeker); ok {
 		start, err := seeker.Seek(0, io.SeekCurrent)
-		if err != nil {
-			return nil, err
-		}
-		onRetry = func(req *Request) error {
-			// PutObject/UploadPartV2 can be treated as an idempotent semantics if the request message body
-			// supports a reset operation. e.g. the request message body is a string,
-			// a local file handle, binary data in memory
-			if seeker, ok := req.Content.(io.Seeker); ok {
-				_, err := seeker.Seek(start, io.SeekStart)
-				if err != nil {
-					return err
+		if err == nil {
+			onRetry = func(req *Request) error {
+				// PutObject/UploadPartV2 can be treated as an idempotent semantics if the request message body
+				// supports a reset operation. e.g. the request message body is a string,
+				// a local file handle, binary data in memory
+				if seeker, ok := req.Content.(io.Seeker); ok {
+					_, err := seeker.Seek(start, io.SeekStart)
+					if err != nil {
+						return err
+					}
+				} else {
+					return newTosClientError("Io Reader not support retry", nil)
 				}
-			} else {
-				return newTosClientError("Io Reader not support retry", nil)
+				return nil
 			}
-			return nil
+			cf = StatusCodeClassifier{}
 		}
-		cf = StatusCodeClassifier{}
 	}
 	res, err := bkt.client.newBuilder(bkt.name, input.Key, options...).
 		WithQuery("uploadId", input.UploadID).
@@ -188,30 +187,31 @@ func (cli *ClientV2) UploadPartV2(ctx context.Context, input *UploadPartV2Input)
 		onRetry func(req *Request) error = nil
 		cf      classifier
 	)
+
 	if content != nil {
 		content = wrapReader(content, contentLength, input.DataTransferListener, input.RateLimiter, &crcChecker{checker: checker})
 	}
+
 	cf = NoRetryClassifier{}
 	if seeker, ok := content.(io.Seeker); ok {
 		start, err := seeker.Seek(0, io.SeekCurrent)
-		if err != nil {
-			return nil, err
-		}
-		onRetry = func(req *Request) error {
-			// PutObject/UploadPartV2 can be treated as an idempotent semantics if the request message body
-			// supports a reset operation. e.g. the request message body is a string,
-			// a local file handle, binary data in memory
-			if seeker, ok := req.Content.(io.Seeker); ok {
-				_, err := seeker.Seek(start, io.SeekStart)
-				if err != nil {
-					return err
+		if err == nil {
+			onRetry = func(req *Request) error {
+				// PutObject/UploadPartV2 can be treated as an idempotent semantics if the request message body
+				// supports a reset operation. e.g. the request message body is a string,
+				// a local file handle, binary data in memory
+				if seeker, ok := req.Content.(io.Seeker); ok {
+					_, err := seeker.Seek(start, io.SeekStart)
+					if err != nil {
+						return err
+					}
+				} else {
+					return newTosClientError("Io Reader not support retry", nil)
 				}
-			} else {
-				return newTosClientError("Io Reader not support retry", nil)
+				return nil
 			}
-			return nil
+			cf = StatusCodeClassifier{}
 		}
-		cf = StatusCodeClassifier{}
 	}
 
 	res, err := cli.newBuilder(input.Bucket, input.Key).
@@ -282,7 +282,7 @@ func (bkt *Bucket) CompleteMultipartUpload(ctx context.Context, input *CompleteM
 
 	res, err := bkt.client.newBuilder(bkt.name, input.Key, options...).
 		WithQuery("uploadId", input.UploadID).
-		WithRetry(nil, ServerErrorClassifier{}).
+		WithRetry(OnRetryFromStart, ServerErrorClassifier{}).
 		Request(ctx, http.MethodPost, bytes.NewReader(data), bkt.client.roundTripper(http.StatusOK))
 	if err != nil {
 		return nil, err
@@ -315,7 +315,7 @@ func (cli *ClientV2) CompleteMultipartUploadV2(
 
 	res, err := cli.newBuilder(input.Bucket, input.Key).
 		WithParams(*input).
-		WithRetry(nil, ServerErrorClassifier{}).
+		WithRetry(OnRetryFromStart, ServerErrorClassifier{}).
 		Request(ctx, http.MethodPost, bytes.NewReader(data), cli.roundTripper(http.StatusOK))
 	if err != nil {
 		return nil, err

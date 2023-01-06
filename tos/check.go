@@ -1,8 +1,6 @@
 package tos
 
 import (
-	"unicode/utf8"
-
 	"github.com/volcengine/ve-tos-golang-sdk/v2/tos/enum"
 )
 
@@ -35,23 +33,9 @@ func isValidNames(bucket string, key string, keys ...string) error {
 
 // validKey validate single key, return TosClientError if failed
 func validKey(key string) error {
-	if len(key) < 1 || len(key) > 696 {
+	if len(key) < 1 {
 		return InvalidObjectNameLength
 	}
-	if key[0] == '\\' {
-		return InvalidObjectNameStartingOrEnding
-	}
-	bytes := []byte(key)
-	ok := utf8.Valid(bytes)
-	if !ok {
-		return InvalidObjectNameCharacterSet
-	}
-
-	runeKey := []rune(key)
-	if len(runeKey) == 1 && (runeKey[0] < 32 || runeKey[0] > 127) {
-		return InvalidObjectNameCharacterSet
-	}
-
 	return nil
 }
 
@@ -72,7 +56,8 @@ func isValidKey(key string, keys ...string) error {
 func isValidACL(aclType enum.ACLType) error {
 	if aclType == enum.ACLPrivate || aclType == enum.ACLPublicRead || aclType == enum.ACLPublicReadWrite ||
 		aclType == enum.ACLAuthRead || aclType == enum.ACLBucketOwnerRead ||
-		aclType == enum.ACLBucketOwnerFullControl || aclType == enum.ACLLogDeliveryWrite {
+		aclType == enum.ACLBucketOwnerFullControl || aclType == enum.ACLLogDeliveryWrite ||
+		aclType == enum.ACLBucketOwnerEntrusted {
 		return nil
 	}
 
@@ -82,7 +67,7 @@ func isValidACL(aclType enum.ACLType) error {
 // isValidStorageClass validate Storage Class, return TosClientError if failed
 func isValidStorageClass(storageClass enum.StorageClassType) error {
 
-	if storageClass == enum.StorageClassIa || storageClass == enum.StorageClassStandard {
+	if storageClass == enum.StorageClassIa || storageClass == enum.StorageClassStandard || storageClass == enum.StorageClassArchiveFr {
 		return nil
 	}
 

@@ -31,6 +31,9 @@ func initUploadPartsInfo(uploadFileStat os.FileInfo, partSize int64) ([]uploadPa
 	if lastPartSize != 0 {
 		parts[partCount-1].PartSize = lastPartSize
 	}
+	if uploadFileStat.Size() == 0 {
+		parts = append(parts, uploadPartInfo{PartNumber: 1, PartSize: 0, Offset: 0})
+	}
 	return parts, nil
 }
 

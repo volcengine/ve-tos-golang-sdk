@@ -13,6 +13,12 @@ import (
 	"github.com/volcengine/ve-tos-golang-sdk/v2/tos/enum"
 )
 
+func TestNewClient(t *testing.T) {
+	client, err := tos.NewClientV2("tos-s3-cn-shanghai.volces.com")
+	require.Equal(t, err, tos.InvalidS3Endpoint)
+	require.Nil(t, client)
+}
+
 func TestObjectACLV2(t *testing.T) {
 	var (
 		env     = newTestEnv(t)
@@ -35,6 +41,7 @@ func TestObjectACLV2(t *testing.T) {
 			},
 			Permission: enum.PermissionRead,
 		}},
+		BucketOwnerEntrusted: true,
 	})
 	require.Nil(t, err)
 	require.Equal(t, 200, acl.StatusCode)
@@ -46,6 +53,7 @@ func TestObjectACLV2(t *testing.T) {
 	require.Equal(t, 200, getAcl.StatusCode)
 	require.Equal(t, ownerID, getAcl.Grants[0].GranteeV2.ID)
 	require.Equal(t, enum.PermissionRead, getAcl.Grants[0].Permission)
+	require.Equal(t, getAcl.BucketOwnerEntrusted, true)
 	ctx := context.Background()
 	acl, err = client.PutObjectACL(ctx, &tos.PutObjectACLInput{
 		Bucket:     bucket,
@@ -62,6 +70,30 @@ func TestObjectACLV2(t *testing.T) {
 	require.Equal(t, len(getAcl.Grants), 1)
 	require.Equal(t, getAcl.Grants[0].GranteeV2.ID, "123")
 	require.Equal(t, getAcl.Grants[0].Permission, enum.PermissionWrite)
+
+	acl, err = client.PutObjectACL(context.Background(), &tos.PutObjectACLInput{
+		Bucket: bucket,
+		Key:    key,
+		Grants: []tos.GrantV2{{
+			GranteeV2: tos.GranteeV2{
+				ID:   ownerID,
+				Type: "CanonicalUser",
+			},
+			Permission: enum.PermissionRead,
+		}},
+		BucketOwnerEntrusted: false,
+	})
+	require.Nil(t, err)
+	require.Equal(t, 200, acl.StatusCode)
+	getAcl, err = client.GetObjectACL(context.Background(), &tos.GetObjectACLInput{
+		Bucket: bucket,
+		Key:    key,
+	})
+	require.Nil(t, err)
+	require.Equal(t, 200, getAcl.StatusCode)
+	require.Equal(t, ownerID, getAcl.Grants[0].GranteeV2.ID)
+	require.Equal(t, enum.PermissionRead, getAcl.Grants[0].Permission)
+	require.Equal(t, getAcl.BucketOwnerEntrusted, false)
 }
 
 func TestPutWithACLV2(t *testing.T) {
@@ -107,6 +139,19 @@ func TestPutObjectV2WithACL(t *testing.T) {
 		Content:             bytes.NewBufferString(value),
 	})
 	require.Nil(t, err)
+	out, err := client.GetObjectACL(ctx, &tos.GetObjectACLInput{Bucket: bucket, Key: key})
+	require.Nil(t, err)
+	require.Equal(t, len(out.Grants), 1)
+	require.Equal(t, out.BucketOwnerEntrusted, false)
+
+	_, err = client.PutObjectV2(ctx, &tos.PutObjectV2Input{
+		PutObjectBasicInput: tos.PutObjectBasicInput{Bucket: bucket, Key: key, ACL: enum.ACLBucketOwnerEntrusted},
+		Content:             bytes.NewBufferString(value),
+	})
+	require.Nil(t, err)
+	out, err = client.GetObjectACL(ctx, &tos.GetObjectACLInput{Bucket: bucket, Key: key})
+	require.Nil(t, err)
+	require.Equal(t, out.BucketOwnerEntrusted, true)
 }
 
 func TestBucketACLGrantsBody(t *testing.T) {

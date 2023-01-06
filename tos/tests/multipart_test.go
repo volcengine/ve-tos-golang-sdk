@@ -3,10 +3,12 @@ package tests
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"sort"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -53,13 +55,26 @@ func TestMultipartUpload(t *testing.T) {
 	})
 	require.Nil(t, err)
 
-	putRandomObject(t, client, bucket, copyKey, 4*1024)
+	putRandomObject(t, client, bucket, copyKey, 6*1024*1024)
 
 	part3, err := client.UploadPartCopyV2(context.Background(), &tos.UploadPartCopyV2Input{
+		Bucket:          bucket,
+		Key:             key,
+		UploadID:        upload.UploadID,
+		PartNumber:      3,
+		CopySourceRange: fmt.Sprintf("bytes=0-%d", 5*1024*1024-1),
+		SrcBucket:       bucket,
+		SrcKey:          copyKey,
+	})
+	require.Nil(t, err)
+
+	putRandomObject(t, client, bucket, copyKey, 4*1024)
+
+	part4, err := client.UploadPartCopyV2(context.Background(), &tos.UploadPartCopyV2Input{
 		Bucket:     bucket,
 		Key:        key,
 		UploadID:   upload.UploadID,
-		PartNumber: 3,
+		PartNumber: 4,
 		SrcBucket:  bucket,
 		SrcKey:     copyKey,
 	})
@@ -70,10 +85,11 @@ func TestMultipartUpload(t *testing.T) {
 		Key:      key,
 		UploadID: upload.UploadID,
 	})
-	require.Equal(t, 3, len(parts.Parts))
+	require.Equal(t, 4, len(parts.Parts))
 	require.Equal(t, part1.ETag, parts.Parts[0].ETag)
 	require.Equal(t, part2.ETag, parts.Parts[1].ETag)
 	require.Equal(t, part3.ETag, parts.Parts[2].ETag)
+	require.Equal(t, part4.ETag, parts.Parts[3].ETag)
 
 	complete, err := client.CompleteMultipartUploadV2(context.Background(), &tos.CompleteMultipartUploadV2Input{
 		Bucket:   bucket,
@@ -88,6 +104,9 @@ func TestMultipartUpload(t *testing.T) {
 		}, {
 			PartNumber: part3.PartNumber,
 			ETag:       part3.ETag,
+		}, {
+			PartNumber: part4.PartNumber,
+			ETag:       part4.ETag,
 		}},
 	})
 	require.Nil(t, err)
@@ -95,6 +114,113 @@ func TestMultipartUpload(t *testing.T) {
 	require.NotEqual(t, len(complete.Location), 0)
 	require.NotEqual(t, len(complete.Bucket), 0)
 	require.NotEqual(t, len(complete.Key), 0)
+}
+
+func TestUploadPartCopyRange(t *testing.T) {
+	var (
+		env    = newTestEnv(t)
+		bucket = generateBucketName("upload-copy-range")
+		client = env.prepareClient(bucket)
+		key    = randomString(6)
+		ctx    = context.Background()
+	)
+	defer func() {
+		cleanBucket(t, client, bucket)
+	}()
+	rowKey := randomString(6)
+	value := randomString(6)
+	_, err := client.PutObjectV2(ctx, &tos.PutObjectV2Input{
+		PutObjectBasicInput: tos.PutObjectBasicInput{Bucket: bucket, Key: rowKey},
+		Content:             strings.NewReader(value),
+	})
+	require.Nil(t, err)
+	upload, err := client.CreateMultipartUploadV2(context.Background(), &tos.CreateMultipartUploadV2Input{
+		Bucket: bucket,
+		Key:    key,
+	})
+	require.Nil(t, err)
+	part, err := client.UploadPartCopyV2(ctx, &tos.UploadPartCopyV2Input{
+		Bucket:          bucket,
+		Key:             key,
+		UploadID:        upload.UploadID,
+		PartNumber:      1,
+		SrcBucket:       bucket,
+		SrcKey:          rowKey,
+		CopySourceRange: "bytes=0-0",
+	})
+	require.Nil(t, err)
+	_, err = client.CompleteMultipartUploadV2(ctx, &tos.CompleteMultipartUploadV2Input{
+		Bucket:   bucket,
+		Key:      key,
+		UploadID: upload.UploadID,
+		Parts: []tos.UploadedPartV2{{
+			PartNumber: 1,
+			ETag:       part.ETag,
+		}},
+	})
+	require.Nil(t, err)
+
+	get, err := client.GetObjectV2(ctx, &tos.GetObjectV2Input{Bucket: bucket, Key: key})
+	require.Nil(t, err)
+	require.Equal(t, get.GetObjectBasicOutput.ContentLength, int64(1))
+	b, err := ioutil.ReadAll(get.Content)
+	require.Nil(t, err)
+	require.Equal(t, string(value[0]), string(b))
+}
+
+func TestConcurrenceMultipartUpload(t *testing.T) {
+	var (
+		env    = newTestEnv(t)
+		bucket = generateBucketName("multi-part-upload")
+		client = env.prepareClient(bucket)
+		key    = "key-test-create-multipart-upload"
+	)
+	defer func() {
+		cleanBucket(t, client, bucket)
+	}()
+	upload, err := client.CreateMultipartUploadV2(context.Background(), &tos.CreateMultipartUploadV2Input{
+		Bucket: bucket,
+		Key:    key,
+	})
+	require.Nil(t, err)
+	data := randomString(20 * 1024 * 1024)
+	concurNum := 30
+	var wg sync.WaitGroup
+	wg.Add(concurNum)
+	parts := make([]tos.UploadedPartV2, 0)
+	for i := 1; i < concurNum+1; i++ {
+		go func(i int) {
+			defer wg.Done()
+			part, err := client.UploadPartV2(context.Background(), &tos.UploadPartV2Input{
+				UploadPartBasicInput: tos.UploadPartBasicInput{
+					Bucket:     bucket,
+					Key:        key,
+					UploadID:   upload.UploadID,
+					PartNumber: i,
+				},
+				Content: strings.NewReader(data),
+			})
+			require.Nil(t, err)
+			fmt.Println("Current:", i)
+			parts = append(parts, tos.UploadedPartV2{
+				PartNumber: i,
+				ETag:       part.ETag,
+			})
+		}(i)
+	}
+	wg.Wait()
+
+	complete, err := client.CompleteMultipartUploadV2(context.Background(), &tos.CompleteMultipartUploadV2Input{
+		Bucket:   bucket,
+		Key:      key,
+		UploadID: upload.UploadID,
+		Parts:    parts})
+	require.Nil(t, err)
+	require.NotEqual(t, len(complete.ETag), 0)
+	require.NotEqual(t, len(complete.Location), 0)
+	require.NotEqual(t, len(complete.Bucket), 0)
+	require.NotEqual(t, len(complete.Key), 0)
+
 }
 
 func TestAbortMultipartUpload(t *testing.T) {
