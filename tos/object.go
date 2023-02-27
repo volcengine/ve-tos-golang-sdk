@@ -805,6 +805,7 @@ func (cli *ClientV2) listObjectsType2(ctx context.Context, input *ListObjectsTyp
 	res, err := cli.newBuilder(input.Bucket, "").
 		WithParams(*input).
 		WithQuery("list-type", "2").
+		WithQuery("fetch-owner", "true").
 		WithRetry(nil, StatusCodeClassifier{}).
 		Request(ctx, http.MethodGet, nil, cli.roundTripper(http.StatusOK))
 	if err != nil {

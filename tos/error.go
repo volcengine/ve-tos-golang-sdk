@@ -11,6 +11,8 @@ import (
 var (
 	InputIsNilClientError             = newTosClientError("input is nil. ", nil)
 	InputInvalidClientError           = newTosClientError("input data is invalid. ", nil)
+	InvalidPartNumber                 = newTosClientError("input part number is invalid. ", nil)
+	InvalidUploadID                   = newTosClientError("input upload id is invalid. ", nil)
 	InvalidBucketNameLength           = newTosClientError("invalid bucket name, the length must be [3, 63]", nil)
 	InvalidBucketNameCharacter        = newTosClientError("invalid bucket name, the character set is illegal", nil)
 	InvalidBucketNameStartingOrEnding = newTosClientError("invalid bucket name, the bucket name can be neither starting with '-' nor ending with '-'", nil)
@@ -36,6 +38,8 @@ var (
 	CrcCheckFail                      = newTosClientError("crc check not equal", nil)
 	InvalidS3Endpoint                 = newTosClientError("do not support s3 endpoint, please use tos endpoint", nil)
 	NotSupportSeek                    = newTosClientError("reader not support seek", nil)
+	ProxyNotSupportHttps              = newTosClientError("proxy not support https", nil)
+	ProxyUrlInvalid                   = newTosClientError("proxy not support https", nil)
 )
 
 type TosError struct {

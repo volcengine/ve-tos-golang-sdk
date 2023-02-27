@@ -231,6 +231,7 @@ func TestListObjectType2(t *testing.T) {
 	require.Nil(t, err)
 	require.NotNil(t, out)
 	require.Equal(t, len(out.Contents), 2)
+	require.Equal(t, out.Contents[0].Owner.ID != "", true)
 	require.Equal(t, out.Contents[0].Key, "0/1/2")
 	require.Equal(t, out.Contents[1].Key, "0/2/0")
 }
