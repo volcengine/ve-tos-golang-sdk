@@ -632,7 +632,7 @@ func exponentialBackoff(n int, base time.Duration) []time.Duration {
 	backoffs := make([]time.Duration, n)
 	for i := 0; i < len(backoffs); i++ {
 		backoffs[i] = base
-		base *= 1
+		base *= 2
 	}
 	return backoffs
 }

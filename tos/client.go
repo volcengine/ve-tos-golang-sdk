@@ -459,10 +459,6 @@ func (cli *ClientV2) PreSignedURL(input *PreSignedURLInput) (*PreSignedURLOutput
 		input.Expires = defaultPreSignedURLExpires
 	}
 
-	if input.Expires > maxPreSignedURLExpires {
-		return nil, InvalidPreSignedURLExpires
-	}
-
 	signedURL, err := rb.PreSignedURL(string(input.HTTPMethod), time.Second*time.Duration(input.Expires))
 	if err != nil {
 		return nil, err
@@ -486,9 +482,6 @@ func (cli *ClientV2) PreSignedPostSignature(ctx context.Context, input *PreSinge
 	date := UTCNow()
 	if input.Expires == 0 {
 		input.Expires = defaultSignExpires
-	}
-	if input.Expires > maxPreSignedURLExpires {
-		return nil, InvalidPreSignedURLExpires
 	}
 
 	postPolicy[signPolicyExpiration] = date.Add(time.Second * time.Duration(input.Expires)).Format(serverTimeFormat)
@@ -634,9 +627,6 @@ func (cli *ClientV2) PreSignedPolicyURL(ctx context.Context, input *PreSingedPol
 	}
 	if input.Expires == 0 {
 		input.Expires = defaultSignExpires
-	}
-	if input.Expires > maxPreSignedURLExpires {
-		return nil, InvalidPreSignedURLExpires
 	}
 
 	policyConditions := make(map[string]interface{})

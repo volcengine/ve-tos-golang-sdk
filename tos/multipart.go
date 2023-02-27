@@ -173,16 +173,26 @@ func (cli *ClientV2) UploadPartV2(ctx context.Context, input *UploadPartV2Input)
 		contentLength = input.ContentLength
 	)
 
-	if input == nil || input.PartNumber == 0 || input.UploadID == "" {
+	if input == nil {
 		return nil, InputInvalidClientError
+	}
+
+	if input.PartNumber == 0 {
+		return nil, InvalidPartNumber
+	}
+
+	if input.UploadID == "" {
+		return nil, InvalidUploadID
 	}
 
 	if contentLength == 0 {
 		contentLength = tryResolveLength(content)
 	}
+
 	if cli.enableCRC {
 		checker = NewCRC(DefaultCrcTable(), 0)
 	}
+
 	var (
 		onRetry func(req *Request) error = nil
 		cf      classifier

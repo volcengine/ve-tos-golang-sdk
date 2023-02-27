@@ -27,6 +27,17 @@ func (p *Proxy) Url() *url.URL {
 }
 
 func NewProxy(proxyHost string, proxyPort int) (*Proxy, error) {
+	proxyUrl, err := url.Parse(proxyHost)
+	if err != nil {
+		return nil, ProxyUrlInvalid.withCause(err)
+	}
+	if proxyUrl.Scheme == "" {
+		proxyHost = "http://" + proxyHost
+	}
+	if proxyUrl.Scheme == "https" {
+		return nil, ProxyNotSupportHttps
+	}
+
 	if _, err := url.Parse(proxyHost + ":" + strconv.Itoa(proxyPort)); err != nil {
 		if err != nil {
 			return nil, err

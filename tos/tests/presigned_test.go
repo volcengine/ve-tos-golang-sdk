@@ -67,15 +67,6 @@ func TestPreSignedURLWithExpires(t *testing.T) {
 	require.Nil(t, err)
 	require.Equal(t, 200, res.StatusCode)
 
-	// exceed max expires
-	url, err = cli.PreSignedURL(&tos.PreSignedURLInput{
-		HTTPMethod: http.MethodPut,
-		Bucket:     bucket,
-		Key:        "put-key",
-		Expires:    6048000,
-	})
-	require.NotNil(t, err)
-
 }
 
 func TestPreSignedURL(t *testing.T) {
