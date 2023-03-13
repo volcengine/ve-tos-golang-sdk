@@ -38,10 +38,11 @@ func getDownloadCheckpoint(input *DownloadFileInput, init func(input *HeadObject
 		return nil, newTosClientError("Fail to create folder due to a same file exists.", nil)
 	}
 
-	_, err = os.Create(checkpointPath)
+	file, err := os.Create(checkpointPath)
 	if err != nil {
 		return nil, newTosClientError(err.Error(), err)
 	}
+	_ = file.Close()
 
 	checkpoint, err = init(output)
 	if err != nil {
@@ -269,10 +270,11 @@ func createDownloadTempFile(input *DownloadFileInput, event downloadEvent) error
 	if err != nil {
 		return wrapErr(err)
 	}
-	_, err = os.Create(input.tempFile)
+	file, err := os.Create(input.tempFile)
 	if err != nil {
 		return wrapErr(err)
 	}
+	_ = file.Close()
 	event.postDownloadEvent(&DownloadEvent{
 		Type:           enum.DownloadEventCreateTempFileSucceed,
 		Bucket:         input.Bucket,

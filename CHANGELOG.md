@@ -1,4 +1,7 @@
 # ChangeLog of TOS SDK for Go
+## 版本号 v2.5.2 日期：2023-02-23
+- 修复 Windows 下 DownloadFile 失败
+
 ## 版本号 v2.5.1 日期：2023-02-23
 - ListObjectType2 新增 Owner 信息
 - 去除预签名配置约束

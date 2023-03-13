@@ -143,10 +143,11 @@ func getUploadCheckpoint(ctx context.Context, cli *ClientV2, input *UploadFileIn
 		return nil, InvalidCheckpointFilePath.withCause(err)
 	}
 
-	_, err = os.Create(input.CheckpointFile)
+	file, err := os.Create(input.CheckpointFile)
 	if err != nil {
 		return nil, newTosClientError("tos: create checkpoint file failed", err)
 	}
+	_ = file.Close()
 
 	checkpoint, err = init()
 	if err != nil {
