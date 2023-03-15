@@ -434,9 +434,7 @@ func (cli *Client) roundTripper(expectedCode int) roundTripper {
 //   options: WithVersionID the version id of the object
 //  Deprecated: use PreSignedURL of ClientV2 instead
 func (cli *Client) PreSignedURL(httpMethod string, bucket, objectKey string, ttl time.Duration, options ...Option) (string, error) {
-	if err := isValidNames(bucket, objectKey); err != nil {
-		return "", err
-	}
+
 	return cli.newBuilder(bucket, objectKey, options...).
 		PreSignedURL(httpMethod, ttl)
 }

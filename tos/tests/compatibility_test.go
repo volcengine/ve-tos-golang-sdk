@@ -2,9 +2,13 @@ package tests
 
 import (
 	"context"
+	"fmt"
+	"io/ioutil"
+	"net/http"
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -82,6 +86,13 @@ func TestCurdV1(t *testing.T) {
 	content := randomString(4 * 1024)
 	put, err := handle.PutObject(context.Background(), objectKey, strings.NewReader(content))
 	checkSuccess(t, put, err, 200)
+	url, err := client.PreSignedURL(http.MethodGet, bucket, "", time.Hour)
+	require.Nil(t, err)
+	req, _ := http.NewRequest(http.MethodGet, url, nil)
+	res, err := http.DefaultClient.Do(req)
+	require.Nil(t, err)
+	data, _ := ioutil.ReadAll(res.Body)
+	fmt.Println(string(data))
 	headObject, err := handle.HeadObject(context.Background(), objectKey)
 	checkSuccess(t, headObject, err, 200)
 	get, err := handle.GetObject(context.Background(), objectKey)
