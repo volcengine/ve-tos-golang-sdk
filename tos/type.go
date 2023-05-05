@@ -574,6 +574,7 @@ type ListObjectsType2Input struct {
 	ContinuationToken string `location:"query" locationName:"continuation-token"`
 	MaxKeys           int    `location:"query" locationName:"max-keys"`
 	EncodingType      string `location:"query" locationName:"encoding-type"`
+	FetchMeta         bool   `location:"query" locationName:"fetch-meta"`
 	ListOnlyOnce      bool
 }
 
@@ -598,19 +599,31 @@ type ListObjectsInput struct {
 	Marker       string `location:"query" locationName:"marker"`
 	MaxKeys      int    `location:"query" locationName:"max-keys"`
 	EncodingType string `location:"query" locationName:"encoding-type"` // "" or "url"
-
+	FetchMeta    bool   `location:"query" locationName:"fetch-meta"`
 	// Deprecated
 	Reverse bool
 }
 
 type ListedObject struct {
-	Key          string `json:"Key,omitempty"`
-	LastModified string `json:"LastModified,omitempty"`
-	ETag         string `json:"ETag,omitempty"`
-	Size         int64  `json:"Size,omitempty"`
-	Owner        Owner  `json:"Owner,omitempty"`
-	StorageClass string `json:"StorageClass,omitempty"`
-	Type         string `json:"Type,omitempty"`
+	Key          string   `json:"Key,omitempty"`
+	LastModified string   `json:"LastModified,omitempty"`
+	ETag         string   `json:"ETag,omitempty"`
+	Size         int64    `json:"Size,omitempty"`
+	Owner        Owner    `json:"Owner,omitempty"`
+	StorageClass string   `json:"StorageClass,omitempty"`
+	Type         string   `json:"Type,omitempty"`
+	Meta         Metadata `json:"UserMeta,omitempty"`
+}
+
+type listedObject struct {
+	Key          string     `json:"Key,omitempty"`
+	LastModified string     `json:"LastModified,omitempty"`
+	ETag         string     `json:"ETag,omitempty"`
+	Size         int64      `json:"Size,omitempty"`
+	Owner        Owner      `json:"Owner,omitempty"`
+	StorageClass string     `json:"StorageClass,omitempty"`
+	Type         string     `json:"Type,omitempty"`
+	Meta         []userMeta `json:"UserMeta,omitempty"`
 }
 
 type ListedObjectV2 struct {
@@ -621,6 +634,12 @@ type ListedObjectV2 struct {
 	Owner         Owner
 	StorageClass  enum.StorageClassType
 	HashCrc64ecma uint64
+	Meta          Metadata
+}
+
+type userMeta struct {
+	Key   string `json:"Key"`
+	Value string `json:"Value"`
 }
 
 type listedObjectV2 struct {
@@ -631,10 +650,24 @@ type listedObjectV2 struct {
 	Owner         Owner                 `json:"Owner,omitempty"`
 	StorageClass  enum.StorageClassType `json:"StorageClass,omitempty"`
 	HashCrc64ecma string                `json:"HashCrc64Ecma,omitempty"`
+	Meta          []userMeta            `json:"UserMeta,omitempty"`
 }
 
 type ListedCommonPrefix struct {
 	Prefix string `json:"Prefix,omitempty"`
+}
+
+type listObjectsOutput struct {
+	Name           string               `json:"Name,omitempty"` // bucket name
+	Prefix         string               `json:"Prefix,omitempty"`
+	Marker         string               `json:"Marker,omitempty"`
+	MaxKeys        int64                `json:"MaxKeys,omitempty"`
+	NextMarker     string               `json:"NextMarker,omitempty"`
+	Delimiter      string               `json:"Delimiter,omitempty"`
+	IsTruncated    bool                 `json:"IsTruncated,omitempty"`
+	EncodingType   string               `json:"EncodingType,omitempty"`
+	CommonPrefixes []ListedCommonPrefix `json:"CommonPrefixes,omitempty"`
+	Contents       []listedObject       `json:"Contents,omitempty"`
 }
 
 type ListObjectsOutput struct {
@@ -701,6 +734,7 @@ type ListObjectVersionsInput struct {
 	VersionIDMarker string `location:"query" locationName:"version-id-marker"`
 	MaxKeys         int    `location:"query" locationName:"max-keys"`
 	EncodingType    string `location:"query" locationName:"encoding-type"` // "" or "url"
+	FetchMeta       bool   `location:"query" locationName:"fetch-meta"`
 }
 
 type ListObjectVersionsV2Input struct {
@@ -709,15 +743,16 @@ type ListObjectVersionsV2Input struct {
 }
 
 type ListedObjectVersion struct {
-	ETag         string `json:"ETag,omitempty"`
-	IsLatest     bool   `json:"IsLatest,omitempty"`
-	Key          string `json:"Key,omitempty"`
-	LastModified string `json:"LastModified,omitempty"`
-	Owner        Owner  `json:"Owner,omitempty"`
-	Size         int64  `json:"Size,omitempty"`
-	StorageClass string `json:"StorageClass,omitempty"`
-	Type         string `json:"Type,omitempty"`
-	VersionID    string `json:"VersionId,omitempty"`
+	ETag         string   `json:"ETag,omitempty"`
+	IsLatest     bool     `json:"IsLatest,omitempty"`
+	Key          string   `json:"Key,omitempty"`
+	LastModified string   `json:"LastModified,omitempty"`
+	Owner        Owner    `json:"Owner,omitempty"`
+	Size         int64    `json:"Size,omitempty"`
+	StorageClass string   `json:"StorageClass,omitempty"`
+	Type         string   `json:"Type,omitempty"`
+	VersionID    string   `json:"VersionId,omitempty"`
+	Meta         Metadata `json:"UserMeta,omitempty"`
 }
 
 type listedObjectVersionV2 struct {
@@ -730,6 +765,7 @@ type listedObjectVersionV2 struct {
 	StorageClass  enum.StorageClassType
 	VersionID     string
 	HashCrc64ecma string
+	Meta          []userMeta `json:"UserMeta,omitempty"`
 }
 
 type ListedObjectVersionV2 struct {
@@ -742,6 +778,7 @@ type ListedObjectVersionV2 struct {
 	StorageClass  enum.StorageClassType
 	VersionID     string
 	HashCrc64ecma uint64
+	Meta          Metadata `json:"UserMeta,omitempty"`
 }
 
 type ListedDeleteMarkerEntry struct {
@@ -792,6 +829,36 @@ type ListObjectVersionsV2Output struct {
 	CommonPrefixes      []ListedCommonPrefix    `json:"CommonPrefixes,omitempty"`
 	Versions            []ListedObjectVersionV2 `json:"Versions,omitempty"`
 	DeleteMarkers       []ListedDeleteMarker    `json:"DeleteMarkers,omitempty"`
+}
+
+type listedObjectVersion struct {
+	ETag         string     `json:"ETag,omitempty"`
+	IsLatest     bool       `json:"IsLatest,omitempty"`
+	Key          string     `json:"Key,omitempty"`
+	LastModified string     `json:"LastModified,omitempty"`
+	Owner        Owner      `json:"Owner,omitempty"`
+	Size         int64      `json:"Size,omitempty"`
+	StorageClass string     `json:"StorageClass,omitempty"`
+	Type         string     `json:"Type,omitempty"`
+	VersionID    string     `json:"VersionId,omitempty"`
+	Meta         []userMeta `json:"UserMeta,omitempty"`
+}
+
+type listObjectVersionsOutput struct {
+	RequestInfo         `json:"-"`
+	Name                string                    `json:"Name,omitempty"` // bucket name
+	Prefix              string                    `json:"Prefix,omitempty"`
+	KeyMarker           string                    `json:"KeyMarker,omitempty"`
+	VersionIDMarker     string                    `json:"VersionIdMarker,omitempty"`
+	Delimiter           string                    `json:"Delimiter,omitempty"`
+	EncodingType        string                    `json:"EncodingType,omitempty"`
+	MaxKeys             int64                     `json:"MaxKeys,omitempty"`
+	NextKeyMarker       string                    `json:"NextKeyMarker,omitempty"`
+	NextVersionIDMarker string                    `json:"NextVersionIdMarker,omitempty"`
+	IsTruncated         bool                      `json:"IsTruncated,omitempty"`
+	CommonPrefixes      []ListedCommonPrefix      `json:"CommonPrefixes,omitempty"`
+	Versions            []listedObjectVersion     `json:"Versions,omitempty"`
+	DeleteMarkers       []ListedDeleteMarkerEntry `json:"DeleteMarkers,omitempty"`
 }
 
 type ListObjectVersionsOutput struct {
@@ -1082,6 +1149,16 @@ type CreateMultipartUploadV2Input struct {
 	SSECKeyMD5              string                `location:"header" locationName:"X-Tos-Server-Side-Encryption-Customer-Key-MD5"`
 	ServerSideEncryption    string                `location:"header" locationName:"X-Tos-Server-Side-Encryption"`
 	Meta                    map[string]string     `location:"headers"`
+}
+
+type RenameObjectInput struct {
+	Bucket string
+	Key    string
+	NewKey string `location:"query" locationName:"name"`
+}
+
+type RenameObjectOutput struct {
+	RequestInfo
 }
 
 type CreateMultipartUploadOutput struct {
