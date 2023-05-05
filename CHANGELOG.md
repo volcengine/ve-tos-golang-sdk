@@ -1,4 +1,9 @@
 # ChangeLog of TOS SDK for Go
+
+## 版本号 v2.5.4 日期：2023-02-23
+- 增加 rename 相关接口
+- list 接口增加 user meta 字段
+
 ## 版本号 v2.5.2 日期：2023-02-23
 - 修复 Windows 下 DownloadFile 失败
 

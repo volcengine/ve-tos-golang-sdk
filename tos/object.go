@@ -727,17 +727,44 @@ func (bkt *Bucket) ListObjects(ctx context.Context, input *ListObjectsInput, opt
 		WithQuery("marker", input.Marker).
 		WithQuery("max-keys", strconv.Itoa(input.MaxKeys)).
 		WithQuery("encoding-type", input.EncodingType).
+		WithQuery("fetch-meta", strconv.FormatBool(input.FetchMeta)).
 		WithRetry(nil, StatusCodeClassifier{}).
 		Request(ctx, http.MethodGet, nil, bkt.client.roundTripper(http.StatusOK))
 	if err != nil {
 		return nil, err
 	}
 	defer res.Close()
-
-	output := ListObjectsOutput{RequestInfo: res.RequestInfo()}
-	if err = marshalOutput(output.RequestID, res.Body, &output); err != nil {
+	internalOutput := &listObjectsOutput{}
+	if err = marshalOutput(res.RequestInfo().RequestID, res.Body, &internalOutput); err != nil {
 		return nil, err
 	}
+	output := ListObjectsOutput{
+		RequestInfo:    res.RequestInfo(),
+		Name:           internalOutput.Name,
+		Prefix:         internalOutput.Prefix,
+		Marker:         internalOutput.Marker,
+		MaxKeys:        internalOutput.MaxKeys,
+		NextMarker:     internalOutput.NextMarker,
+		Delimiter:      internalOutput.Delimiter,
+		IsTruncated:    internalOutput.IsTruncated,
+		EncodingType:   internalOutput.EncodingType,
+		CommonPrefixes: internalOutput.CommonPrefixes,
+		Contents:       nil,
+	}
+	contents := make([]ListedObject, 0, len(internalOutput.Contents))
+	for _, content := range internalOutput.Contents {
+		contents = append(contents, ListedObject{
+			Key:          content.Key,
+			LastModified: content.LastModified,
+			ETag:         content.ETag,
+			Size:         content.Size,
+			Owner:        content.Owner,
+			StorageClass: content.StorageClass,
+			Type:         content.Type,
+			Meta:         parseUserMetaData(content.Meta),
+		})
+	}
+	output.Contents = contents
 	return &output, nil
 }
 
@@ -775,6 +802,7 @@ func (cli *ClientV2) ListObjectsV2(ctx context.Context, input *ListObjectsV2Inpu
 				}
 			}
 		}
+
 		contents = append(contents, ListedObjectV2{
 			Key:           object.Key,
 			LastModified:  object.LastModified,
@@ -783,6 +811,7 @@ func (cli *ClientV2) ListObjectsV2(ctx context.Context, input *ListObjectsV2Inpu
 			Owner:         object.Owner,
 			StorageClass:  object.StorageClass,
 			HashCrc64ecma: uint64(hashCrc),
+			Meta:          parseUserMetaData(object.Meta),
 		})
 	}
 	output := ListObjectsV2Output{
@@ -840,6 +869,7 @@ func (cli *ClientV2) listObjectsType2(ctx context.Context, input *ListObjectsTyp
 			Owner:         object.Owner,
 			StorageClass:  object.StorageClass,
 			HashCrc64ecma: hashCrc,
+			Meta:          parseUserMetaData(object.Meta),
 		})
 	}
 	output := ListObjectsType2Output{
@@ -906,6 +936,7 @@ func (bkt *Bucket) ListObjectVersions(ctx context.Context, input *ListObjectVers
 		WithQuery("key-marker", input.KeyMarker).
 		WithQuery("max-keys", strconv.Itoa(input.MaxKeys)).
 		WithQuery("encoding-type", input.EncodingType).
+		WithQuery("fetch-meta", strconv.FormatBool(input.FetchMeta)).
 		WithQuery("versions", "").
 		WithRetry(nil, StatusCodeClassifier{}).
 		Request(ctx, http.MethodGet, nil, bkt.client.roundTripper(http.StatusOK))
@@ -914,10 +945,43 @@ func (bkt *Bucket) ListObjectVersions(ctx context.Context, input *ListObjectVers
 	}
 	defer res.Close()
 
-	output := ListObjectVersionsOutput{RequestInfo: res.RequestInfo()}
-	if err = marshalOutput(output.RequestID, res.Body, &output); err != nil {
+	interOutput := listObjectVersionsOutput{RequestInfo: res.RequestInfo()}
+	if err = marshalOutput(interOutput.RequestID, res.Body, &interOutput); err != nil {
 		return nil, err
 	}
+	output := ListObjectVersionsOutput{
+		RequestInfo:         interOutput.RequestInfo,
+		Name:                interOutput.Name,
+		Prefix:              interOutput.Prefix,
+		KeyMarker:           interOutput.KeyMarker,
+		VersionIDMarker:     interOutput.VersionIDMarker,
+		Delimiter:           interOutput.Delimiter,
+		EncodingType:        interOutput.EncodingType,
+		MaxKeys:             interOutput.MaxKeys,
+		NextKeyMarker:       interOutput.NextKeyMarker,
+		NextVersionIDMarker: interOutput.NextVersionIDMarker,
+		IsTruncated:         interOutput.IsTruncated,
+		CommonPrefixes:      interOutput.CommonPrefixes,
+		DeleteMarkers:       interOutput.DeleteMarkers,
+	}
+
+	contents := make([]ListedObjectVersion, 0, len(interOutput.Versions))
+	for _, content := range interOutput.Versions {
+		contents = append(contents, ListedObjectVersion{
+			Key:          content.Key,
+			IsLatest:     content.IsLatest,
+			LastModified: content.LastModified,
+			ETag:         content.ETag,
+			Size:         content.Size,
+			Owner:        content.Owner,
+			StorageClass: content.StorageClass,
+			Type:         content.Type,
+			VersionID:    content.VersionID,
+			Meta:         parseUserMetaData(content.Meta),
+		})
+	}
+	output.Versions = contents
+
 	return &output, nil
 }
 
@@ -967,6 +1031,7 @@ func (cli *ClientV2) ListObjectVersionsV2(
 			StorageClass:  version.StorageClass,
 			VersionID:     version.VersionID,
 			HashCrc64ecma: hashCrc,
+			Meta:          parseUserMetaData(version.Meta),
 		})
 	}
 	output := ListObjectVersionsV2Output{

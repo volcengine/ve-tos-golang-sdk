@@ -66,6 +66,43 @@ func TestGetNoneExistentObject(t *testing.T) {
 	require.Equal(t, codes.NoSuchKey, terr.Code)
 }
 
+func TestGetObjectWithCloseBody(t *testing.T) {
+	var (
+		env    = newTestEnv(t)
+		bucket = generateBucketName("get-basic")
+		client = env.prepareClient(bucket)
+	)
+	defer func() {
+		cleanBucket(t, client, bucket)
+	}()
+	key := "get-" + randomString(5)
+	_, err := client.PutObjectV2(context.Background(), &tos.PutObjectV2Input{
+		PutObjectBasicInput: tos.PutObjectBasicInput{Bucket: bucket, Key: key},
+		Content:             strings.NewReader(randomString(20 * 1024 * 1024)),
+	})
+	require.Nil(t, err)
+	getOut, err := client.GetObjectV2(context.Background(), &tos.GetObjectV2Input{
+		Bucket: bucket,
+		Key:    key,
+	})
+	require.Nil(t, err)
+	bufSize := 50
+	buf := make([]byte, bufSize)
+	n, err := io.ReadFull(getOut.Content, buf)
+	require.Nil(t, err)
+	require.Equal(t, n, bufSize)
+	start := time.Now()
+	getOut.Content.Close()
+	now := time.Now()
+	t.Log("cost:", now.Sub(start).Milliseconds(), " ms")
+	require.True(t, time.Now().Sub(start).Milliseconds() < int64(5*time.Millisecond))
+
+	buf = make([]byte, bufSize)
+	n, err = io.ReadFull(getOut.Content, buf)
+	require.NotNil(t, err)
+	require.Equal(t, n, 0)
+}
+
 func TestPutBasic(t *testing.T) {
 	var (
 		env    = newTestEnv(t)

@@ -123,3 +123,19 @@ func userMetadata(header http.Header) map[string]string {
 	}
 	return meta
 }
+
+func parseUserMetaData(userMeta []userMeta) Metadata {
+	if len(userMeta) == 0 {
+		return nil
+	}
+	metas := make(map[string]string, len(userMeta))
+	for _, meta := range userMeta {
+		kk, _ := url.QueryUnescape(meta.Key)
+		var err error
+		metas[strings.ToLower(kk)], err = url.QueryUnescape(meta.Value)
+		if err != nil {
+			metas[strings.ToLower(kk)] = meta.Value
+		}
+	}
+	return &CustomMeta{metas}
+}
