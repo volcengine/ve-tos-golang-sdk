@@ -1769,11 +1769,27 @@ type DataTransferStatus struct {
 
 type putBucketNotificationInput struct {
 	CloudFunctionConfigurations []CloudFunctionConfiguration `json:"CloudFunctionConfigurations"`
+	RocketMQConfigurations      []RocketMQConfiguration      `json:"RocketMQConfigurations"`
+}
+
+type RocketMQConf struct {
+	InstanceID  string `json:"InstanceId"`
+	Topic       string `json:"Topic"`
+	AccessKeyID string `json:"AccessKeyId"`
+}
+
+type RocketMQConfiguration struct {
+	ID       string       `json:"RuleId"`
+	Role     string       `json:"Role"`
+	Events   []string     `json:"Events"`
+	Filter   Filter       `json:"Filter"`
+	RocketMQ RocketMQConf `json:"RocketMQ"`
 }
 
 type PutBucketNotificationInput struct {
 	Bucket                      string                       `json:"-"`
 	CloudFunctionConfigurations []CloudFunctionConfiguration `json:"CloudFunctionConfigurations"`
+	RocketMQConfigurations      []RocketMQConfiguration      `json:"RocketMQConfigurations"`
 }
 
 type PutBucketNotificationOutput struct {
@@ -1807,6 +1823,7 @@ type GetBucketNotificationInput struct {
 type GetBucketNotificationOutput struct {
 	RequestInfo
 	CloudFunctionConfigurations []CloudFunctionConfiguration `json:"CloudFunctionConfigurations"`
+	RocketMQConfigurations      []RocketMQConfiguration      `json:"RocketMQConfigurations"`
 }
 
 type putBucketVersioningInput struct {

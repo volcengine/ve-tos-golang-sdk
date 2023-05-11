@@ -444,8 +444,9 @@ func (cli *ClientV2) PreSignedURL(input *PreSignedURLInput) (*PreSignedURLOutput
 	rb := cli.newBuilder(input.Bucket, input.Key)
 
 	if input.AlternativeEndpoint != "" {
-		_, host, _ := schemeHost(input.AlternativeEndpoint)
+		schema, host, _ := schemeHost(input.AlternativeEndpoint)
 		rb.Host = host
+		rb.Scheme = schema
 	}
 	for k, v := range input.Header {
 		rb.WithHeader(k, v)

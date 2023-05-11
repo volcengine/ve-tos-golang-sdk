@@ -13,7 +13,12 @@ func (cli *ClientV2) PutBucketNotification(ctx context.Context, input *PutBucket
 	if err := IsValidBucketName(input.Bucket); err != nil {
 		return nil, err
 	}
-	data, contentMD5, err := marshalInput("PutBucketNotification", putBucketNotificationInput{CloudFunctionConfigurations: input.CloudFunctionConfigurations})
+
+	if len(input.CloudFunctionConfigurations) == 0 && len(input.RocketMQConfigurations) == 0 {
+		return nil, NotificationConfigurationsInvalid
+	}
+
+	data, contentMD5, err := marshalInput("PutBucketNotification", putBucketNotificationInput{CloudFunctionConfigurations: input.CloudFunctionConfigurations, RocketMQConfigurations: input.RocketMQConfigurations})
 	if err != nil {
 		return nil, err
 	}
