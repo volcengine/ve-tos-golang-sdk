@@ -18,6 +18,10 @@ type testEnv struct {
 	accessKey     string
 	secretKey     string
 	cloudFunction string
+	accountId     string
+	mqInstanceId  string
+	mqRoleName    string
+	mqAccessKeyID string
 	t             *testing.T
 }
 
@@ -30,6 +34,10 @@ func newTestEnv(t *testing.T) *testEnv {
 		endpoint2:     os.Getenv("TOS_GO_SDK_ENDPOINT2"),
 		region2:       os.Getenv("TOS_GO_SDK_REGION2"),
 		cloudFunction: os.Getenv("TOS_GO_SDK_CLOUD_FUNCTION"),
+		mqInstanceId:  os.Getenv("TOS_GO_SDK_MQ_INSTANCE_ID"),
+		accountId:     os.Getenv("TOS_GO_SDK_ACCOUNT_ID"),
+		mqRoleName:    os.Getenv("TOS_GO_SDK_MQ_ROLE_NAME"),
+		mqAccessKeyID: os.Getenv("TOS_GO_SDK_MQ_ACCESSKEY_ID"),
 		t:             t,
 	}
 }
