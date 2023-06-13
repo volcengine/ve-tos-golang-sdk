@@ -47,19 +47,19 @@ const (
 //
 // Deprecated: use ClientV2 instead
 type Client struct {
-	scheme       string
-	host         string
-	urlMode      urlMode
-	userAgent    string
-	credentials  Credentials // nullable
-	signer       Signer      // nullable
-	transport    Transport
-	recognizer   ContentTypeRecognizer
-	config       Config
-	retry        *retryer
-	dnsCacheTime time.Duration // milliseconds
-	enableCRC    bool
-	logger       Logger
+	scheme         string
+	host           string
+	urlMode        urlMode
+	userAgent      string
+	credentials    Credentials // nullable
+	signer         Signer      // nullable
+	transport      Transport
+	recognizer     ContentTypeRecognizer
+	config         Config
+	retry          *retryer
+	enableCRC      bool
+	logger         Logger
+	isCustomDomain bool
 }
 
 // ClientV2 TOS ClientV2
@@ -187,6 +187,12 @@ func WithMaxRetryCount(retryCount int) ClientOption {
 		if client.retry != nil {
 			client.retry.SetBackoff(exponentialBackoff(retryCount, DefaultRetryBackoffBase))
 		}
+	}
+}
+
+func WithCustomDomain(isCustomDomain bool) ClientOption {
+	return func(client *Client) {
+		client.isCustomDomain = isCustomDomain
 	}
 }
 
@@ -357,7 +363,7 @@ func NewClientV2(endpoint string, options ...ClientOption) (*ClientV2, error) {
 		Client: Client{
 			recognizer: ExtensionBasedContentTypeRecognizer{},
 			config:     defaultConfig(),
-			retry:      newRetryer([]time.Duration{}),
+			retry:      newRetryer(exponentialBackoff(DefaultRetryTime, DefaultRetryBackoffBase)),
 			userAgent:  fmt.Sprintf("tos-go-sdk/%s (%s/%s;%s)", Version, runtime.GOOS, runtime.GOARCH, runtime.Version()),
 			enableCRC:  true,
 		},
@@ -372,16 +378,17 @@ func NewClientV2(endpoint string, options ...ClientOption) (*ClientV2, error) {
 
 func (cli *Client) newBuilder(bucket, object string, options ...Option) *requestBuilder {
 	rb := &requestBuilder{
-		Signer:     cli.signer,
-		Scheme:     cli.scheme,
-		Host:       cli.host,
-		Bucket:     bucket,
-		Object:     object,
-		URLMode:    cli.urlMode,
-		Query:      make(url.Values),
-		Header:     make(http.Header),
-		OnRetry:    func(req *Request) error { return nil },
-		Classifier: StatusCodeClassifier{},
+		Signer:         cli.signer,
+		Scheme:         cli.scheme,
+		Host:           cli.host,
+		Bucket:         bucket,
+		Object:         object,
+		URLMode:        cli.urlMode,
+		Query:          make(url.Values),
+		Header:         make(http.Header),
+		OnRetry:        func(req *Request) error { return nil },
+		Classifier:     StatusCodeClassifier{},
+		IsCustomDomain: cli.isCustomDomain,
 	}
 	rb.Header.Set(HeaderUserAgent, cli.userAgent)
 	if typ := cli.recognizer.ContentType(object); len(typ) > 0 {
@@ -406,10 +413,10 @@ func (cli *Client) roundTrip(ctx context.Context, req *Request, expectedCode int
 	return res, nil
 }
 
-func (cli *Client) roundTripper(expectedCode int) roundTripper {
+func (cli *Client) roundTripper(expectedCode int, expectedCodes ...int) roundTripper {
 	return func(ctx context.Context, req *Request) (*Response, error) {
 		start := time.Now()
-		resp, err := cli.roundTrip(ctx, req, expectedCode)
+		resp, err := cli.roundTrip(ctx, req, expectedCode, expectedCodes...)
 		if cli.logger != nil {
 			if err != nil {
 				cli.logger.Info(fmt.Sprintf("[tos] http error:%s.", err.Error()))
@@ -442,7 +449,9 @@ func (cli *Client) PreSignedURL(httpMethod string, bucket, objectKey string, ttl
 // PreSignedURL return pre-signed url
 func (cli *ClientV2) PreSignedURL(input *PreSignedURLInput) (*PreSignedURLOutput, error) {
 	rb := cli.newBuilder(input.Bucket, input.Key)
-
+	if input.IsCustomDomain != nil {
+		rb.IsCustomDomain = *input.IsCustomDomain
+	}
 	if input.AlternativeEndpoint != "" {
 		schema, host, _ := schemeHost(input.AlternativeEndpoint)
 		rb.Host = host
@@ -606,7 +615,7 @@ func (cli *ClientV2) PutFetchTaskV2(ctx context.Context, input *PutFetchTaskInpu
 		WithQuery("fetchTask", "").
 		WithHeader(HeaderContentMD5, contentMD5).
 		WithParams(*input).
-		WithRetry(nil, ServerErrorClassifier{}).
+		WithRetry(OnRetryFromStart, ServerErrorClassifier{}).
 		Request(ctx, http.MethodPost, bytes.NewReader(data), cli.roundTripper(http.StatusOK))
 	if err != nil {
 		return nil, err
@@ -621,7 +630,7 @@ func (cli *ClientV2) PutFetchTaskV2(ctx context.Context, input *PutFetchTaskInpu
 
 func (cli *ClientV2) PreSignedPolicyURL(ctx context.Context, input *PreSingedPolicyURLInput) (*PreSingedPolicyURLOutput, error) {
 
-	if err := IsValidBucketName(input.Bucket); err != nil {
+	if err := isValidBucketName(input.Bucket, input.IsCustomDomain); err != nil {
 		return nil, err
 	}
 	if input.Expires == 0 {

@@ -12,7 +12,7 @@ import (
 //
 // Deprecated: request with bucket handle is deprecated, use ClientV2 instead
 func (cli *Client) Bucket(bucket string) (*Bucket, error) {
-	if err := IsValidBucketName(bucket); err != nil {
+	if err := isValidBucketName(bucket, false); err != nil {
 		return nil, err
 	}
 	return &Bucket{name: bucket, client: cli}, nil
@@ -22,7 +22,7 @@ func (cli *Client) Bucket(bucket string) (*Bucket, error) {
 //
 // Deprecated: use CreateBucket of ClientV2 instead
 func (cli *Client) CreateBucket(ctx context.Context, input *CreateBucketInput) (*CreateBucketOutput, error) {
-	if err := IsValidBucketName(input.Bucket); err != nil {
+	if err := isValidBucketName(input.Bucket, false); err != nil {
 		return nil, err
 	}
 
@@ -48,7 +48,7 @@ func (cli *Client) CreateBucket(ctx context.Context, input *CreateBucketInput) (
 
 // CreateBucketV2 create a bucket
 func (cli *ClientV2) CreateBucketV2(ctx context.Context, input *CreateBucketV2Input) (*CreateBucketV2Output, error) {
-	if err := IsValidBucketName(input.Bucket); err != nil {
+	if err := isValidBucketName(input.Bucket, cli.isCustomDomain); err != nil {
 		return nil, err
 	}
 
@@ -84,7 +84,7 @@ func (cli *ClientV2) CreateBucketV2(ctx context.Context, input *CreateBucketV2In
 //
 // Deprecated: use HeadBucket of ClientV2 instead
 func (cli *Client) HeadBucket(ctx context.Context, bucket string) (*HeadBucketOutput, error) {
-	if err := IsValidBucketName(bucket); err != nil {
+	if err := isValidBucketName(bucket, cli.isCustomDomain); err != nil {
 		return nil, err
 	}
 	res, err := cli.newBuilder(bucket, "").
@@ -111,7 +111,7 @@ func (cli *ClientV2) HeadBucket(ctx context.Context, input *HeadBucketInput) (*H
 //
 // Deprecated: use DeleteBucket of ClientV2 instead
 func (cli *Client) DeleteBucket(ctx context.Context, bucket string) (*DeleteBucketOutput, error) {
-	if err := IsValidBucketName(bucket); err != nil {
+	if err := isValidBucketName(bucket, cli.isCustomDomain); err != nil {
 		return nil, err
 	}
 
@@ -172,7 +172,7 @@ func (cli *ClientV2) PutBucketStorageClass(ctx context.Context, input *PutBucket
 	if input == nil {
 		return nil, InputIsNilClientError
 	}
-	if err := IsValidBucketName(input.Bucket); err != nil {
+	if err := isValidBucketName(input.Bucket, cli.isCustomDomain); err != nil {
 		return nil, err
 	}
 	if err := isValidStorageClass(input.StorageClass); err != nil {
@@ -195,7 +195,7 @@ func (cli *ClientV2) GetBucketLocation(ctx context.Context, input *GetBucketLoca
 	if input == nil {
 		return nil, InputIsNilClientError
 	}
-	if err := IsValidBucketName(input.Bucket); err != nil {
+	if err := isValidBucketName(input.Bucket, cli.isCustomDomain); err != nil {
 		return nil, err
 	}
 	res, err := cli.newBuilder(input.Bucket, "").
@@ -217,7 +217,7 @@ func (cli *ClientV2) PutBucketVersioning(ctx context.Context, input *PutBucketVe
 	if input == nil {
 		return nil, InputIsNilClientError
 	}
-	if err := IsValidBucketName(input.Bucket); err != nil {
+	if err := isValidBucketName(input.Bucket, cli.isCustomDomain); err != nil {
 		return nil, err
 	}
 
@@ -245,7 +245,7 @@ func (cli *ClientV2) GetBucketVersioning(ctx context.Context, input *GetBucketVe
 	if input == nil {
 		return nil, InputIsNilClientError
 	}
-	if err := IsValidBucketName(input.Bucket); err != nil {
+	if err := isValidBucketName(input.Bucket, cli.isCustomDomain); err != nil {
 		return nil, err
 	}
 	res, err := cli.newBuilder(input.Bucket, "").

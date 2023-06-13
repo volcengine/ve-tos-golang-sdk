@@ -120,5 +120,8 @@ func TestNotificationMQ(t *testing.T) {
 		}
 		require.True(t, found)
 	}
-
+	input.RocketMQConfigurations = nil
+	output, err = client.PutBucketNotification(ctx, &input)
+	require.Nil(t, err)
+	require.NotNil(t, output)
 }

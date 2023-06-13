@@ -53,7 +53,7 @@ func (bkt *Bucket) CopyObject(ctx context.Context, srcObjectKey, dstObjectKey st
 //
 // Deprecated: use CopyObject of ClientV2 instead
 func (bkt *Bucket) CopyObjectTo(ctx context.Context, dstBucket, dstObjectKey, srcObjectKey string, options ...Option) (*CopyObjectOutput, error) {
-	if err := isValidNames(dstBucket, dstObjectKey, srcObjectKey); err != nil {
+	if err := isValidNames(dstBucket, dstObjectKey, false, srcObjectKey); err != nil {
 		return nil, err
 	}
 
@@ -79,7 +79,7 @@ func (bkt *Bucket) CopyObjectTo(ctx context.Context, dstBucket, dstObjectKey, sr
 //
 // Deprecated: use CopyObject of ClientV2 instead
 func (bkt *Bucket) CopyObjectFrom(ctx context.Context, srcBucket, srcObjectKey, dstObjectKey string, options ...Option) (*CopyObjectOutput, error) {
-	if err := isValidNames(srcBucket, srcObjectKey, dstObjectKey); err != nil {
+	if err := isValidNames(srcBucket, srcObjectKey, false, dstObjectKey); err != nil {
 		return nil, err
 	}
 
@@ -117,10 +117,10 @@ func (cli *Client) copyObject(ctx context.Context, dstBucket, dstObject string, 
 
 // CopyObject copy an object
 func (cli *ClientV2) CopyObject(ctx context.Context, input *CopyObjectInput) (*CopyObjectOutput, error) {
-	if err := IsValidBucketName(input.SrcBucket); err != nil {
+	if err := isValidBucketName(input.SrcBucket, false); err != nil {
 		return nil, err
 	}
-	if err := IsValidBucketName(input.Bucket); err != nil {
+	if err := isValidBucketName(input.Bucket, cli.isCustomDomain); err != nil {
 		return nil, err
 	}
 	if err := isValidKey(input.Key, input.SrcKey); err != nil {
@@ -195,7 +195,7 @@ func (up *UploadPartCopyOutput) uploadedPart() uploadedPart {
 //
 // Deprecated: use UploadPartCopy of ClientV2 instead
 func (bkt *Bucket) UploadPartCopy(ctx context.Context, input *UploadPartCopyInput, options ...Option) (*UploadPartCopyOutput, error) {
-	if err := isValidNames(input.SourceBucket, input.DestinationKey); err != nil {
+	if err := isValidNames(input.SourceBucket, input.DestinationKey, false); err != nil {
 		return nil, err
 	}
 
@@ -250,10 +250,10 @@ func copyRangeV2(start, end int64) string {
 func (cli *ClientV2) UploadPartCopyV2(
 	ctx context.Context,
 	input *UploadPartCopyV2Input) (*UploadPartCopyV2Output, error) {
-	if err := IsValidBucketName(input.Bucket); err != nil {
+	if err := isValidBucketName(input.Bucket, cli.isCustomDomain); err != nil {
 		return nil, err
 	}
-	if err := IsValidBucketName(input.SrcBucket); err != nil {
+	if err := isValidBucketName(input.SrcBucket, false); err != nil {
 		return nil, err
 	}
 	if err := isValidKey(input.SrcKey, input.Key); err != nil {

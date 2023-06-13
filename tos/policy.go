@@ -56,7 +56,7 @@ type DeleteBucketPolicyV2Output struct {
 
 // GetBucketPolicy get bucket access policy
 func (cli *Client) GetBucketPolicy(ctx context.Context, bucket string) (*GetBucketPolicyOutput, error) {
-	if err := IsValidBucketName(bucket); err != nil {
+	if err := isValidBucketName(bucket, cli.isCustomDomain); err != nil {
 		return nil, err
 	}
 
@@ -82,7 +82,7 @@ func (cli *Client) GetBucketPolicy(ctx context.Context, bucket string) (*GetBuck
 
 // PutBucketPolicy set bucket access policy
 func (cli *Client) PutBucketPolicy(ctx context.Context, bucket string, policy *BucketPolicy) (*PutBucketPolicyOutput, error) {
-	if err := IsValidBucketName(bucket); err != nil {
+	if err := isValidBucketName(bucket, cli.isCustomDomain); err != nil {
 		return nil, err
 	}
 	res, err := cli.newBuilder(bucket, "").
@@ -98,7 +98,7 @@ func (cli *Client) PutBucketPolicy(ctx context.Context, bucket string, policy *B
 
 // DeleteBucketPolicy delete bucket access policy
 func (cli *Client) DeleteBucketPolicy(ctx context.Context, bucket string) (*DeleteBucketPolicyOutput, error) {
-	if err := IsValidBucketName(bucket); err != nil {
+	if err := isValidBucketName(bucket, cli.isCustomDomain); err != nil {
 		return nil, err
 	}
 
@@ -118,7 +118,7 @@ func (cli *ClientV2) PutBucketPolicyV2(ctx context.Context, input *PutBucketPoli
 	if input == nil {
 		return nil, InputIsNilClientError
 	}
-	if err := IsValidBucketName(input.Bucket); err != nil {
+	if err := isValidBucketName(input.Bucket, cli.isCustomDomain); err != nil {
 		return nil, err
 	}
 
@@ -138,7 +138,7 @@ func (cli *ClientV2) GetBucketPolicyV2(ctx context.Context, input *GetBucketPoli
 	if input == nil {
 		return nil, InputIsNilClientError
 	}
-	if err := IsValidBucketName(input.Bucket); err != nil {
+	if err := isValidBucketName(input.Bucket, cli.isCustomDomain); err != nil {
 		return nil, err
 	}
 	res, err := cli.newBuilder(input.Bucket, "").
@@ -162,7 +162,7 @@ func (cli *ClientV2) DeleteBucketPolicyV2(ctx context.Context, input *DeleteBuck
 	if input == nil {
 		return nil, InputIsNilClientError
 	}
-	if err := IsValidBucketName(input.Bucket); err != nil {
+	if err := isValidBucketName(input.Bucket, cli.isCustomDomain); err != nil {
 		return nil, err
 	}
 	res, err := cli.newBuilder(input.Bucket, "").

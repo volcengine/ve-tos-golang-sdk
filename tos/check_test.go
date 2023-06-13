@@ -3,6 +3,7 @@ package tos
 import (
 	"bytes"
 	"io/ioutil"
+	"net/url"
 	"strings"
 	"testing"
 
@@ -13,23 +14,23 @@ import (
 )
 
 func TestIsValidBucketName(t *testing.T) {
-	err := IsValidBucketName("-x-")
+	err := isValidBucketName("-x-", false)
 	require.NotNil(t, err)
 
-	err = IsValidBucketName("x")
+	err = isValidBucketName("x", false)
 	require.NotNil(t, err)
 
-	err = IsValidBucketName("xx😊xx")
+	err = isValidBucketName("xx😊xx", false)
 	require.NotNil(t, err)
 
-	err = IsValidBucketName("xx😊xx")
+	err = isValidBucketName("xx😊xx", false)
 	require.NotNil(t, err)
 
 	name := strings.Repeat("a", 100)
-	err = IsValidBucketName(name)
+	err = isValidBucketName(name, false)
 	require.NotNil(t, err)
 
-	err = IsValidBucketName("abc123")
+	err = isValidBucketName("abc123", false)
 	require.Nil(t, err)
 }
 
@@ -74,5 +75,18 @@ func TestIsValidObjectKey(t *testing.T) {
 	invisiableString1 := string([]byte{0, 1, 2, 3, 4, 5})
 	err = isValidKey(invisiableString1)
 	require.NotNil(t, err)
+
+}
+
+func TestEncodeHeader(t *testing.T) {
+	rawStr := "!@#$%^&*()_+-=[]{}|;':\",./<>?中文测试编码%20%%%^&abcd /\\"
+	escapeStr := escapeHeader(rawStr)
+
+	unescape, err := url.QueryUnescape(escapeStr)
+	require.Nil(t, err)
+	t.Log("raw:", rawStr, "\nescapeStr:", escapeStr, "\nunescape:", unescape)
+	require.Equal(t, unescape, rawStr)
+
+	require.True(t, existChinese(rawStr))
 
 }

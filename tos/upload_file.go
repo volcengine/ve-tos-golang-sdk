@@ -72,8 +72,8 @@ func getUploadCheckpointFilePath(checkpointPath, filePath string, bucket, key st
 }
 
 // validateUploadInput validate upload input, return TosClientError failed
-func validateUploadInput(input *UploadFileInput, stat os.FileInfo) error {
-	if err := isValidNames(input.Bucket, input.Key); err != nil {
+func validateUploadInput(input *UploadFileInput, stat os.FileInfo, isCustomDomain bool) error {
+	if err := isValidNames(input.Bucket, input.Key, isCustomDomain); err != nil {
 		return err
 	}
 	if input.PartSize == 0 {
@@ -187,7 +187,7 @@ func (cli *ClientV2) UploadFile(ctx context.Context, input *UploadFileInput) (ou
 		return nil, InvalidSrcFilePath
 	}
 
-	if err = validateUploadInput(input, stat); err != nil {
+	if err = validateUploadInput(input, stat, cli.isCustomDomain); err != nil {
 		return nil, err
 	}
 
@@ -370,6 +370,7 @@ func (cli *ClientV2) uploadPart(ctx context.Context, checkpoint *uploadCheckpoin
 				Bucket:   input.Bucket,
 				Key:      input.Key,
 				UploadID: checkpoint.UploadID})
+		_ = os.Remove(input.CheckpointFile)
 		return err
 	}
 	bindCancelHookWithAborter(input.CancelHook, abort)

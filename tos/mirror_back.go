@@ -10,7 +10,7 @@ func (cli *ClientV2) PutBucketMirrorBack(ctx context.Context, input *PutBucketMi
 	if input == nil {
 		return nil, InputIsNilClientError
 	}
-	if err := IsValidBucketName(input.Bucket); err != nil {
+	if err := isValidBucketName(input.Bucket, cli.isCustomDomain); err != nil {
 		return nil, err
 	}
 	data, contentMD5, err := marshalInput("PutBucketMirrorBackInput", putBucketMirrorBackInput{
@@ -36,7 +36,7 @@ func (cli *ClientV2) GetBucketMirrorBack(ctx context.Context, input *GetBucketMi
 	if input == nil {
 		return nil, InputIsNilClientError
 	}
-	if err := IsValidBucketName(input.Bucket); err != nil {
+	if err := isValidBucketName(input.Bucket, cli.isCustomDomain); err != nil {
 		return nil, err
 	}
 	res, err := cli.newBuilder(input.Bucket, "").
@@ -58,7 +58,7 @@ func (cli *ClientV2) DeleteBucketMirrorBack(ctx context.Context, input *DeleteBu
 	if input == nil {
 		return nil, InputIsNilClientError
 	}
-	if err := IsValidBucketName(input.Bucket); err != nil {
+	if err := isValidBucketName(input.Bucket, cli.isCustomDomain); err != nil {
 		return nil, err
 	}
 	res, err := cli.newBuilder(input.Bucket, "").

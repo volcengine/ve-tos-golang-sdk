@@ -17,7 +17,7 @@ type GetBucketVersioningOutput struct {
 
 // GetBucketVersioning get the multi-version status of a bucket
 func (cli *Client) GetBucketVersioning(ctx context.Context, bucket string) (*GetBucketVersioningOutput, error) {
-	if err := IsValidBucketName(bucket); err != nil {
+	if err := isValidBucketName(bucket, cli.isCustomDomain); err != nil {
 		return nil, err
 	}
 

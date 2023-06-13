@@ -4,7 +4,6 @@ import (
 	"github.com/volcengine/ve-tos-golang-sdk/v2/tos/enum"
 )
 
-// IsValidBucketName validate bucket name, return TosClientError if failed
 func IsValidBucketName(name string) error {
 	if length := len(name); length < 3 || length > 63 {
 		return InvalidBucketNameLength
@@ -20,9 +19,17 @@ func IsValidBucketName(name string) error {
 	return nil
 }
 
+// isValidBucketName validate bucket name, return TosClientError if failed
+func isValidBucketName(name string, isCustomDomain bool) error {
+	if isCustomDomain {
+		return nil
+	}
+	return IsValidBucketName(name)
+}
+
 // isValidNames validate bucket name and keys, return TosClientError if failed
-func isValidNames(bucket string, key string, keys ...string) error {
-	if err := IsValidBucketName(bucket); err != nil {
+func isValidNames(bucket string, key string, isCustomDomain bool, keys ...string) error {
+	if err := isValidBucketName(bucket, isCustomDomain); err != nil {
 		return err
 	}
 	if err := isValidKey(key, keys...); err != nil {
@@ -67,7 +74,7 @@ func isValidACL(aclType enum.ACLType) error {
 // isValidStorageClass validate Storage Class, return TosClientError if failed
 func isValidStorageClass(storageClass enum.StorageClassType) error {
 
-	if storageClass == enum.StorageClassIa || storageClass == enum.StorageClassStandard || storageClass == enum.StorageClassArchiveFr {
+	if storageClass == enum.StorageClassIa || storageClass == enum.StorageClassStandard || storageClass == enum.StorageClassArchiveFr || storageClass == enum.StorageClassColdArchive || storageClass == enum.StorageClassIntelligentTiering {
 		return nil
 	}
 

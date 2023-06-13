@@ -38,7 +38,7 @@ func (cli *ClientV2) PutBucketRename(ctx context.Context, input *PutBucketRename
 		return nil, InputIsNilClientError
 	}
 
-	if err := IsValidBucketName(input.Bucket); err != nil {
+	if err := isValidBucketName(input.Bucket, cli.isCustomDomain); err != nil {
 		return nil, err
 	}
 
@@ -64,7 +64,7 @@ func (cli *ClientV2) GetBucketRename(ctx context.Context, input *GetBucketRename
 	if input == nil {
 		return nil, InputIsNilClientError
 	}
-	if err := IsValidBucketName(input.Bucket); err != nil {
+	if err := isValidBucketName(input.Bucket, cli.isCustomDomain); err != nil {
 		return nil, err
 	}
 
@@ -88,7 +88,7 @@ func (cli *ClientV2) DeleteBucketRename(ctx context.Context, input *DeleteBucket
 	if input == nil {
 		return nil, InputIsNilClientError
 	}
-	if err := IsValidBucketName(input.Bucket); err != nil {
+	if err := isValidBucketName(input.Bucket, cli.isCustomDomain); err != nil {
 		return nil, err
 	}
 	res, err := cli.newBuilder(input.Bucket, "").
@@ -110,7 +110,7 @@ func (cli *ClientV2) RenameObject(ctx context.Context, input *RenameObjectInput)
 		return nil, InputIsNilClientError
 	}
 
-	if err := IsValidBucketName(input.Bucket); err != nil {
+	if err := isValidBucketName(input.Bucket, cli.isCustomDomain); err != nil {
 		return nil, err
 	}
 	res, err := cli.newBuilder(input.Bucket, input.Key).

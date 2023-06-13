@@ -10,7 +10,7 @@ func (cli *ClientV2) PutBucketRealTimeLog(ctx context.Context, input *PutBucketR
 	if input == nil {
 		return nil, InputIsNilClientError
 	}
-	if err := IsValidBucketName(input.Bucket); err != nil {
+	if err := isValidBucketName(input.Bucket, cli.isCustomDomain); err != nil {
 		return nil, err
 	}
 	body := putBucketRealTimeLogInput{
@@ -37,7 +37,7 @@ func (cli *ClientV2) GetBucketRealTimeLog(ctx context.Context, input *GetBucketR
 	if input == nil {
 		return nil, InputIsNilClientError
 	}
-	if err := IsValidBucketName(input.Bucket); err != nil {
+	if err := isValidBucketName(input.Bucket, cli.isCustomDomain); err != nil {
 		return nil, err
 	}
 	res, err := cli.newBuilder(input.Bucket, "").
@@ -59,7 +59,7 @@ func (cli *ClientV2) DeleteBucketRealTimeLog(ctx context.Context, input *DeleteB
 	if input == nil {
 		return nil, InputIsNilClientError
 	}
-	if err := IsValidBucketName(input.Bucket); err != nil {
+	if err := isValidBucketName(input.Bucket, cli.isCustomDomain); err != nil {
 		return nil, err
 	}
 	res, err := cli.newBuilder(input.Bucket, "").

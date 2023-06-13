@@ -75,20 +75,21 @@ type CopySource struct {
 }
 
 type requestBuilder struct {
-	Signer        Signer
-	Scheme        string
-	Host          string
-	Bucket        string
-	Object        string
-	URLMode       urlMode
-	ContentLength *int64
-	Range         *Range
-	Query         url.Values
-	Header        http.Header
-	Retry         *retryer
-	OnRetry       func(req *Request) error
-	Classifier    classifier
-	CopySource    *CopySource
+	Signer         Signer
+	Scheme         string
+	Host           string
+	Bucket         string
+	Object         string
+	URLMode        urlMode
+	ContentLength  *int64
+	Range          *Range
+	Query          url.Values
+	Header         http.Header
+	Retry          *retryer
+	OnRetry        func(req *Request) error
+	Classifier     classifier
+	CopySource     *CopySource
+	IsCustomDomain bool
 	// CheckETag  bool
 	// CheckCRC32 bool
 }
@@ -174,13 +175,13 @@ func (rb *requestBuilder) WithParams(input interface{}) *requestBuilder {
 		case "header":
 			value := convertToString(v.Field(i).Interface(), &filed.Tag)
 			if filed.Tag.Get("encodeChinese") == "true" {
-				value = urlEncodeChinese(value)
+				value = headerEncode(value)
 			}
 			rb.WithHeader(filed.Tag.Get("locationName"), value)
 		case "headers":
 			if headers, ok := v.Field(i).Interface().(map[string]string); ok {
 				for k, v := range headers {
-					rb.Header.Set(HeaderMetaPrefix+urlEncodeChinese(k), urlEncodeChinese(v))
+					rb.Header.Set(HeaderMetaPrefix+headerEncode(k), headerEncode(v))
 				}
 				return rb
 			}
@@ -200,13 +201,20 @@ func (rb *requestBuilder) WithContentLength(length int64) *requestBuilder {
 }
 
 func (rb *requestBuilder) hostPath() (string, string) {
+
+	if rb.IsCustomDomain {
+		if len(rb.Object) > 0 {
+			return rb.Host, "/" + rb.Object
+		}
+		return rb.Host, "/"
+	}
+
 	if rb.URLMode == urlModePath {
 		if len(rb.Object) > 0 {
 			return rb.Host, "/" + rb.Bucket + "/" + rb.Object
 		}
 		return rb.Host, "/" + rb.Bucket // rb.Bucket may be empty ""
 	}
-
 	// URLModeDefault
 	if len(rb.Bucket) == 0 {
 		return rb.Host, "/"

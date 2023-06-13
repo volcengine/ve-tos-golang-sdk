@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"hash"
 	"io"
+	"io/ioutil"
 	"net/http"
-	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -87,7 +87,7 @@ func (cli *ClientV2) GetObjectToFile(ctx context.Context, input *GetObjectToFile
 
 // GetObjectV2 get data and metadata of an object
 func (cli *ClientV2) GetObjectV2(ctx context.Context, input *GetObjectV2Input) (*GetObjectV2Output, error) {
-	if err := isValidNames(input.Bucket, input.Key); err != nil {
+	if err := isValidNames(input.Bucket, input.Key, cli.isCustomDomain); err != nil {
 		return nil, err
 	}
 	rb := cli.newBuilder(input.Bucket, input.Key).
@@ -157,7 +157,7 @@ func (bkt *Bucket) HeadObject(ctx context.Context, objectKey string, options ...
 
 // HeadObjectV2 get metadata of an object
 func (cli *ClientV2) HeadObjectV2(ctx context.Context, input *HeadObjectV2Input) (*HeadObjectV2Output, error) {
-	if err := isValidNames(input.Bucket, input.Key); err != nil {
+	if err := isValidNames(input.Bucket, input.Key, cli.isCustomDomain); err != nil {
 		return nil, err
 	}
 
@@ -212,7 +212,7 @@ func (bkt *Bucket) DeleteObject(ctx context.Context, objectKey string, options .
 
 // DeleteObjectV2 delete an object
 func (cli *ClientV2) DeleteObjectV2(ctx context.Context, input *DeleteObjectV2Input) (*DeleteObjectV2Output, error) {
-	if err := isValidNames(input.Bucket, input.Key); err != nil {
+	if err := isValidNames(input.Bucket, input.Key, cli.isCustomDomain); err != nil {
 		return nil, err
 	}
 
@@ -269,9 +269,14 @@ func (bkt *Bucket) DeleteMultiObjects(ctx context.Context, input *DeleteMultiObj
 
 // DeleteMultiObjects delete multi-objects
 func (cli *ClientV2) DeleteMultiObjects(ctx context.Context, input *DeleteMultiObjectsInput) (*DeleteMultiObjectsOutput, error) {
-	if err := IsValidBucketName(input.Bucket); err != nil {
+	if err := isValidBucketName(input.Bucket, cli.isCustomDomain); err != nil {
 		return nil, err
 	}
+
+	if len(input.Objects) == 0 {
+		return nil, InvlidDeleteMultiObjectsLength
+	}
+
 	for _, object := range input.Objects {
 		if err := isValidKey(object.Key); err != nil {
 			return nil, err
@@ -370,18 +375,41 @@ func (bkt *Bucket) PutObject(ctx context.Context, objectKey string, content io.R
 	}, nil
 }
 
-// url-encode Chinese characters only
-func urlEncodeChinese(s string) string {
-	var res string
-	r := []rune(s)
-	for i := 0; i < len(r); i++ {
-		if r[i] >= 0x4E00 && r[i] <= 0x9FA5 {
-			res += url.QueryEscape(string(r[i]))
+func skipEscape(i byte) bool {
+	return (i >= 'A' && i <= 'Z') || (i >= 'a' && i <= 'z') || (i >= '0' && i <= '9') ||
+		i == '-' ||
+		i == '.' ||
+		i == '_' ||
+		i == '~'
+}
+
+func escapeHeader(s string) string {
+	var buf bytes.Buffer
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if skipEscape(c) {
+			buf.WriteByte(c)
 		} else {
-			res += string(r[i])
+			fmt.Fprintf(&buf, "%%%02X", c)
 		}
 	}
-	return res
+	return buf.String()
+}
+
+func existChinese(s string) bool {
+	r := []rune(s)
+
+	for i := 0; i < len(r); i++ {
+		if r[i] >= 0x4E00 && r[i] <= 0x9FA5 {
+			return true
+		}
+	}
+	return false
+}
+
+// url-encode Chinese characters only
+func headerEncode(s string) string {
+	return escapeHeader(s)
 }
 
 func checkCrc64(res *Response, checker hash.Hash64) error {
@@ -472,7 +500,7 @@ func wrapReader(reader io.Reader, totalBytes int64, listener DataTransferListene
 
 // PutObjectV2 put an object
 func (cli *ClientV2) PutObjectV2(ctx context.Context, input *PutObjectV2Input) (*PutObjectV2Output, error) {
-	if err := isValidNames(input.Bucket, input.Key); err != nil {
+	if err := isValidNames(input.Bucket, input.Key, cli.isCustomDomain); err != nil {
 		return nil, err
 	}
 	if err := isValidSSECAlgorithm(input.SSECAlgorithm); len(input.SSECAlgorithm) != 0 && err != nil {
@@ -541,13 +569,28 @@ func (cli *ClientV2) PutObjectV2(ctx context.Context, input *PutObjectV2Input) (
 		return nil, err
 	}
 	crc64, _ := strconv.ParseUint(res.Header.Get(HeaderHashCrc64ecma), 10, 64)
+	callbackResult := ""
+	if input.Callback != "" && res.Body != nil {
+		callbackRes, err := ioutil.ReadAll(res.Body)
+		if err != nil {
+			return nil, &TosServerError{
+				TosError:    TosError{Message: fmt.Sprintf("tos: read callback result err:%s", err.Error())},
+				RequestInfo: res.RequestInfo(),
+			}
+		}
+		if len(callbackRes) > 0 {
+			callbackResult = string(callbackRes)
+		}
+	}
+
 	return &PutObjectV2Output{
-		RequestInfo:   res.RequestInfo(),
-		ETag:          res.Header.Get(HeaderETag),
-		SSECAlgorithm: res.Header.Get(HeaderSSECustomerAlgorithm),
-		SSECKeyMD5:    res.Header.Get(HeaderSSECustomerKeyMD5),
-		VersionID:     res.Header.Get(HeaderVersionID),
-		HashCrc64ecma: crc64,
+		RequestInfo:    res.RequestInfo(),
+		ETag:           res.Header.Get(HeaderETag),
+		SSECAlgorithm:  res.Header.Get(HeaderSSECustomerAlgorithm),
+		SSECKeyMD5:     res.Header.Get(HeaderSSECustomerKeyMD5),
+		VersionID:      res.Header.Get(HeaderVersionID),
+		CallbackResult: callbackResult,
+		HashCrc64ecma:  crc64,
 	}, nil
 }
 
@@ -619,7 +662,7 @@ func (bkt *Bucket) AppendObject(ctx context.Context, objectKey string, content i
 
 // AppendObjectV2 append content at the tail of an appendable object
 func (cli *ClientV2) AppendObjectV2(ctx context.Context, input *AppendObjectV2Input) (*AppendObjectV2Output, error) {
-	if err := isValidNames(input.Bucket, input.Key); err != nil {
+	if err := isValidNames(input.Bucket, input.Key, cli.isCustomDomain); err != nil {
 		return nil, err
 	}
 	var (
@@ -700,7 +743,7 @@ func (bkt *Bucket) SetObjectMeta(ctx context.Context, objectKey string, options 
 
 // SetObjectMeta overwrites metadata of the object
 func (cli *ClientV2) SetObjectMeta(ctx context.Context, input *SetObjectMetaInput) (*SetObjectMetaOutput, error) {
-	if err := isValidNames(input.Bucket, input.Key); err != nil {
+	if err := isValidNames(input.Bucket, input.Key, cli.isCustomDomain); err != nil {
 		return nil, err
 	}
 
@@ -771,7 +814,7 @@ func (bkt *Bucket) ListObjects(ctx context.Context, input *ListObjectsInput, opt
 // ListObjectsV2 list objects of a bucket
 // Deprecated: use ListObjectsType2 of ClientV2 instead
 func (cli *ClientV2) ListObjectsV2(ctx context.Context, input *ListObjectsV2Input) (*ListObjectsV2Output, error) {
-	if err := IsValidBucketName(input.Bucket); err != nil {
+	if err := isValidBucketName(input.Bucket, cli.isCustomDomain); err != nil {
 		return nil, err
 	}
 	res, err := cli.newBuilder(input.Bucket, "").
@@ -890,7 +933,7 @@ func (cli *ClientV2) listObjectsType2(ctx context.Context, input *ListObjectsTyp
 }
 
 func (cli *ClientV2) ListObjectsType2(ctx context.Context, input *ListObjectsType2Input) (*ListObjectsType2Output, error) {
-	if err := IsValidBucketName(input.Bucket); err != nil {
+	if err := isValidBucketName(input.Bucket, cli.isCustomDomain); err != nil {
 		return nil, err
 	}
 	copyInput := *input
@@ -989,7 +1032,7 @@ func (bkt *Bucket) ListObjectVersions(ctx context.Context, input *ListObjectVers
 func (cli *ClientV2) ListObjectVersionsV2(
 	ctx context.Context,
 	input *ListObjectVersionsV2Input) (*ListObjectVersionsV2Output, error) {
-	if err := IsValidBucketName(input.Bucket); err != nil {
+	if err := isValidBucketName(input.Bucket, cli.isCustomDomain); err != nil {
 		return nil, err
 	}
 	res, err := cli.newBuilder(input.Bucket, "").
@@ -1052,4 +1095,37 @@ func (cli *ClientV2) ListObjectVersionsV2(
 	}
 
 	return &output, nil
+}
+
+func (cli *ClientV2) RestoreObject(ctx context.Context, input *RestoreObjectInput) (*RestoreObjectOutput, error) {
+
+	if input == nil {
+		return nil, InputIsNilClientError
+	}
+
+	if err := isValidBucketName(input.Bucket, cli.isCustomDomain); err != nil {
+		return nil, err
+	}
+
+	data, contentMD5, err := marshalInput("RestoreObjectInput", restoreObjectInput{
+		Days:                 input.Days,
+		RestoreJobParameters: input.RestoreJobParameters,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	res, err := cli.newBuilder(input.Bucket, input.Key).
+		WithParams(*input).
+		WithQuery("restore", "").
+		WithHeader(HeaderContentMD5, contentMD5).
+		WithRetry(OnRetryFromStart, StatusCodeClassifier{}).
+		Request(ctx, http.MethodPost, bytes.NewReader(data), cli.roundTripper(http.StatusOK, http.StatusAccepted))
+	if err != nil {
+		return nil, err
+	}
+	defer res.Close()
+	output := RestoreObjectOutput{RequestInfo: res.RequestInfo()}
+	return &output, nil
+
 }

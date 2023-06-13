@@ -422,9 +422,9 @@ func TestCopyObjectContentType(t *testing.T) {
 	var (
 		env       = newTestEnv(t)
 		bucket    = generateBucketName("copy-object")
-		key       = "key123"
+		key       = "key1 23"
 		value     = "value123"
-		copyedKey = "copyedKey"
+		copyedKey = "copye dKey"
 		client    = env.prepareClient(bucket)
 	)
 	defer func() {
@@ -1513,7 +1513,7 @@ func TestObjectWithRootPath(t *testing.T) {
 		env    = newTestEnv(t)
 		bucket = generateBucketName("put-object-with-root")
 		client = env.prepareClient(bucket)
-		key    = "/key123"
+		key    = "/key 123"
 	)
 	defer func() {
 		cleanBucket(t, client, bucket)
@@ -1724,6 +1724,87 @@ func TestObjectWithRateLimit(t *testing.T) {
 
 }
 
+func TestObjectWithTraffic(t *testing.T) {
+	var (
+		env    = newTestEnv(t)
+		bucket = generateBucketName("object-with-traffic-limit")
+		client = env.prepareClient(bucket)
+		key    = randomString(6)
+		ctx    = context.Background()
+	)
+	defer cleanBucket(t, client, bucket)
+	rowData := randomString(1024 * 1024 * 7)
+	data := strings.NewReader(rowData)
+	now := time.Now()
+	limiter := int64(1024 * 1024)
+	putoutput, err := client.PutObjectV2(ctx, &tos.PutObjectV2Input{
+		PutObjectBasicInput: tos.PutObjectBasicInput{
+			Bucket:       bucket,
+			Key:          key,
+			TrafficLimit: limiter,
+		},
+		Content: data,
+	})
+	require.Nil(t, err)
+	t.Log(putoutput.RequestID)
+	t.Logf("putobject cost: %v", time.Now().Sub(now).Seconds())
+	require.True(t, time.Now().Sub(now) >= time.Second*5)
+	require.True(t, time.Now().Sub(now) <= time.Second*10)
+
+	// 限流耗时应大于不限流
+	start := time.Now()
+	getoutput, err := client.GetObjectV2(ctx, &tos.GetObjectV2Input{Bucket: bucket, Key: key, TrafficLimit: limiter})
+	require.Nil(t, err)
+	getData, err := ioutil.ReadAll(getoutput.Content)
+	require.Nil(t, err)
+	require.Equal(t, string(getData), rowData)
+	t.Logf("getobject  with rate limit cost: %v", time.Now().Sub(start).Seconds())
+	limiterCost := time.Now().Sub(start)
+
+	noLimiterStart := time.Now()
+	getoutput, err = client.GetObjectV2(ctx, &tos.GetObjectV2Input{Bucket: bucket, Key: key})
+	require.Nil(t, err)
+	getData, err = ioutil.ReadAll(getoutput.Content)
+	require.Nil(t, err)
+	require.Equal(t, string(getData), rowData)
+	t.Logf("getobject cost: %v", time.Now().Sub(noLimiterStart).Seconds())
+	require.True(t, time.Now().Sub(noLimiterStart) < limiterCost)
+
+	start = time.Now()
+	copyKey := randomString(6)
+	copyRes, err := client.CopyObject(ctx, &tos.CopyObjectInput{Bucket: bucket, Key: copyKey, SrcKey: key, SrcBucket: bucket, TrafficLimit: limiter})
+	require.Nil(t, err)
+	require.Equal(t, copyRes.StatusCode, http.StatusOK)
+	t.Logf("copy object  with rate limit cost: %v", time.Now().Sub(start).Seconds())
+	limiterCost = time.Now().Sub(start)
+
+	noLimiterStart = time.Now()
+	copyRes, err = client.CopyObject(ctx, &tos.CopyObjectInput{Bucket: bucket, Key: copyKey, SrcKey: key, SrcBucket: bucket})
+	require.Nil(t, err)
+	require.Equal(t, copyRes.StatusCode, http.StatusOK)
+	t.Logf("copy object cost: %v", time.Now().Sub(noLimiterStart).Seconds())
+	require.True(t, time.Now().Sub(noLimiterStart) < limiterCost)
+
+	start = time.Now()
+	appendKey := randomString(6)
+	data.Reset(rowData)
+	appendRes, err := client.AppendObjectV2(ctx, &tos.AppendObjectV2Input{Bucket: bucket, Key: appendKey, Content: data, TrafficLimit: limiter})
+	require.Nil(t, err)
+	require.Equal(t, appendRes.StatusCode, http.StatusOK)
+	t.Logf("append object  with rate limit cost: %v", time.Now().Sub(start).Seconds())
+	limiterCost = time.Now().Sub(start)
+
+	data.Reset(rowData)
+	noLimiterStart = time.Now()
+	appendKey2 := randomString(8)
+	appendRes, err = client.AppendObjectV2(ctx, &tos.AppendObjectV2Input{Bucket: bucket, Key: appendKey2, Content: data})
+	require.Nil(t, err)
+	require.Equal(t, appendRes.StatusCode, http.StatusOK)
+	t.Logf("append object cost: %v", time.Now().Sub(noLimiterStart).Seconds())
+	require.True(t, time.Now().Sub(noLimiterStart) < limiterCost)
+
+}
+
 type retryReader struct {
 	count  int
 	reader io.Reader
@@ -1738,6 +1819,7 @@ func (r *retryReader) Read(p []byte) (n int, err error) {
 		require.True(r.t, r.n > 0)
 		return r.reader.Read(p)
 	}
+	r.count++
 
 	time.Sleep(time.Second * 3)
 	n, err = r.reader.Read(p)
@@ -1746,7 +1828,6 @@ func (r *retryReader) Read(p []byte) (n int, err error) {
 }
 
 func (r *retryReader) Seek(offset int64, whence int) (int64, error) {
-	r.count++
 	seek := r.reader.(io.Seeker)
 	return seek.Seek(offset, whence)
 }
@@ -1930,4 +2011,99 @@ func TestContentType(t *testing.T) {
 	ct.expectContentType = "text/html"
 	ct.testContentType(t, ctx)
 
+}
+
+func TestPutObjectWithStorageClass(t *testing.T) {
+	var (
+		env    = newTestEnv(t)
+		bucket = generateBucketName("object-with-storage-class")
+		client = env.prepareClient(bucket)
+		ctx    = context.Background()
+		key    = randomString(6)
+		body   = randomString(1024)
+	)
+	defer cleanBucket(t, client, bucket)
+	storageClasses := []enum.StorageClassType{
+		enum.StorageClassArchiveFr,
+		enum.StorageClassStandard,
+		enum.StorageClassColdArchive,
+		enum.StorageClassIa,
+	}
+	for _, storageClass := range storageClasses {
+		_, err := client.PutObjectV2(ctx, &tos.PutObjectV2Input{
+			PutObjectBasicInput: tos.PutObjectBasicInput{
+				Bucket:       bucket,
+				Key:          key,
+				StorageClass: storageClass,
+			},
+			Content: strings.NewReader(body),
+		})
+		require.Nil(t, err)
+
+		out, err := client.HeadObjectV2(ctx, &tos.HeadObjectV2Input{Bucket: bucket, Key: key})
+		require.Nil(t, err)
+		require.Equal(t, out.StorageClass, storageClass)
+	}
+
+}
+
+func TestRestoreObject(t *testing.T) {
+	var (
+		env    = newTestEnv(t)
+		bucket = generateBucketName("object-with-restore-object")
+		client = env.prepareClient(bucket)
+		ctx    = context.Background()
+		key    = randomString(6)
+		body   = randomString(1024)
+	)
+	defer cleanBucket(t, client, bucket)
+
+	_, err := client.PutObjectV2(ctx, &tos.PutObjectV2Input{
+		PutObjectBasicInput: tos.PutObjectBasicInput{
+			Bucket:       bucket,
+			Key:          key,
+			StorageClass: enum.StorageClassColdArchive,
+		},
+		Content: strings.NewReader(body),
+	})
+	require.Nil(t, err)
+
+	out, err := client.RestoreObject(ctx, &tos.RestoreObjectInput{
+		Bucket:               bucket,
+		Key:                  key,
+		Days:                 10,
+		RestoreJobParameters: &tos.RestoreJobParameters{Tier: enum.TierExpedited},
+	})
+	require.Nil(t, err)
+	require.Equal(t, out.StatusCode, http.StatusAccepted)
+
+}
+
+func TestImageProcess(t *testing.T) {
+	var (
+		env    = newTestEnv(t)
+		bucket = generateBucketName("object-with-process")
+		client = env.prepareClient(bucket)
+		ctx    = context.Background()
+	)
+	defer cleanBucket(t, client, bucket)
+
+	key := "test.png"
+	value := "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"
+	data, err := base64.StdEncoding.DecodeString(value)
+	require.Nil(t, err)
+	put, err := client.PutObjectV2(ctx, &tos.PutObjectV2Input{
+		PutObjectBasicInput: tos.PutObjectBasicInput{Bucket: bucket, Key: key},
+		Content:             bytes.NewReader(data),
+	})
+	require.Nil(t, err)
+	require.Equal(t, put.StatusCode, http.StatusOK)
+
+	get, err := client.GetObjectV2(ctx, &tos.GetObjectV2Input{Bucket: bucket, Key: key})
+	require.Nil(t, err)
+	require.Equal(t, get.ContentType, "image/png")
+
+	get, err = client.GetObjectV2(ctx, &tos.GetObjectV2Input{Bucket: bucket, Key: key, Process: "image/resize,h_100/format,jpg"})
+	require.Nil(t, err)
+	require.Equal(t, get.ContentType, "image/jpeg")
 }

@@ -113,8 +113,10 @@ func userMetadata(header http.Header) map[string]string {
 	meta := make(map[string]string)
 	for key := range header {
 		if strings.HasPrefix(key, HeaderMetaPrefix) {
-			kk, _ := url.QueryUnescape(key[len(HeaderMetaPrefix):])
-			var err error
+			kk, err := url.QueryUnescape(key[len(HeaderMetaPrefix):])
+			if err != nil {
+				kk = key[len(HeaderMetaPrefix):]
+			}
 			meta[strings.ToLower(kk)], err = url.QueryUnescape(header.Get(key))
 			if err != nil {
 				meta[strings.ToLower(kk)] = header.Get(key)
@@ -130,8 +132,10 @@ func parseUserMetaData(userMeta []userMeta) Metadata {
 	}
 	metas := make(map[string]string, len(userMeta))
 	for _, meta := range userMeta {
-		kk, _ := url.QueryUnescape(meta.Key)
-		var err error
+		kk, err := url.QueryUnescape(meta.Key)
+		if err != nil {
+			kk = meta.Key
+		}
 		metas[strings.ToLower(kk)], err = url.QueryUnescape(meta.Value)
 		if err != nil {
 			metas[strings.ToLower(kk)] = meta.Value

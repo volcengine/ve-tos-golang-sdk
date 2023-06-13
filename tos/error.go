@@ -41,6 +41,9 @@ var (
 	ProxyNotSupportHttps              = newTosClientError("proxy not support https", nil)
 	ProxyUrlInvalid                   = newTosClientError("proxy url invalid", nil)
 	NotificationConfigurationsInvalid = newTosClientError("Notification Configurations invalid", nil)
+	InvalidCompleteAllPartsLength     = newTosClientError("Should not specify both complete all and Parts", nil)
+	InvalidPartsLength                = newTosClientError("You must specify at least one part", nil)
+	InvlidDeleteMultiObjectsLength    = newTosClientError("You must specify at least one object", nil)
 )
 
 type TosError struct {
@@ -164,6 +167,8 @@ type UnexpectedStatusCodeError struct {
 	ExpectedCodes []int  `json:"ExpectedCodes,omitempty"`
 	RequestID     string `json:"RequestId,omitempty"`
 	expectedCodes [2]int
+	responseMsg   string
+	err           Error
 }
 
 func NewUnexpectedStatusCodeError(statusCode int, expectedCode int, expectedCodes ...int) *UnexpectedStatusCodeError {
@@ -176,17 +181,40 @@ func NewUnexpectedStatusCodeError(statusCode int, expectedCode int, expectedCode
 	return &err
 }
 
+func (us *UnexpectedStatusCodeError) WithRequestBody(res *Response) *UnexpectedStatusCodeError {
+	data, err := ioutil.ReadAll(io.LimitReader(res.Body, 64<<10))
+	if err != nil || len(data) <= 0 {
+		return us
+	}
+	us.responseMsg = string(data)
+	se := Error{StatusCode: res.StatusCode}
+	err = json.Unmarshal(data, &se)
+	if err != nil {
+		return us
+	}
+	us.err = se
+	return us
+}
+
 func (us *UnexpectedStatusCodeError) WithRequestID(requestID string) *UnexpectedStatusCodeError {
 	us.RequestID = requestID
 	return us
 }
 
 func (us *UnexpectedStatusCodeError) GoString() string {
+	if us.responseMsg != "" {
+		return fmt.Sprintf("tos.UnexpectedStatusCodeError{StatusCode:%d, ExpectedCodes:%v, RequestID:%s, ResponseErr:%s}",
+			us.StatusCode, us.ExpectedCodes, us.RequestID, us.responseMsg)
+	}
 	return fmt.Sprintf("tos.UnexpectedStatusCodeError{StatusCode:%d, ExpectedCodes:%v, RequestID:%s}",
 		us.StatusCode, us.ExpectedCodes, us.RequestID)
 }
 
 func (us *UnexpectedStatusCodeError) Error() string {
+	if us.responseMsg != "" {
+		return fmt.Sprintf("tos: unexpected status code error: StatusCode=%d, ExpectedCodes=%v, RequestID=%s, ResponseErr:%s",
+			us.StatusCode, us.ExpectedCodes, us.RequestID, us.responseMsg)
+	}
 	return fmt.Sprintf("tos: unexpected status code error: StatusCode=%d, ExpectedCodes=%v, RequestID=%s",
 		us.StatusCode, us.ExpectedCodes, us.RequestID)
 }
@@ -227,9 +255,15 @@ func checkError(res *Response, readBody bool, okCode int, okCodes ...int) error 
 	}
 	unexpected := NewUnexpectedStatusCodeError(res.StatusCode, okCode, okCodes...).
 		WithRequestID(res.RequestInfo().RequestID)
+	if readBody && res.Body != nil {
+		unexpected = unexpected.WithRequestBody(res)
+	}
 	return &TosServerError{
 		TosError:    TosError{unexpected.Error()},
 		RequestInfo: res.RequestInfo(),
+		Code:        unexpected.err.Code,
+		HostID:      unexpected.err.HostID,
+		Resource:    unexpected.err.Resource,
 	}
 }
 
