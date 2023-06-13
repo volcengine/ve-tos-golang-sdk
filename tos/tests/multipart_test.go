@@ -116,6 +116,82 @@ func TestMultipartUpload(t *testing.T) {
 	require.NotEqual(t, len(complete.Key), 0)
 }
 
+func TestMultipartUploadAll(t *testing.T) {
+	var (
+		env     = newTestEnv(t)
+		bucket  = generateBucketName("multi-part-upload-all")
+		client  = env.prepareClient(bucket)
+		copyKey = "key-copyKey"
+		key     = "key-test-create-multipart-upload"
+	)
+	defer func() {
+		cleanBucket(t, client, bucket)
+	}()
+	upload, err := client.CreateMultipartUploadV2(context.Background(), &tos.CreateMultipartUploadV2Input{
+		Bucket: bucket,
+		Key:    key,
+	})
+	require.Nil(t, err)
+	buf := make([]byte, 5<<20)
+	_, err = client.UploadPartV2(context.Background(), &tos.UploadPartV2Input{
+		UploadPartBasicInput: tos.UploadPartBasicInput{
+			Bucket:     bucket,
+			Key:        key,
+			UploadID:   upload.UploadID,
+			PartNumber: 1,
+		},
+		Content: bytes.NewReader(buf),
+	})
+	require.Nil(t, err)
+	_, err = client.UploadPartV2(context.Background(), &tos.UploadPartV2Input{
+		UploadPartBasicInput: tos.UploadPartBasicInput{
+			Bucket:     bucket,
+			Key:        key,
+			UploadID:   upload.UploadID,
+			PartNumber: 2,
+		},
+		Content: bytes.NewReader(buf),
+	})
+	require.Nil(t, err)
+
+	putRandomObject(t, client, bucket, copyKey, 6*1024*1024)
+
+	_, err = client.UploadPartCopyV2(context.Background(), &tos.UploadPartCopyV2Input{
+		Bucket:          bucket,
+		Key:             key,
+		UploadID:        upload.UploadID,
+		PartNumber:      3,
+		CopySourceRange: fmt.Sprintf("bytes=0-%d", 5*1024*1024-1),
+		SrcBucket:       bucket,
+		SrcKey:          copyKey,
+	})
+	require.Nil(t, err)
+
+	putRandomObject(t, client, bucket, copyKey, 4*1024)
+
+	_, err = client.UploadPartCopyV2(context.Background(), &tos.UploadPartCopyV2Input{
+		Bucket:     bucket,
+		Key:        key,
+		UploadID:   upload.UploadID,
+		PartNumber: 4,
+		SrcBucket:  bucket,
+		SrcKey:     copyKey,
+	})
+	require.Nil(t, err)
+
+	complete, err := client.CompleteMultipartUploadV2(context.Background(), &tos.CompleteMultipartUploadV2Input{
+		Bucket:      bucket,
+		Key:         key,
+		UploadID:    upload.UploadID,
+		CompleteAll: true,
+	})
+	require.Nil(t, err)
+	require.NotEqual(t, len(complete.ETag), 0)
+	require.NotEqual(t, len(complete.Location), 0)
+	require.NotEqual(t, len(complete.Bucket), 0)
+	require.NotEqual(t, len(complete.Key), 0)
+}
+
 func TestUploadPartCopyRange(t *testing.T) {
 	var (
 		env    = newTestEnv(t)

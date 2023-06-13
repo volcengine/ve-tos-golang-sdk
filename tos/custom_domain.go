@@ -10,7 +10,7 @@ func (cli *ClientV2) PutBucketCustomDomain(ctx context.Context, input *PutBucket
 	if input == nil {
 		return nil, InputIsNilClientError
 	}
-	if err := IsValidBucketName(input.Bucket); err != nil {
+	if err := isValidBucketName(input.Bucket, cli.isCustomDomain); err != nil {
 		return nil, err
 	}
 	body := putBucketCustomDomainInput{
@@ -37,7 +37,7 @@ func (cli *ClientV2) ListBucketCustomDomain(ctx context.Context, input *ListBuck
 	if input == nil {
 		return nil, InputIsNilClientError
 	}
-	if err := IsValidBucketName(input.Bucket); err != nil {
+	if err := isValidBucketName(input.Bucket, cli.isCustomDomain); err != nil {
 		return nil, err
 	}
 	res, err := cli.newBuilder(input.Bucket, "").
@@ -59,7 +59,7 @@ func (cli *ClientV2) DeleteBucketCustomDomain(ctx context.Context, input *Delete
 	if input == nil {
 		return nil, InputIsNilClientError
 	}
-	if err := IsValidBucketName(input.Bucket); err != nil {
+	if err := isValidBucketName(input.Bucket, cli.isCustomDomain); err != nil {
 		return nil, err
 	}
 	res, err := cli.newBuilder(input.Bucket, "").

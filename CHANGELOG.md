@@ -1,11 +1,23 @@
 # ChangeLog of TOS SDK for Go
+## 版本号 v2.6.0 日期：2023-06-05
+- 新增：支持单连接限速
+- 新增：StorageClass 支持智能分层类型、冷归档
+- 新增：CompleteMultipartUpload 接口支持 CompleteAll
+- 新增：GetObject 支持设置图片转码参数
+- 新增：支持使用自定义域名，初始化参数新增 IsCustomDomain
+- 新增：支持上传回调参数
+- 新增：支持镜像回源参数增强
+- 新增：支持重命名单个对象
+- 新增：支持取回冷归档对象
+- 优化：默认重试次数调整为 3 
+- 修复：上传 Meta 时默认会进行 URL Decode
 
 ## 版本号 v2.5.5 日期：2023-05-11
-- 事件通知增加 MQ 类型
+- 新增：事件通知增加 MQ 类型
 
 ## 版本号 v2.5.4 日期：2023-04-27
-- 增加 rename 相关接口
-- list 接口增加 user meta 字段
+- 新增：增加 rename 相关接口
+- 新增：list 接口增加 user meta 字段
 
 ## 版本号 v2.5.2 日期：2023-02-23
 - 修复 Windows 下 DownloadFile 失败

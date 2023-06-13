@@ -126,7 +126,7 @@ func (bkt *Bucket) GetObjectAcl(ctx context.Context, objectKey string, options .
 
 // GetObjectACL get object ACL
 func (cli *ClientV2) GetObjectACL(ctx context.Context, input *GetObjectACLInput) (*GetObjectACLOutput, error) {
-	if err := IsValidBucketName(input.Bucket); err != nil {
+	if err := isValidBucketName(input.Bucket, cli.isCustomDomain); err != nil {
 		return nil, err
 	}
 	if err := isValidKey(input.Key); err != nil {
@@ -154,7 +154,7 @@ func (cli *ClientV2) GetBucketACL(ctx context.Context, input *GetBucketACLInput)
 	if input == nil {
 		return nil, InputIsNilClientError
 	}
-	if err := IsValidBucketName(input.Bucket); err != nil {
+	if err := isValidBucketName(input.Bucket, cli.isCustomDomain); err != nil {
 		return nil, err
 	}
 	res, err := cli.newBuilder(input.Bucket, "").
@@ -179,7 +179,7 @@ func (cli *ClientV2) PutBucketACL(ctx context.Context, input *PutBucketACLInput)
 	if input == nil {
 		return nil, InputIsNilClientError
 	}
-	if err := IsValidBucketName(input.Bucket); err != nil {
+	if err := isValidBucketName(input.Bucket, cli.isCustomDomain); err != nil {
 		return nil, err
 	}
 

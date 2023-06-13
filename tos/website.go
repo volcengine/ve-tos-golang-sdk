@@ -10,7 +10,7 @@ func (cli *ClientV2) PutBucketWebsite(ctx context.Context, input *PutBucketWebsi
 	if input == nil {
 		return nil, InputIsNilClientError
 	}
-	if err := IsValidBucketName(input.Bucket); err != nil {
+	if err := isValidBucketName(input.Bucket, cli.isCustomDomain); err != nil {
 		return nil, err
 	}
 	body := putBucketWebsiteInput{
@@ -42,7 +42,7 @@ func (cli *ClientV2) GetBucketWebsite(ctx context.Context, input *GetBucketWebsi
 	if input == nil {
 		return nil, InputIsNilClientError
 	}
-	if err := IsValidBucketName(input.Bucket); err != nil {
+	if err := isValidBucketName(input.Bucket, cli.isCustomDomain); err != nil {
 		return nil, err
 	}
 	res, err := cli.newBuilder(input.Bucket, "").
@@ -64,7 +64,7 @@ func (cli *ClientV2) DeleteBucketWebsite(ctx context.Context, input *DeleteBucke
 	if input == nil {
 		return nil, InputIsNilClientError
 	}
-	if err := IsValidBucketName(input.Bucket); err != nil {
+	if err := isValidBucketName(input.Bucket, cli.isCustomDomain); err != nil {
 		return nil, err
 	}
 	res, err := cli.newBuilder(input.Bucket, "").

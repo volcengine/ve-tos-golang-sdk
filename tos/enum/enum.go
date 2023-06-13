@@ -16,9 +16,11 @@ const (
 type StorageClassType string
 
 const (
-	StorageClassStandard  StorageClassType = "STANDARD"
-	StorageClassIa        StorageClassType = "IA"
-	StorageClassArchiveFr StorageClassType = "ARCHIVE_FR"
+	StorageClassStandard           StorageClassType = "STANDARD"
+	StorageClassIa                 StorageClassType = "IA"
+	StorageClassArchiveFr          StorageClassType = "ARCHIVE_FR"
+	StorageClassIntelligentTiering StorageClassType = "INTELLIGENT_TIERING"
+	StorageClassColdArchive        StorageClassType = "COLD_ARCHIVE"
 )
 
 type MetadataDirectiveType string
@@ -168,4 +170,12 @@ const (
 	CopyEventUploadPartCopyAborted          CopyEventType = 5
 	CopyEventCompleteMultipartUploadSucceed CopyEventType = 6
 	CopyEventCompleteMultipartUploadFailed  CopyEventType = 7
+)
+
+type TierType string
+
+const (
+	TierStandard  TierType = "Standard"
+	TierExpedited TierType = "Expedited"
+	TierBulk      TierType = "Bulk"
 )

@@ -10,7 +10,7 @@ func (cli *ClientV2) PutBucketReplication(ctx context.Context, input *PutBucketR
 	if input == nil {
 		return nil, InputIsNilClientError
 	}
-	if err := IsValidBucketName(input.Bucket); err != nil {
+	if err := isValidBucketName(input.Bucket, cli.isCustomDomain); err != nil {
 		return nil, err
 	}
 	data, contentMD5, err := marshalInput("PutBucketReplication", putBucketReplicationInput{Role: input.Role, Rules: input.Rules})
@@ -34,7 +34,7 @@ func (cli *ClientV2) GetBucketReplication(ctx context.Context, input *GetBucketR
 	if input == nil {
 		return nil, InputIsNilClientError
 	}
-	if err := IsValidBucketName(input.Bucket); err != nil {
+	if err := isValidBucketName(input.Bucket, cli.isCustomDomain); err != nil {
 		return nil, err
 	}
 
@@ -62,7 +62,7 @@ func (cli *ClientV2) DeleteBucketReplication(ctx context.Context, input *DeleteB
 	if input == nil {
 		return nil, InputIsNilClientError
 	}
-	if err := IsValidBucketName(input.Bucket); err != nil {
+	if err := isValidBucketName(input.Bucket, cli.isCustomDomain); err != nil {
 		return nil, err
 	}
 	res, err := cli.newBuilder(input.Bucket, "").

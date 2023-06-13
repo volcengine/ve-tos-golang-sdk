@@ -58,7 +58,7 @@ func getDownloadCheckpoint(input *DownloadFileInput, init func(input *HeadObject
 }
 
 func (cli *ClientV2) DownloadFile(ctx context.Context, input *DownloadFileInput) (*DownloadFileOutput, error) {
-	err := validateDownloadInput(input)
+	err := validateDownloadInput(input, cli.isCustomDomain)
 	if err != nil {
 		return nil, err
 	}
@@ -171,8 +171,8 @@ func parseDownloadFilePath(input *DownloadFileInput) (needDownloadFile bool, err
 
 }
 
-func validateDownloadInput(input *DownloadFileInput) error {
-	if err := isValidNames(input.Bucket, input.Key); err != nil {
+func validateDownloadInput(input *DownloadFileInput, isCustomDomain bool) error {
+	if err := isValidNames(input.Bucket, input.Key, isCustomDomain); err != nil {
 		return err
 	}
 

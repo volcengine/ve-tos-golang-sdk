@@ -177,6 +177,16 @@ func TestPutBucketStorageClass(t *testing.T) {
 	headRes, err = client.HeadBucket(ctx, &tos.HeadBucketInput{Bucket: bucket})
 	require.Nil(t, err)
 	require.Equal(t, headRes.StorageClass, enum.StorageClassArchiveFr)
+	
+	output, err = client.PutBucketStorageClass(ctx, &tos.PutBucketStorageClassInput{
+		Bucket:       bucket,
+		StorageClass: enum.StorageClassColdArchive,
+	})
+	require.Nil(t, err)
+	require.NotNil(t, output)
+	headRes, err = client.HeadBucket(ctx, &tos.HeadBucketInput{Bucket: bucket})
+	require.Nil(t, err)
+	require.Equal(t, headRes.StorageClass, enum.StorageClassColdArchive)
 
 	output, err = client.PutBucketStorageClass(ctx, &tos.PutBucketStorageClassInput{
 		Bucket:       bucket,

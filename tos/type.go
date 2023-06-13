@@ -294,6 +294,7 @@ type PreSignedURLInput struct {
 	Header              map[string]string
 	Query               map[string]string
 	AlternativeEndpoint string
+	IsCustomDomain      *bool
 }
 
 type PreSignedURLOutput struct {
@@ -429,12 +430,15 @@ type PutObjectBasicInput struct {
 	GrantReadAcp     string `location:"header" locationName:"X-Tos-Grant-Read-Acp"`     // optional
 	GrantWriteAcp    string `location:"header" locationName:"X-Tos-Grant-Write-Acp"`    // optional
 
+	Callback                string                `location:"header" locationName:"X-Tos-Callback"`
+	CallbackVar             string                `location:"header" locationName:"X-Tos-Callback-Var"`
 	WebsiteRedirectLocation string                `location:"header" locationName:"X-Tos-Website-Redirect-Location"`
 	StorageClass            enum.StorageClassType `location:"header" locationName:"X-Tos-Storage-Class"`
 	SSECAlgorithm           string                `location:"header" locationName:"X-Tos-Server-Side-Encryption-Customer-Algorithm"`
 	SSECKey                 string                `location:"header" locationName:"X-Tos-Server-Side-Encryption-Customer-Key"`
 	SSECKeyMD5              string                `location:"header" locationName:"X-Tos-Server-Side-Encryption-Customer-Key-MD5"`
 	ServerSideEncryption    string                `location:"header" locationName:"X-Tos-Server-Side-Encryption"`
+	TrafficLimit            int64                 `location:"header" locationName:"X-Tos-Traffic-Limit"`
 	Meta                    map[string]string     `location:"headers"`
 	DataTransferListener    DataTransferListener
 	RateLimiter             RateLimiter
@@ -447,11 +451,12 @@ type PutObjectV2Input struct {
 
 type PutObjectV2Output struct {
 	RequestInfo
-	ETag          string
-	SSECAlgorithm string
-	SSECKeyMD5    string
-	VersionID     string
-	HashCrc64ecma uint64
+	ETag           string
+	SSECAlgorithm  string
+	SSECKeyMD5     string
+	VersionID      string
+	CallbackResult string
+	HashCrc64ecma  uint64
 }
 
 type PutObjectOutput struct {
@@ -522,6 +527,7 @@ type AppendObjectV2Input struct {
 
 	WebsiteRedirectLocation string                `location:"header" locationName:"X-Tos-Website-Redirect-Location"`
 	StorageClass            enum.StorageClassType `location:"header" locationName:"X-Tos-Storage-Class"`
+	TrafficLimit            int64                 `location:"header" locationName:"X-Tos-Traffic-Limit"`
 
 	Meta                 map[string]string `location:"headers"`
 	DataTransferListener DataTransferListener
@@ -898,6 +904,7 @@ type GetObjectV2Input struct {
 	SSECAlgorithm string `location:"header" locationName:"X-Tos-Server-Side-Encryption-Customer-Algorithm"`
 	SSECKey       string `location:"header" locationName:"X-Tos-Server-Side-Encryption-Customer-Key"`
 	SSECKeyMD5    string `location:"header" locationName:"X-Tos-Server-Side-Encryption-Customer-Key-MD5"`
+	TrafficLimit  int64  `location:"header" locationName:"X-Tos-Traffic-Limit"`
 
 	ResponseCacheControl       string    `location:"query" locationName:"response-cache-control"`
 	ResponseContentDisposition string    `location:"query" locationName:"response-content-disposition"`
@@ -905,6 +912,7 @@ type GetObjectV2Input struct {
 	ResponseContentLanguage    string    `location:"query" locationName:"response-content-language"`
 	ResponseContentType        string    `location:"query" locationName:"response-content-type"`
 	ResponseExpires            time.Time `location:"query" locationName:"response-expires"`
+	Process                    string    `location:"query" locationName:"x-tos-process"`
 
 	RangeStart int64
 	RangeEnd   int64
@@ -1051,6 +1059,7 @@ type CopyObjectInput struct {
 	SSECKey       string `location:"header" locationName:"X-Tos-Server-Side-Encryption-Customer-Key"`
 	SSECKeyMD5    string `location:"header" locationName:"X-Tos-Server-Side-Encryption-Customer-Key-MD5"`
 	SSECAlgorithm string `location:"header" locationName:"X-Tos-Server-Side-Encryption-Customer-Algorithm"`
+	TrafficLimit  int64  `location:"header" locationName:"X-Tos-Traffic-Limit"`
 
 	MetadataDirective enum.MetadataDirectiveType `location:"header" locationName:"X-Tos-Metadata-Directive"`
 	Meta              map[string]string          `location:"headers"`
@@ -1115,6 +1124,7 @@ type UploadPartCopyV2Input struct {
 	SSECKey       string `location:"header" locationName:"X-Tos-Server-Side-Encryption-Customer-Key"`
 	SSECKeyMD5    string `location:"header" locationName:"X-Tos-Server-Side-Encryption-Customer-Key-MD5"`
 	SSECAlgorithm string `location:"header" locationName:"X-Tos-Server-Side-Encryption-Customer-Algorithm"`
+	TrafficLimit  int64  `location:"header" locationName:"X-Tos-Traffic-Limit"`
 }
 
 type UploadPartCopyV2Output struct {
@@ -1212,6 +1222,8 @@ type UploadPartBasicInput struct {
 	SSECKeyMD5           string `location:"header" locationName:"X-Tos-Server-Side-Encryption-Customer-Key-MD5"`
 	ServerSideEncryption string `location:"header" locationName:"X-Tos-Server-Side-Encryption"`
 
+	TrafficLimit int64 `location:"header" locationName:"X-Tos-Traffic-Limit"`
+
 	DataTransferListener DataTransferListener
 	RateLimiter          RateLimiter
 }
@@ -1287,20 +1299,24 @@ type CompleteMultipartUploadOutput struct {
 }
 
 type CompleteMultipartUploadV2Input struct {
-	Bucket   string
-	Key      string
-	UploadID string `location:"query" locationName:"uploadId"`
-	Parts    []UploadedPartV2
+	Bucket      string
+	Key         string
+	CompleteAll bool
+	UploadID    string `location:"query" locationName:"uploadId"`
+	Callback    string `location:"header" locationName:"X-Tos-Callback"`
+	CallbackVar string `location:"header" locationName:"X-Tos-Callback-Var"`
+	Parts       []UploadedPartV2
 }
 
 type CompleteMultipartUploadV2Output struct {
 	RequestInfo
-	Bucket        string
-	Key           string
-	ETag          string
-	Location      string
-	VersionID     string
-	HashCrc64ecma uint64
+	Bucket         string
+	Key            string
+	ETag           string
+	Location       string
+	VersionID      string
+	HashCrc64ecma  uint64
+	CallbackResult string
 }
 
 type AbortMultipartUploadInput struct {
@@ -1543,8 +1559,11 @@ type MirrorBackRule struct {
 }
 
 type Condition struct {
-	HttpCode int `json:"HttpCode,omitempty"`
+	HttpCode  int    `json:"HttpCode,omitempty"`
+	KeyPrefix string `json:"KeyPrefix,omitempty"`
+	KeySuffix string `json:"KeySuffix,omitempty"`
 }
+
 type Redirect struct {
 	RedirectType          enum.RedirectType `json:"RedirectType,omitempty"`
 	FetchSourceOnRedirect bool              `json:"FetchSourceOnRedirect,omitempty"`
@@ -1552,10 +1571,23 @@ type Redirect struct {
 	FollowRedirect        bool              `json:"FollowRedirect,omitempty"`
 	MirrorHeader          MirrorHeader      `json:"MirrorHeader,omitempty"`
 	PublicSource          PublicSource      `json:"PublicSource,omitempty"`
+	Transform             Transform         `json:"Transform,omitempty"`
+}
+
+type Transform struct {
+	WithKeyPrefix    string           `json:"WithKeyPrefix,omitempty"`
+	WithKeySuffix    string           `json:"WithKeySuffix,omitempty"`
+	ReplaceKeyPrefix ReplaceKeyPrefix `json:"ReplaceKeyPrefix,omitempty"`
+}
+
+type ReplaceKeyPrefix struct {
+	KeyPrefix   string `json:"KeyPrefix,omitempty"`
+	ReplaceWith string `json:"ReplaceWith,omitempty"`
 }
 
 type PublicSource struct {
 	SourceEndpoint SourceEndpoint `json:"SourceEndpoint,omitempty"`
+	FixedEndpoint  bool           `json:"FixedEndpoint,omitempty"`
 }
 
 type GetBucketMirrorBackInput struct {
@@ -1662,6 +1694,7 @@ type DownloadFileInput struct {
 	EnableCheckpoint      bool
 	CheckpointFile        string
 	tempFile              string
+	TrafficLimit          int64
 	DownloadEventListener DownloadEventListener
 	DataTransferListener  DataTransferListener
 	RateLimiter           RateLimiter
@@ -1703,11 +1736,13 @@ type DownloadEventListener interface {
 type UploadFileInput struct {
 	CreateMultipartUploadV2Input
 
-	FilePath             string
-	PartSize             int64
-	TaskNum              int
-	EnableCheckpoint     bool
-	CheckpointFile       string
+	FilePath         string
+	PartSize         int64
+	TaskNum          int
+	EnableCheckpoint bool
+	CheckpointFile   string
+	TrafficLimit     int64 `location:"header" locationName:"X-Tos-Traffic-Limit"`
+
 	DataTransferListener DataTransferListener
 	UploadEventListener  UploadEventListener
 	RateLimiter          RateLimiter
@@ -2081,6 +2116,7 @@ type ResumableCopyObjectInput struct {
 	TaskNum          int
 	EnableCheckpoint bool
 	CheckpointFile   string
+	TrafficLimit     int64
 
 	CopyEventListener CopyEventListener
 	CancelHook        CancelHook
@@ -2125,6 +2161,26 @@ type ResumableCopyObjectOutput struct {
 	SSECAlgorithm string
 	SSECKeyMD5    string
 	EncodingType  string
+}
+
+type restoreObjectInput struct {
+	Days                 int                   `json:"Days"`
+	RestoreJobParameters *RestoreJobParameters `json:"RestoreJobParameters,omitempty"`
+}
+type RestoreObjectInput struct {
+	Bucket               string
+	Key                  string
+	VersionID            string `location:"query" locationName:"versionId"`
+	Days                 int
+	RestoreJobParameters *RestoreJobParameters
+}
+
+type RestoreObjectOutput struct {
+	RequestInfo
+}
+
+type RestoreJobParameters struct {
+	Tier enum.TierType `json:"Tier"`
 }
 
 type DataTransferListener interface {

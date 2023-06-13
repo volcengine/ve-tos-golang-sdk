@@ -507,6 +507,7 @@ func (t *downloadTask) getBaseInput() interface{} {
 		SSECKeyMD5:        t.input.SSECKeyMD5,
 		RangeStart:        t.rangeStart,
 		RangeEnd:          t.rangeEnd,
+		TrafficLimit:      t.input.TrafficLimit,
 		// we want to Sent parallel Listener on output, so explicitly set listener of GetObjectV2Input nil here.
 		DataTransferListener: nil,
 		RateLimiter:          nil,
@@ -608,6 +609,7 @@ func (t *uploadTask) getBaseInput() interface{} {
 			SSECKey:              t.input.SSECKey,
 			SSECKeyMD5:           t.input.SSECKeyMD5,
 			ServerSideEncryption: t.input.ServerSideEncryption,
+			TrafficLimit:         t.input.TrafficLimit,
 		},
 		ContentLength: t.PartSize,
 	}
@@ -622,6 +624,7 @@ const (
 
 const (
 	DefaultRetryBackoffBase = 100 * time.Millisecond
+	DefaultRetryTime        = 3
 )
 
 type classifier interface {
@@ -824,7 +827,6 @@ func (r *readCloserWithListener) Seek(offset int64, whence int) (int64, error) {
 	if whence != io.SeekCurrent {
 		r.consumed = 0
 		r.subtotal = 0
-		r.total = 0
 		r.onceEof = false
 	}
 
@@ -1002,5 +1004,6 @@ func (c *copyTask) getBaseInput() interface{} {
 		SSECKey:                     c.input.SSECKey,
 		SSECKeyMD5:                  c.input.SSECKeyMD5,
 		SSECAlgorithm:               c.input.SSECAlgorithm,
+		TrafficLimit:                c.input.TrafficLimit,
 	}
 }

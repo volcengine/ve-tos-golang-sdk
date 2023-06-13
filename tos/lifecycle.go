@@ -52,7 +52,7 @@ func (cli *ClientV2) PutBucketLifecycle(ctx context.Context, input *PutBucketLif
 	if input == nil {
 		return nil, InputIsNilClientError
 	}
-	if err := IsValidBucketName(input.Bucket); err != nil {
+	if err := isValidBucketName(input.Bucket, cli.isCustomDomain); err != nil {
 		return nil, err
 	}
 	data, contentMD5, err := marshalInput("PutBucketLifecycleInput", cli.parseLifecycleInput(input))
@@ -76,7 +76,7 @@ func (cli *ClientV2) GetBucketLifecycle(ctx context.Context, input *GetBucketLif
 	if input == nil {
 		return nil, InputIsNilClientError
 	}
-	if err := IsValidBucketName(input.Bucket); err != nil {
+	if err := isValidBucketName(input.Bucket, cli.isCustomDomain); err != nil {
 		return nil, err
 	}
 	res, err := cli.newBuilder(input.Bucket, "").
@@ -98,7 +98,7 @@ func (cli *ClientV2) DeleteBucketLifecycle(ctx context.Context, input *DeleteBuc
 	if input == nil {
 		return nil, InputIsNilClientError
 	}
-	if err := IsValidBucketName(input.Bucket); err != nil {
+	if err := isValidBucketName(input.Bucket, cli.isCustomDomain); err != nil {
 		return nil, err
 	}
 	res, err := cli.newBuilder(input.Bucket, "").

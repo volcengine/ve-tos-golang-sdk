@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"hash"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"os"
 	"sort"
@@ -61,7 +63,7 @@ func (bkt *Bucket) CreateMultipartUpload(ctx context.Context, objectKey string, 
 func (cli *ClientV2) CreateMultipartUploadV2(
 	ctx context.Context,
 	input *CreateMultipartUploadV2Input) (*CreateMultipartUploadV2Output, error) {
-	if err := IsValidBucketName(input.Bucket); err != nil {
+	if err := isValidBucketName(input.Bucket, cli.isCustomDomain); err != nil {
 		return nil, err
 	}
 	if err := isValidKey(input.Key); err != nil {
@@ -160,7 +162,7 @@ func (bkt *Bucket) UploadPart(ctx context.Context, input *UploadPartInput, optio
 
 // UploadPartV2 upload a part for a multipart upload operation
 func (cli *ClientV2) UploadPartV2(ctx context.Context, input *UploadPartV2Input) (*UploadPartV2Output, error) {
-	if err := isValidNames(input.Bucket, input.Key); err != nil {
+	if err := isValidNames(input.Bucket, input.Key, cli.isCustomDomain); err != nil {
 		return nil, err
 	}
 	if err := isValidSSECAlgorithm(input.SSECAlgorithm); len(input.SSECAlgorithm) != 0 && err != nil {
@@ -309,38 +311,65 @@ func (bkt *Bucket) CompleteMultipartUpload(ctx context.Context, input *CompleteM
 func (cli *ClientV2) CompleteMultipartUploadV2(
 	ctx context.Context, input *CompleteMultipartUploadV2Input) (*CompleteMultipartUploadV2Output, error) {
 
-	if err := isValidNames(input.Bucket, input.Key); err != nil {
+	if err := isValidNames(input.Bucket, input.Key, cli.isCustomDomain); err != nil {
 		return nil, err
 	}
-	multipart := partsToComplete{Parts: make(uploadedParts, 0, len(input.Parts))}
-	for _, p := range input.Parts {
-		multipart.Parts = append(multipart.Parts, p.uploadedPart())
-	}
+	reqBuilder := cli.newBuilder(input.Bucket, input.Key).
+		WithParams(*input)
+	var err error
+	var res *Response
+	if input.CompleteAll {
+		if len(input.Parts) != 0 {
+			return nil, InvalidCompleteAllPartsLength
+		}
+		reqBuilder.WithHeader("x-tos-complete-all", "yes")
+		res, err = reqBuilder.WithRetry(nil, ServerErrorClassifier{}).Request(ctx, http.MethodPost, nil, cli.roundTripper(http.StatusOK))
+	} else {
+		if len(input.Parts) == 0 {
+			return nil, InvalidPartsLength
+		}
+		multipart := partsToComplete{Parts: make(uploadedParts, 0, len(input.Parts))}
+		for _, p := range input.Parts {
+			multipart.Parts = append(multipart.Parts, p.uploadedPart())
+		}
 
-	sort.Sort(multipart.Parts)
-	data, err := json.Marshal(&multipart)
-	if err != nil {
-		return nil, InvalidMarshal
+		sort.Sort(multipart.Parts)
+		data, marshalErr := json.Marshal(&multipart)
+		if marshalErr != nil {
+			return nil, InvalidMarshal
+		}
+		res, err = reqBuilder.WithRetry(OnRetryFromStart, ServerErrorClassifier{}).Request(ctx, http.MethodPost, bytes.NewReader(data), cli.roundTripper(http.StatusOK))
 	}
-
-	res, err := cli.newBuilder(input.Bucket, input.Key).
-		WithParams(*input).
-		WithRetry(OnRetryFromStart, ServerErrorClassifier{}).
-		Request(ctx, http.MethodPost, bytes.NewReader(data), cli.roundTripper(http.StatusOK))
 	if err != nil {
 		return nil, err
 	}
 	defer res.Close()
-
 	crc64, _ := strconv.ParseUint(res.Header.Get(HeaderHashCrc64ecma), 10, 64)
 	output := &CompleteMultipartUploadV2Output{
 		RequestInfo:   res.RequestInfo(),
 		VersionID:     res.Header.Get(HeaderVersionID),
 		HashCrc64ecma: crc64,
 	}
-	if err = marshalOutput(output.RequestID, res.Body, &output); err != nil {
-		return nil, err
+	var callbackResult string
+	if input.Callback == "" {
+		if err = marshalOutput(output.RequestID, res.Body, &output); err != nil {
+			return nil, err
+		}
+	} else {
+		callbackRes, err := ioutil.ReadAll(res.Body)
+		if err != nil {
+			return nil, &TosServerError{
+				TosError:    TosError{Message: fmt.Sprintf("tos: read callback result err:%s", err.Error())},
+				RequestInfo: res.RequestInfo(),
+			}
+		}
+		if len(callbackRes) > 0 {
+			callbackResult = string(callbackRes)
+		}
+		output.ETag = res.Header.Get(HeaderETag)
+		output.Location = res.Header.Get(HeaderLocation)
 	}
+	output.CallbackResult = callbackResult
 	return output, nil
 }
 
@@ -365,7 +394,7 @@ func (bkt *Bucket) AbortMultipartUpload(ctx context.Context, input *AbortMultipa
 
 // AbortMultipartUpload abort a multipart upload operation
 func (cli *ClientV2) AbortMultipartUpload(ctx context.Context, input *AbortMultipartUploadInput) (*AbortMultipartUploadOutput, error) {
-	if err := isValidNames(input.Bucket, input.Key); err != nil {
+	if err := isValidNames(input.Bucket, input.Key, cli.isCustomDomain); err != nil {
 		return nil, err
 	}
 	res, err := cli.newBuilder(input.Bucket, input.Key).
@@ -409,7 +438,7 @@ func (bkt *Bucket) ListUploadedParts(ctx context.Context, input *ListUploadedPar
 
 // ListParts List Uploaded Parts
 func (cli *ClientV2) ListParts(ctx context.Context, input *ListPartsInput) (*ListPartsOutput, error) {
-	if err := isValidNames(input.Bucket, input.Key); err != nil {
+	if err := isValidNames(input.Bucket, input.Key, cli.isCustomDomain); err != nil {
 		return nil, err
 	}
 	res, err := cli.newBuilder(input.Bucket, input.Key).
@@ -457,7 +486,7 @@ func (bkt *Bucket) ListMultipartUploads(ctx context.Context, input *ListMultipar
 func (cli *ClientV2) ListMultipartUploadsV2(
 	ctx context.Context,
 	input *ListMultipartUploadsV2Input) (*ListMultipartUploadsV2Output, error) {
-	if err := IsValidBucketName(input.Bucket); err != nil {
+	if err := isValidBucketName(input.Bucket, cli.isCustomDomain); err != nil {
 		return nil, err
 	}
 	res, err := cli.newBuilder(input.Bucket, "").

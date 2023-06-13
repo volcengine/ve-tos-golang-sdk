@@ -22,6 +22,7 @@ type testEnv struct {
 	mqInstanceId  string
 	mqRoleName    string
 	mqAccessKeyID string
+	callbackUrl   string
 	t             *testing.T
 }
 
@@ -38,6 +39,7 @@ func newTestEnv(t *testing.T) *testEnv {
 		accountId:     os.Getenv("TOS_GO_SDK_ACCOUNT_ID"),
 		mqRoleName:    os.Getenv("TOS_GO_SDK_MQ_ROLE_NAME"),
 		mqAccessKeyID: os.Getenv("TOS_GO_SDK_MQ_ACCESSKEY_ID"),
+		callbackUrl:   os.Getenv("TOS_GO_SDK_CALLBACK_URL"),
 		t:             t,
 	}
 }

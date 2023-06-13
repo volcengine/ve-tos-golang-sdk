@@ -2,6 +2,8 @@ package tests
 
 import (
 	"context"
+	"net/http"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -85,4 +87,44 @@ func TestSetObjectMetaV2Version(t *testing.T) {
 		require.Equal(t, ok, true)
 		require.Equal(t, v, val)
 	}
+}
+
+func TestMeta(t *testing.T) {
+	var (
+		env    = newTestEnv(t)
+		bucket = generateBucketName("meta-with")
+		client = env.prepareClient(bucket)
+		key    = "key"
+		ctx    = context.Background()
+		data   = randomString(12)
+		meta   = "key"
+	)
+	rawStr := "!@#$%^&*()_+-=[]{}|;':\"%2f%fg,     「」：-=+、\n./<>?中文测试编码%20%%%^&abcd /\\"
+	out, err := client.PutObjectV2(ctx, &tos.PutObjectV2Input{
+		PutObjectBasicInput: tos.PutObjectBasicInput{Bucket: bucket, Key: key, Meta: map[string]string{meta: rawStr}},
+		Content:             strings.NewReader(data),
+	})
+	require.Nil(t, err)
+	require.Equal(t, out.StatusCode, http.StatusOK)
+
+	head, err := client.HeadObjectV2(ctx, &tos.HeadObjectV2Input{Bucket: bucket, Key: key})
+	require.Nil(t, err)
+	r, ok := head.Meta.Get(meta)
+	require.True(t, ok)
+	require.Equal(t, r, rawStr)
+
+	out, err = client.PutObjectV2(ctx, &tos.PutObjectV2Input{
+		PutObjectBasicInput: tos.PutObjectBasicInput{Bucket: bucket, Key: key, Meta: map[string]string{meta: url.PathEscape(rawStr)}},
+		Content:             strings.NewReader(data),
+	})
+	require.Nil(t, err)
+	require.Equal(t, out.StatusCode, http.StatusOK)
+
+	head, err = client.HeadObjectV2(ctx, &tos.HeadObjectV2Input{Bucket: bucket, Key: key})
+	require.Nil(t, err)
+	r, ok = head.Meta.Get(meta)
+	require.True(t, ok)
+	r, err = url.PathUnescape(r)
+	require.Nil(t, err)
+	require.Equal(t, r, rawStr)
 }
