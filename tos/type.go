@@ -430,18 +430,19 @@ type PutObjectBasicInput struct {
 	GrantReadAcp     string `location:"header" locationName:"X-Tos-Grant-Read-Acp"`     // optional
 	GrantWriteAcp    string `location:"header" locationName:"X-Tos-Grant-Write-Acp"`    // optional
 
-	Callback                string                `location:"header" locationName:"X-Tos-Callback"`
-	CallbackVar             string                `location:"header" locationName:"X-Tos-Callback-Var"`
-	WebsiteRedirectLocation string                `location:"header" locationName:"X-Tos-Website-Redirect-Location"`
-	StorageClass            enum.StorageClassType `location:"header" locationName:"X-Tos-Storage-Class"`
-	SSECAlgorithm           string                `location:"header" locationName:"X-Tos-Server-Side-Encryption-Customer-Algorithm"`
-	SSECKey                 string                `location:"header" locationName:"X-Tos-Server-Side-Encryption-Customer-Key"`
-	SSECKeyMD5              string                `location:"header" locationName:"X-Tos-Server-Side-Encryption-Customer-Key-MD5"`
-	ServerSideEncryption    string                `location:"header" locationName:"X-Tos-Server-Side-Encryption"`
-	TrafficLimit            int64                 `location:"header" locationName:"X-Tos-Traffic-Limit"`
-	Meta                    map[string]string     `location:"headers"`
-	DataTransferListener    DataTransferListener
-	RateLimiter             RateLimiter
+	Callback                  string                `location:"header" locationName:"X-Tos-Callback"`
+	CallbackVar               string                `location:"header" locationName:"X-Tos-Callback-Var"`
+	WebsiteRedirectLocation   string                `location:"header" locationName:"X-Tos-Website-Redirect-Location"`
+	StorageClass              enum.StorageClassType `location:"header" locationName:"X-Tos-Storage-Class"`
+	SSECAlgorithm             string                `location:"header" locationName:"X-Tos-Server-Side-Encryption-Customer-Algorithm"`
+	SSECKey                   string                `location:"header" locationName:"X-Tos-Server-Side-Encryption-Customer-Key"`
+	SSECKeyMD5                string                `location:"header" locationName:"X-Tos-Server-Side-Encryption-Customer-Key-MD5"`
+	ServerSideEncryption      string                `location:"header" locationName:"X-Tos-Server-Side-Encryption"`
+	ServerSideEncryptionKeyID string                `location:"header" locationName:"X-Tos-Server-Side-Encryption-Kms-Key-Id"`
+	TrafficLimit              int64                 `location:"header" locationName:"X-Tos-Traffic-Limit"`
+	Meta                      map[string]string     `location:"headers"`
+	DataTransferListener      DataTransferListener
+	RateLimiter               RateLimiter
 }
 
 type PutObjectV2Input struct {
@@ -451,12 +452,14 @@ type PutObjectV2Input struct {
 
 type PutObjectV2Output struct {
 	RequestInfo
-	ETag           string
-	SSECAlgorithm  string
-	SSECKeyMD5     string
-	VersionID      string
-	CallbackResult string
-	HashCrc64ecma  uint64
+	ETag                      string
+	SSECAlgorithm             string
+	SSECKeyMD5                string
+	VersionID                 string
+	CallbackResult            string
+	HashCrc64ecma             uint64
+	ServerSideEncryption      string
+	ServerSideEncryptionKeyID string
 }
 
 type PutObjectOutput struct {
@@ -1051,10 +1054,11 @@ type CopyObjectInput struct {
 	CopySourceIfNoneMatch       string    `location:"header" locationName:"X-Tos-Copy-Source-If-None-Match"`
 	CopySourceIfUnmodifiedSince time.Time `location:"header" locationName:"X-Tos-Copy-Source-If-Unmodified-Since"`
 
-	CopySourceSSECAlgorithm string `location:"header" locationName:"X-Tos-Copy-Source-Server-Side-Encryption-Customer-Algorithm"`
-	CopySourceSSECKey       string `location:"header" locationName:"X-Tos-Copy-Source-Server-Side-Encryption-Customer-Key"`
-	CopySourceSSECKeyMD5    string `location:"header" locationName:"X-Tos-Copy-Source-Server-Side-Encryption-Customer-Key-MD5"`
-	ServerSideEncryption    string `location:"header" locationName:"X-Tos-Server-Side-Encryption"`
+	CopySourceSSECAlgorithm   string `location:"header" locationName:"X-Tos-Copy-Source-Server-Side-Encryption-Customer-Algorithm"`
+	CopySourceSSECKey         string `location:"header" locationName:"X-Tos-Copy-Source-Server-Side-Encryption-Customer-Key"`
+	CopySourceSSECKeyMD5      string `location:"header" locationName:"X-Tos-Copy-Source-Server-Side-Encryption-Customer-Key-MD5"`
+	ServerSideEncryption      string `location:"header" locationName:"X-Tos-Server-Side-Encryption"`
+	ServerSideEncryptionKeyID string `location:"header" locationName:"X-Tos-Server-Side-Encryption-Kms-Key-Id"`
 
 	SSECKey       string `location:"header" locationName:"X-Tos-Server-Side-Encryption-Customer-Key"`
 	SSECKeyMD5    string `location:"header" locationName:"X-Tos-Server-Side-Encryption-Customer-Key-MD5"`
@@ -1072,11 +1076,15 @@ type copyObjectOutput struct {
 }
 
 type CopyObjectOutput struct {
-	RequestInfo     `json:"-"`
-	VersionID       string `json:"VersionId,omitempty"`
-	SourceVersionID string `json:"SourceVersionId,omitempty"`
-	ETag            string `json:"ETag,omitempty"`         // at body
-	LastModified    string `json:"LastModified,omitempty"` // at body
+	RequestInfo               `json:"-"`
+	VersionID                 string `json:"VersionId,omitempty"`
+	SourceVersionID           string `json:"SourceVersionId,omitempty"`
+	ETag                      string `json:"ETag,omitempty"`         // at body
+	LastModified              string `json:"LastModified,omitempty"` // at body
+	SSECAlgorithm             string `json:"SSECAlgorithm,omitempty"`
+	SSECKeyMD5                string `json:"SSECKeyMD5,omitempty"`
+	ServerSideEncryption      string `json:"ServerSideEncryption,omitempty"`
+	ServerSideEncryptionKeyID string `json:"ServerSideEncryptionKmsKeyId,omitempty"`
 }
 
 type UploadPartCopyInput struct {
@@ -1129,10 +1137,14 @@ type UploadPartCopyV2Input struct {
 
 type UploadPartCopyV2Output struct {
 	RequestInfo
-	PartNumber          int
-	ETag                string
-	LastModified        time.Time
-	CopySourceVersionID string
+	PartNumber                int
+	ETag                      string
+	LastModified              time.Time
+	CopySourceVersionID       string
+	ServerSideEncryption      string
+	ServerSideEncryptionKeyID string
+	SSECAlgorithm             string
+	SSECKeyMD5                string
 }
 
 type CreateMultipartUploadV2Input struct {
@@ -1152,13 +1164,14 @@ type CreateMultipartUploadV2Input struct {
 	GrantReadAcp     string `location:"header" locationName:"X-Tos-Grant-Read-Acp"`     // optional
 	GrantWriteAcp    string `location:"header" locationName:"X-Tos-Grant-Write-Acp"`    // optional
 
-	WebsiteRedirectLocation string                `location:"header" locationName:"X-Tos-Website-Redirect-Location"`
-	StorageClass            enum.StorageClassType `location:"header" locationName:"X-Tos-Storage-Class"`
-	SSECAlgorithm           string                `location:"header" locationName:"X-Tos-Server-Side-Encryption-Customer-Algorithm"`
-	SSECKey                 string                `location:"header" locationName:"X-Tos-Server-Side-Encryption-Customer-Key"`
-	SSECKeyMD5              string                `location:"header" locationName:"X-Tos-Server-Side-Encryption-Customer-Key-MD5"`
-	ServerSideEncryption    string                `location:"header" locationName:"X-Tos-Server-Side-Encryption"`
-	Meta                    map[string]string     `location:"headers"`
+	WebsiteRedirectLocation   string                `location:"header" locationName:"X-Tos-Website-Redirect-Location"`
+	StorageClass              enum.StorageClassType `location:"header" locationName:"X-Tos-Storage-Class"`
+	SSECAlgorithm             string                `location:"header" locationName:"X-Tos-Server-Side-Encryption-Customer-Algorithm"`
+	SSECKey                   string                `location:"header" locationName:"X-Tos-Server-Side-Encryption-Customer-Key"`
+	SSECKeyMD5                string                `location:"header" locationName:"X-Tos-Server-Side-Encryption-Customer-Key-MD5"`
+	ServerSideEncryption      string                `location:"header" locationName:"X-Tos-Server-Side-Encryption"`
+	ServerSideEncryptionKeyID string                `location:"header" locationName:"X-Tos-Server-Side-Encryption-Kms-Key-Id"`
+	Meta                      map[string]string     `location:"headers"`
 }
 
 type RenameObjectInput struct {
@@ -1181,13 +1194,15 @@ type CreateMultipartUploadOutput struct {
 }
 
 type CreateMultipartUploadV2Output struct {
-	RequestInfo   `json:"-"`
-	Bucket        string `json:"Bucket,omitempty"`
-	Key           string `json:"Key,omitempty"`
-	UploadID      string `json:"UploadID,omitempty"`
-	SSECAlgorithm string `json:"SSECAlgorithm,omitempty"`
-	SSECKeyMD5    string `json:"SSECKeyMD5,omitempty"`
-	EncodingType  string `json:"EncodingType,omitempty"`
+	RequestInfo               `json:"-"`
+	Bucket                    string `json:"Bucket,omitempty"`
+	Key                       string `json:"Key,omitempty"`
+	UploadID                  string `json:"UploadID,omitempty"`
+	SSECAlgorithm             string `json:"SSECAlgorithm,omitempty"`
+	SSECKeyMD5                string `json:"SSECKeyMD5,omitempty"`
+	EncodingType              string `json:"EncodingType,omitempty"`
+	ServerSideEncryption      string `json:"ServerSideEncryption,omitempty"`
+	ServerSideEncryptionKeyID string `json:"ServerSideEncryptionKeyID,omitempty"`
 }
 
 type UploadPartInput struct {
@@ -1217,10 +1232,11 @@ type UploadPartBasicInput struct {
 
 	ContentMD5 string `location:"header" locationName:"Content-MD5"`
 
-	SSECAlgorithm        string `location:"header" locationName:"X-Tos-Server-Side-Encryption-Customer-Algorithm"`
-	SSECKey              string `location:"header" locationName:"X-Tos-Server-Side-Encryption-Customer-Key"`
-	SSECKeyMD5           string `location:"header" locationName:"X-Tos-Server-Side-Encryption-Customer-Key-MD5"`
-	ServerSideEncryption string `location:"header" locationName:"X-Tos-Server-Side-Encryption"`
+	SSECAlgorithm             string `location:"header" locationName:"X-Tos-Server-Side-Encryption-Customer-Algorithm"`
+	SSECKey                   string `location:"header" locationName:"X-Tos-Server-Side-Encryption-Customer-Key"`
+	SSECKeyMD5                string `location:"header" locationName:"X-Tos-Server-Side-Encryption-Customer-Key-MD5"`
+	ServerSideEncryption      string `location:"header" locationName:"X-Tos-Server-Side-Encryption"`
+	ServerSideEncryptionKeyID string `location:"header" locationName:"X-Tos-Server-Side-Encryption-Kms-Key-Id"`
 
 	TrafficLimit int64 `location:"header" locationName:"X-Tos-Traffic-Limit"`
 
@@ -1236,11 +1252,13 @@ type UploadPartV2Input struct {
 
 type UploadPartV2Output struct {
 	RequestInfo
-	PartNumber    int
-	ETag          string
-	SSECAlgorithm string
-	SSECKeyMD5    string
-	HashCrc64ecma uint64
+	PartNumber                int
+	ETag                      string
+	SSECAlgorithm             string
+	SSECKeyMD5                string
+	HashCrc64ecma             uint64
+	ServerSideEncryption      string
+	ServerSideEncryptionKeyID string
 }
 
 func (up *UploadPartV2Output) uploadedPart() uploadedPart {
@@ -1310,13 +1328,15 @@ type CompleteMultipartUploadV2Input struct {
 
 type CompleteMultipartUploadV2Output struct {
 	RequestInfo
-	Bucket         string
-	Key            string
-	ETag           string
-	Location       string
-	VersionID      string
-	HashCrc64ecma  uint64
-	CallbackResult string
+	Bucket                    string
+	Key                       string
+	ETag                      string
+	Location                  string
+	VersionID                 string
+	HashCrc64ecma             uint64
+	CallbackResult            string
+	ServerSideEncryption      string
+	ServerSideEncryptionKeyID string
 }
 
 type AbortMultipartUploadInput struct {

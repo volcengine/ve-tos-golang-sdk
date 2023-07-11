@@ -95,13 +95,15 @@ func (cli *ClientV2) CreateMultipartUploadV2(
 	}
 
 	return &CreateMultipartUploadV2Output{
-		RequestInfo:   res.RequestInfo(),
-		Bucket:        upload.Bucket,
-		Key:           upload.Key,
-		UploadID:      upload.UploadID,
-		SSECAlgorithm: res.Header.Get(HeaderSSECustomerAlgorithm),
-		SSECKeyMD5:    res.Header.Get(HeaderSSECustomerKeyMD5),
-		EncodingType:  res.Header.Get(HeaderContentEncoding),
+		RequestInfo:               res.RequestInfo(),
+		Bucket:                    upload.Bucket,
+		Key:                       upload.Key,
+		UploadID:                  upload.UploadID,
+		SSECAlgorithm:             res.Header.Get(HeaderSSECustomerAlgorithm),
+		SSECKeyMD5:                res.Header.Get(HeaderSSECustomerKeyMD5),
+		EncodingType:              res.Header.Get(HeaderContentEncoding),
+		ServerSideEncryption:      res.Header.Get(HeaderServerSideEncryption),
+		ServerSideEncryptionKeyID: res.Header.Get(HeaderServerSideEncryptionKmsKeyID),
 	}, nil
 }
 
@@ -240,12 +242,14 @@ func (cli *ClientV2) UploadPartV2(ctx context.Context, input *UploadPartV2Input)
 	}
 	checksum, _ := strconv.ParseUint(res.Header.Get(HeaderHashCrc64ecma), 10, 64)
 	return &UploadPartV2Output{
-		RequestInfo:   res.RequestInfo(),
-		PartNumber:    input.PartNumber,
-		ETag:          res.Header.Get(HeaderETag),
-		SSECAlgorithm: res.Header.Get(HeaderSSECustomerAlgorithm),
-		SSECKeyMD5:    res.Header.Get(HeaderSSECustomerKeyMD5),
-		HashCrc64ecma: checksum,
+		RequestInfo:               res.RequestInfo(),
+		PartNumber:                input.PartNumber,
+		ETag:                      res.Header.Get(HeaderETag),
+		SSECAlgorithm:             res.Header.Get(HeaderSSECustomerAlgorithm),
+		SSECKeyMD5:                res.Header.Get(HeaderSSECustomerKeyMD5),
+		HashCrc64ecma:             checksum,
+		ServerSideEncryptionKeyID: res.Header.Get(HeaderServerSideEncryptionKmsKeyID),
+		ServerSideEncryption:      res.Header.Get(HeaderServerSideEncryption),
 	}, nil
 }
 
@@ -370,6 +374,8 @@ func (cli *ClientV2) CompleteMultipartUploadV2(
 		output.Location = res.Header.Get(HeaderLocation)
 	}
 	output.CallbackResult = callbackResult
+	output.ServerSideEncryption = res.Header.Get(HeaderServerSideEncryption)
+	output.ServerSideEncryptionKeyID = res.Header.Get(HeaderServerSideEncryptionKmsKeyID)
 	return output, nil
 }
 

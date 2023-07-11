@@ -112,6 +112,10 @@ func (cli *Client) copyObject(ctx context.Context, dstBucket, dstObject string, 
 	out := CopyObjectOutput{RequestInfo: res.RequestInfo(), ETag: marshalOut.ETag, LastModified: marshalOut.LastModified}
 	out.VersionID = res.Header.Get(HeaderVersionID)
 	out.SourceVersionID = res.Header.Get(HeaderCopySourceVersionID)
+	out.SSECAlgorithm = res.Header.Get(HeaderSSECustomerAlgorithm)
+	out.SSECKeyMD5 = res.Header.Get(HeaderSSECustomerKeyMD5)
+	out.ServerSideEncryption = res.Header.Get(HeaderServerSideEncryption)
+	out.ServerSideEncryptionKeyID = res.Header.Get(HeaderServerSideEncryptionKmsKeyID)
 	return &out, nil
 }
 
@@ -292,10 +296,14 @@ func (cli *ClientV2) UploadPartCopyV2(
 		}
 	}
 	return &UploadPartCopyV2Output{
-		RequestInfo:         res.RequestInfo(),
-		CopySourceVersionID: res.Header.Get(HeaderCopySourceVersionID),
-		PartNumber:          input.PartNumber,
-		ETag:                out.ETag,
-		LastModified:        lastModified,
+		RequestInfo:               res.RequestInfo(),
+		PartNumber:                input.PartNumber,
+		ETag:                      out.ETag,
+		LastModified:              lastModified,
+		CopySourceVersionID:       res.Header.Get(HeaderCopySourceVersionID),
+		ServerSideEncryption:      res.Header.Get(HeaderServerSideEncryption),
+		ServerSideEncryptionKeyID: res.Header.Get(HeaderServerSideEncryptionKmsKeyID),
+		SSECAlgorithm:             res.Header.Get(HeaderSSECustomerAlgorithm),
+		SSECKeyMD5:                res.Header.Get(HeaderSSECustomerKeyMD5),
 	}, nil
 }

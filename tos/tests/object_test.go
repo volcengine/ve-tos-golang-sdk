@@ -694,6 +694,7 @@ func TestSSE(t *testing.T) {
 	require.Nil(t, err)
 	require.NotNil(t, put)
 	require.Equal(t, 200, put.StatusCode)
+	require.Equal(t, put.ServerSideEncryption, "AES256")
 
 	get, err := client.GetObjectV2(context.Background(), &tos.GetObjectV2Input{
 		Bucket: bucket,
@@ -706,6 +707,7 @@ func TestSSE(t *testing.T) {
 	require.Nil(t, err)
 	require.Equal(t, string(buffer), value)
 	require.Equal(t, md5Sum, md5s(string(buffer)))
+	require.Equal(t, get.ServerSideEncryption, "AES256")
 }
 
 func TestUnsupportedSSEC(t *testing.T) {
