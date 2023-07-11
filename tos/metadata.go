@@ -35,24 +35,26 @@ type ObjectMeta struct {
 }
 
 type ObjectMetaV2 struct {
-	ETag                    string
-	LastModified            time.Time
-	DeleteMarker            bool
-	SSECAlgorithm           string
-	SSECKeyMD5              string
-	VersionID               string
-	WebsiteRedirectLocation string
-	ObjectType              string
-	HashCrc64ecma           uint64
-	StorageClass            enum.StorageClassType
-	Meta                    Metadata
-	ContentLength           int64
-	ContentType             string
-	CacheControl            string
-	ContentDisposition      string
-	ContentEncoding         string
-	ContentLanguage         string
-	Expires                 time.Time
+	ETag                      string
+	LastModified              time.Time
+	DeleteMarker              bool
+	SSECAlgorithm             string
+	SSECKeyMD5                string
+	VersionID                 string
+	WebsiteRedirectLocation   string
+	ObjectType                string
+	HashCrc64ecma             uint64
+	StorageClass              enum.StorageClassType
+	Meta                      Metadata
+	ContentLength             int64
+	ContentType               string
+	CacheControl              string
+	ContentDisposition        string
+	ContentEncoding           string
+	ContentLanguage           string
+	Expires                   time.Time
+	ServerSideEncryption      string
+	ServerSideEncryptionKeyID string
 }
 
 func (om *ObjectMeta) fromResponse(res *Response) {
@@ -106,6 +108,8 @@ func (om *ObjectMetaV2) fromResponseV2(res *Response) {
 	om.ContentEncoding = res.Header.Get(HeaderContentEncoding)
 	om.ContentLanguage = res.Header.Get(HeaderContentLanguage)
 	om.Expires = expires
+	om.ServerSideEncryption = res.Header.Get(HeaderServerSideEncryption)
+	om.ServerSideEncryptionKeyID = res.Header.Get(HeaderServerSideEncryptionKmsKeyID)
 }
 
 func userMetadata(header http.Header) map[string]string {

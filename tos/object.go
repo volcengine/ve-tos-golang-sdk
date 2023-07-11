@@ -584,13 +584,15 @@ func (cli *ClientV2) PutObjectV2(ctx context.Context, input *PutObjectV2Input) (
 	}
 
 	return &PutObjectV2Output{
-		RequestInfo:    res.RequestInfo(),
-		ETag:           res.Header.Get(HeaderETag),
-		SSECAlgorithm:  res.Header.Get(HeaderSSECustomerAlgorithm),
-		SSECKeyMD5:     res.Header.Get(HeaderSSECustomerKeyMD5),
-		VersionID:      res.Header.Get(HeaderVersionID),
-		CallbackResult: callbackResult,
-		HashCrc64ecma:  crc64,
+		RequestInfo:               res.RequestInfo(),
+		ETag:                      res.Header.Get(HeaderETag),
+		SSECAlgorithm:             res.Header.Get(HeaderSSECustomerAlgorithm),
+		SSECKeyMD5:                res.Header.Get(HeaderSSECustomerKeyMD5),
+		VersionID:                 res.Header.Get(HeaderVersionID),
+		ServerSideEncryption:      res.Header.Get(HeaderServerSideEncryption),
+		ServerSideEncryptionKeyID: res.Header.Get(HeaderServerSideEncryptionKmsKeyID),
+		CallbackResult:            callbackResult,
+		HashCrc64ecma:             crc64,
 	}, nil
 }
 
