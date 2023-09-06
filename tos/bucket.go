@@ -15,7 +15,7 @@ func (cli *Client) Bucket(bucket string) (*Bucket, error) {
 	if err := isValidBucketName(bucket, false); err != nil {
 		return nil, err
 	}
-	return &Bucket{name: bucket, client: cli}, nil
+	return &Bucket{name: bucket, client: cli, baseClient: newBaseClient(cli)}, nil
 }
 
 // CreateBucket create a bucket

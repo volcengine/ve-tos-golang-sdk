@@ -15,8 +15,9 @@ import (
 )
 
 type Bucket struct {
-	name   string
-	client *Client
+	name       string
+	client     *Client
+	baseClient *baseClient
 }
 
 // GetObject get data and metadata of an object
@@ -662,6 +663,22 @@ func (bkt *Bucket) AppendObject(ctx context.Context, objectKey string, content i
 	}, nil
 }
 
+func (bkt *Bucket) PutObjectTagging(ctx context.Context, input *PutObjectTaggingInput, option ...Option) (*PutObjectTaggingOutput, error) {
+	return bkt.baseClient.PutObjectTagging(ctx, input, option...)
+}
+
+func (bkt *Bucket) GetObjectTagging(ctx context.Context, input *GetObjectTaggingInput, option ...Option) (*GetObjectTaggingOutput, error) {
+	return bkt.baseClient.GetObjectTagging(ctx, input, option...)
+}
+
+func (bkt *Bucket) DeleteObjectTagging(ctx context.Context, input *DeleteObjectTaggingInput, option ...Option) (*DeleteObjectTaggingOutput, error) {
+	return bkt.baseClient.DeleteObjectTagging(ctx, input, option...)
+}
+
+func (bkt *Bucket) RestoreObject(ctx context.Context, input *RestoreObjectInput, option ...Option) (*RestoreObjectOutput, error) {
+	return bkt.baseClient.RestoreObject(ctx, input, option...)
+}
+
 // AppendObjectV2 append content at the tail of an appendable object
 func (cli *ClientV2) AppendObjectV2(ctx context.Context, input *AppendObjectV2Input) (*AppendObjectV2Output, error) {
 	if err := isValidNames(input.Bucket, input.Key, cli.isCustomDomain); err != nil {
@@ -1100,34 +1117,5 @@ func (cli *ClientV2) ListObjectVersionsV2(
 }
 
 func (cli *ClientV2) RestoreObject(ctx context.Context, input *RestoreObjectInput) (*RestoreObjectOutput, error) {
-
-	if input == nil {
-		return nil, InputIsNilClientError
-	}
-
-	if err := isValidBucketName(input.Bucket, cli.isCustomDomain); err != nil {
-		return nil, err
-	}
-
-	data, contentMD5, err := marshalInput("RestoreObjectInput", restoreObjectInput{
-		Days:                 input.Days,
-		RestoreJobParameters: input.RestoreJobParameters,
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	res, err := cli.newBuilder(input.Bucket, input.Key).
-		WithParams(*input).
-		WithQuery("restore", "").
-		WithHeader(HeaderContentMD5, contentMD5).
-		WithRetry(OnRetryFromStart, StatusCodeClassifier{}).
-		Request(ctx, http.MethodPost, bytes.NewReader(data), cli.roundTripper(http.StatusOK, http.StatusAccepted))
-	if err != nil {
-		return nil, err
-	}
-	defer res.Close()
-	output := RestoreObjectOutput{RequestInfo: res.RequestInfo()}
-	return &output, nil
-
+	return cli.baseClient.RestoreObject(ctx, input)
 }
