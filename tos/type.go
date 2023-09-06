@@ -440,6 +440,8 @@ type PutObjectBasicInput struct {
 	ServerSideEncryption      string                `location:"header" locationName:"X-Tos-Server-Side-Encryption"`
 	ServerSideEncryptionKeyID string                `location:"header" locationName:"X-Tos-Server-Side-Encryption-Kms-Key-Id"`
 	TrafficLimit              int64                 `location:"header" locationName:"X-Tos-Traffic-Limit"`
+	ForbidOverwrite           bool                  `location:"header" locationName:"X-Tos-Forbid-Overwrite"`
+	IfMatch                   string                `location:"header" locationName:"X-Tos-If-Match"`
 	Meta                      map[string]string     `location:"headers"`
 	DataTransferListener      DataTransferListener
 	RateLimiter               RateLimiter
@@ -531,6 +533,7 @@ type AppendObjectV2Input struct {
 	WebsiteRedirectLocation string                `location:"header" locationName:"X-Tos-Website-Redirect-Location"`
 	StorageClass            enum.StorageClassType `location:"header" locationName:"X-Tos-Storage-Class"`
 	TrafficLimit            int64                 `location:"header" locationName:"X-Tos-Traffic-Limit"`
+	IfMatch                 string                `location:"header" locationName:"X-Tos-If-Match"`
 
 	Meta                 map[string]string `location:"headers"`
 	DataTransferListener DataTransferListener
@@ -1060,11 +1063,12 @@ type CopyObjectInput struct {
 	ServerSideEncryption      string `location:"header" locationName:"X-Tos-Server-Side-Encryption"`
 	ServerSideEncryptionKeyID string `location:"header" locationName:"X-Tos-Server-Side-Encryption-Kms-Key-Id"`
 
-	SSECKey       string `location:"header" locationName:"X-Tos-Server-Side-Encryption-Customer-Key"`
-	SSECKeyMD5    string `location:"header" locationName:"X-Tos-Server-Side-Encryption-Customer-Key-MD5"`
-	SSECAlgorithm string `location:"header" locationName:"X-Tos-Server-Side-Encryption-Customer-Algorithm"`
-	TrafficLimit  int64  `location:"header" locationName:"X-Tos-Traffic-Limit"`
-
+	SSECKey           string                     `location:"header" locationName:"X-Tos-Server-Side-Encryption-Customer-Key"`
+	SSECKeyMD5        string                     `location:"header" locationName:"X-Tos-Server-Side-Encryption-Customer-Key-MD5"`
+	SSECAlgorithm     string                     `location:"header" locationName:"X-Tos-Server-Side-Encryption-Customer-Algorithm"`
+	TrafficLimit      int64                      `location:"header" locationName:"X-Tos-Traffic-Limit"`
+	ForbidOverwrite   bool                       `location:"header" locationName:"X-Tos-Forbid-Overwrite"`
+	IfMatch           string                     `location:"header" locationName:"X-Tos-If-Match"`
 	MetadataDirective enum.MetadataDirectiveType `location:"header" locationName:"X-Tos-Metadata-Directive"`
 	Meta              map[string]string          `location:"headers"`
 }
@@ -1171,6 +1175,7 @@ type CreateMultipartUploadV2Input struct {
 	SSECKeyMD5                string                `location:"header" locationName:"X-Tos-Server-Side-Encryption-Customer-Key-MD5"`
 	ServerSideEncryption      string                `location:"header" locationName:"X-Tos-Server-Side-Encryption"`
 	ServerSideEncryptionKeyID string                `location:"header" locationName:"X-Tos-Server-Side-Encryption-Kms-Key-Id"`
+	ForbidOverwrite           bool                  `location:"header" locationName:"X-Tos-Forbid-Overwrite"`
 	Meta                      map[string]string     `location:"headers"`
 }
 
@@ -1317,13 +1322,14 @@ type CompleteMultipartUploadOutput struct {
 }
 
 type CompleteMultipartUploadV2Input struct {
-	Bucket      string
-	Key         string
-	CompleteAll bool
-	UploadID    string `location:"query" locationName:"uploadId"`
-	Callback    string `location:"header" locationName:"X-Tos-Callback"`
-	CallbackVar string `location:"header" locationName:"X-Tos-Callback-Var"`
-	Parts       []UploadedPartV2
+	Bucket          string
+	Key             string
+	CompleteAll     bool
+	UploadID        string `location:"query" locationName:"uploadId"`
+	Callback        string `location:"header" locationName:"X-Tos-Callback"`
+	CallbackVar     string `location:"header" locationName:"X-Tos-Callback-Var"`
+	ForbidOverwrite bool   `location:"header" locationName:"X-Tos-Forbid-Overwrite"`
+	Parts           []UploadedPartV2
 }
 
 type CompleteMultipartUploadV2Output struct {
@@ -1332,6 +1338,7 @@ type CompleteMultipartUploadV2Output struct {
 	Key                       string
 	ETag                      string
 	Location                  string
+	CompletedParts            []UploadedPartV2
 	VersionID                 string
 	HashCrc64ecma             uint64
 	CallbackResult            string

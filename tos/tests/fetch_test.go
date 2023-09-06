@@ -119,15 +119,21 @@ func TestPutFetchTaskV2(t *testing.T) {
 		Meta:   map[string]string{"test-key": "test-value"},
 		URL:    "https://" + bucket + "." + env.endpoint + "/" + key})
 	fmt.Println(res.TaskID)
-	time.Sleep(time.Second * 5)
+	var headRes *tos.HeadObjectV2Output
+	for i := 0; i < 20; i++ {
 
-	headRes, err := client.HeadObjectV2(ctx, &tos.HeadObjectV2Input{
-		Bucket: bucket,
-		Key:    fetchKey,
-	})
+		headRes, err = client.HeadObjectV2(ctx, &tos.HeadObjectV2Input{
+			Bucket: bucket,
+			Key:    fetchKey,
+		})
+		if err != nil {
+			time.Sleep(time.Second * 6)
+			t.Log(err.Error())
+			continue
+		}
+	}
 	require.Nil(t, err)
 	actualValue, _ := headRes.Meta.Get("test-key")
 	require.Equal(t, actualValue, "test-value")
 	require.Equal(t, headRes.ContentLength, int64(length))
-
 }

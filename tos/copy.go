@@ -133,6 +133,7 @@ func (cli *ClientV2) CopyObject(ctx context.Context, input *CopyObjectInput) (*C
 	if err := isValidMetadataDirective(input.MetadataDirective); len(input.MetadataDirective) != 0 && err != nil {
 		return nil, err
 	}
+
 	res, err := cli.newBuilder(input.Bucket, input.Key).
 		WithParams(*input).
 		WithCopySource(input.SrcBucket, input.SrcKey).

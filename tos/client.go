@@ -78,6 +78,7 @@ type Client struct {
 //
 type ClientV2 struct {
 	Client
+	baseClient *baseClient
 }
 
 func (cli *ClientV2) Close() {
@@ -373,6 +374,7 @@ func NewClientV2(endpoint string, options ...ClientOption) (*ClientV2, error) {
 	if err != nil {
 		return nil, err
 	}
+	client.baseClient = newBaseClient(&client.Client)
 	return &client, nil
 }
 

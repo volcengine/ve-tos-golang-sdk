@@ -2109,3 +2109,87 @@ func TestImageProcess(t *testing.T) {
 	require.Nil(t, err)
 	require.Equal(t, get.ContentType, "image/jpeg")
 }
+
+func TestObjectForbid(t *testing.T) {
+	var (
+		env    = newTestEnv(t)
+		bucket = generateBucketName("object-forbid")
+		ctx    = context.Background()
+	)
+	errMsg := "The object you specified already exists and can not be overwritten"
+	options := []tos.ClientOption{
+		tos.WithRegion(env.region2),
+		tos.WithCredentials(tos.NewStaticCredentials(env.accessKey, env.secretKey)),
+		tos.WithEnableVerifySSL(false),
+		tos.WithMaxRetryCount(5),
+	}
+	client, err := tos.NewClientV2(env.endpoint2, options...)
+	require.Nil(t, err)
+	_, err = client.CreateBucketV2(ctx, &tos.CreateBucketV2Input{Bucket: bucket})
+	require.Nil(t, err)
+	defer cleanBucket(t, client, bucket)
+	key := "object-forbid"
+	_, err = client.PutObjectV2(ctx, &tos.PutObjectV2Input{PutObjectBasicInput: tos.PutObjectBasicInput{Bucket: bucket, Key: key, ForbidOverwrite: true}, Content: strings.NewReader(randomString(7))})
+	require.Nil(t, err)
+	_, err = client.PutObjectV2(ctx, &tos.PutObjectV2Input{PutObjectBasicInput: tos.PutObjectBasicInput{Bucket: bucket, Key: key, ForbidOverwrite: true}, Content: strings.NewReader(randomString(7))})
+	require.NotNil(t, err)
+	t.Log(err.Error())
+
+	_, err = client.CreateMultipartUploadV2(ctx, &tos.CreateMultipartUploadV2Input{Bucket: bucket, Key: key, ForbidOverwrite: true})
+	require.NotNil(t, err)
+	require.Contains(t, err.Error(), errMsg)
+	t.Log(err.Error())
+
+	cout, err := client.CreateMultipartUploadV2(ctx, &tos.CreateMultipartUploadV2Input{Bucket: bucket, Key: key})
+	require.Nil(t, err)
+	partNumber := 1
+	part, err := client.UploadPartV2(ctx, &tos.UploadPartV2Input{
+		UploadPartBasicInput: tos.UploadPartBasicInput{Bucket: bucket, Key: key, UploadID: cout.UploadID, PartNumber: partNumber},
+		Content:              strings.NewReader(randomString(1024 * 10)),
+	})
+	require.Nil(t, err)
+
+	_, err = client.CompleteMultipartUploadV2(ctx, &tos.CompleteMultipartUploadV2Input{
+		Bucket:          bucket,
+		Key:             key,
+		UploadID:        cout.UploadID,
+		ForbidOverwrite: true,
+		Parts: []tos.UploadedPartV2{{
+			PartNumber: partNumber,
+			ETag:       part.ETag,
+		}},
+	})
+	require.NotNil(t, err)
+	require.Contains(t, err.Error(), errMsg)
+}
+
+func TestObjectIfMatch(t *testing.T) {
+	var (
+		env    = newTestEnv(t)
+		bucket = generateBucketName("object-if-match")
+		ctx    = context.Background()
+	)
+	errMsg := "The condition specified using HTTP conditional header(s) is not met"
+	options := []tos.ClientOption{
+		tos.WithRegion(env.region2),
+		tos.WithCredentials(tos.NewStaticCredentials(env.accessKey, env.secretKey)),
+		tos.WithEnableVerifySSL(false),
+		tos.WithMaxRetryCount(5),
+	}
+	client, err := tos.NewClientV2(env.endpoint2, options...)
+	require.Nil(t, err)
+	_, err = client.CreateBucketV2(ctx, &tos.CreateBucketV2Input{Bucket: bucket})
+	require.Nil(t, err)
+	defer cleanBucket(t, client, bucket)
+	key := "object-if-match"
+	out, err := client.PutObjectV2(ctx, &tos.PutObjectV2Input{PutObjectBasicInput: tos.PutObjectBasicInput{Bucket: bucket, Key: key}, Content: strings.NewReader(randomString(1024))})
+	require.Nil(t, err)
+	_, err = client.PutObjectV2(ctx, &tos.PutObjectV2Input{PutObjectBasicInput: tos.PutObjectBasicInput{Bucket: bucket, Key: key, IfMatch: "123"},
+		Content: strings.NewReader(randomString(1024))})
+	require.NotNil(t, err)
+	require.Contains(t, err.Error(), errMsg)
+	t.Log(err.Error())
+	_, err = client.PutObjectV2(ctx, &tos.PutObjectV2Input{PutObjectBasicInput: tos.PutObjectBasicInput{Bucket: bucket, Key: key, IfMatch: out.ETag},
+		Content: strings.NewReader(randomString(1024))})
+	require.Nil(t, err)
+}
