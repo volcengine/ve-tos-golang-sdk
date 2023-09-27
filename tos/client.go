@@ -47,19 +47,20 @@ const (
 //
 // Deprecated: use ClientV2 instead
 type Client struct {
-	scheme         string
-	host           string
-	urlMode        urlMode
-	userAgent      string
-	credentials    Credentials // nullable
-	signer         Signer      // nullable
-	transport      Transport
-	recognizer     ContentTypeRecognizer
-	config         Config
-	retry          *retryer
-	enableCRC      bool
-	logger         Logger
-	isCustomDomain bool
+	scheme              string
+	host                string
+	urlMode             urlMode
+	userAgent           string
+	credentials         Credentials // nullable
+	signer              Signer      // nullable
+	transport           Transport
+	recognizer          ContentTypeRecognizer
+	config              Config
+	retry               *retryer
+	enableCRC           bool
+	logger              Logger
+	isCustomDomain      bool
+	disableEncodingMeta bool
 }
 
 // ClientV2 TOS ClientV2
@@ -101,6 +102,12 @@ type ClientOption func(*Client)
 func WithCredentials(credentials Credentials) ClientOption {
 	return func(client *Client) {
 		client.credentials = credentials
+	}
+}
+
+func WithDisableEncodingMeta(disable bool) ClientOption {
+	return func(client *Client) {
+		client.disableEncodingMeta = disable
 	}
 }
 
@@ -380,17 +387,18 @@ func NewClientV2(endpoint string, options ...ClientOption) (*ClientV2, error) {
 
 func (cli *Client) newBuilder(bucket, object string, options ...Option) *requestBuilder {
 	rb := &requestBuilder{
-		Signer:         cli.signer,
-		Scheme:         cli.scheme,
-		Host:           cli.host,
-		Bucket:         bucket,
-		Object:         object,
-		URLMode:        cli.urlMode,
-		Query:          make(url.Values),
-		Header:         make(http.Header),
-		OnRetry:        func(req *Request) error { return nil },
-		Classifier:     StatusCodeClassifier{},
-		IsCustomDomain: cli.isCustomDomain,
+		Signer:              cli.signer,
+		Scheme:              cli.scheme,
+		Host:                cli.host,
+		Bucket:              bucket,
+		Object:              object,
+		URLMode:             cli.urlMode,
+		Query:               make(url.Values),
+		Header:              make(http.Header),
+		OnRetry:             func(req *Request) error { return nil },
+		Classifier:          StatusCodeClassifier{},
+		IsCustomDomain:      cli.isCustomDomain,
+		DisableEncodingMeta: cli.disableEncodingMeta,
 	}
 	rb.Header.Set(HeaderUserAgent, cli.userAgent)
 	if typ := cli.recognizer.ContentType(object); len(typ) > 0 {

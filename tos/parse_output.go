@@ -216,7 +216,7 @@ func ParseHeadObjectV2Output(httpRes *http.Response) (*HeadObjectV2Output, error
 	output := HeadObjectV2Output{
 		RequestInfo: res.RequestInfo(),
 	}
-	output.ObjectMetaV2.fromResponseV2(res)
+	output.ObjectMetaV2.fromResponseV2(res, false)
 	return &output, nil
 }
 
@@ -239,7 +239,7 @@ func ParseGetObjectV2Output(httpRes *http.Response, expectedCode int) (*GetObjec
 		RequestInfo:  res.RequestInfo(),
 		ContentRange: res.Header.Get(HeaderContentRange),
 	}
-	basic.ObjectMetaV2.fromResponseV2(res)
+	basic.ObjectMetaV2.fromResponseV2(res, false)
 
 	output := GetObjectV2Output{
 		GetObjectBasicOutput: basic,

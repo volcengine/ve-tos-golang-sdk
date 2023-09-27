@@ -2,6 +2,7 @@ package tos
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -122,3 +123,16 @@ func TestFileUnreadSize(t *testing.T) {
 //	}
 //
 // }
+
+func TestEncodingContentDisposition(t *testing.T) {
+	res := encodeContentDisposition("attachement; filename=\"中文.pdf\"")
+	require.Equal(t, res, fmt.Sprintf("attachement; filename=\"%s\"", url.QueryEscape("中文.pdf")))
+
+	res = encodeContentDisposition("attachment; filename=\"filename.pdf\"")
+	require.Equal(t, res, "attachment; filename=\"filename.pdf\"")
+	res = encodeContentDisposition("attachment; filename='中文.pdf'")
+	require.Equal(t, res, fmt.Sprintf("attachment; filename='%s'", url.QueryEscape("中文.pdf")))
+
+	res = encodeContentDisposition("attachment; filename*=UTF-8''%E6%96%87%E4%BB%B6%E5%90%8D%E5%AD%97.txt")
+	require.Equal(t, res, "attachment; filename*=UTF-8''%E6%96%87%E4%BB%B6%E5%90%8D%E5%AD%97.txt")
+}
