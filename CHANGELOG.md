@@ -1,5 +1,10 @@
 # ChangeLog of TOS SDK for Go
 
+## 版本号 v2.6.3 日期：2023-09-15
+
+- 修复 ContentDisposition 编码问题
+- GetObject 增加图片处理 SaveAs 参数
+
 ## 版本号 v2.6.2 日期：2023-09-05
 
 - 支持 PutObject/CopyObject/CreateMultipartUpload/CompleteMultipartUpload 增加 x-tos-forbid-overwrite 禁止覆盖头域

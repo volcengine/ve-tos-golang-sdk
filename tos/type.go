@@ -919,6 +919,8 @@ type GetObjectV2Input struct {
 	ResponseContentType        string    `location:"query" locationName:"response-content-type"`
 	ResponseExpires            time.Time `location:"query" locationName:"response-expires"`
 	Process                    string    `location:"query" locationName:"x-tos-process"`
+	SaveBucket                 string    `location:"query" locationName:"x-tos-save-bucket"`
+	SaveObject                 string    `location:"query" locationName:"x-tos-save-object"`
 
 	RangeStart int64
 	RangeEnd   int64

@@ -163,6 +163,7 @@ func (cli *ClientV2) copyPart(ctx context.Context, cp *copyObjectCheckpoint, inp
 				Bucket:   input.Bucket,
 				Key:      input.Key,
 				UploadID: cp.UploadID})
+		_ = os.Remove(input.CheckpointFile)
 		return err
 	}
 	bindCancelHookWithAborter(input.CancelHook, abort)

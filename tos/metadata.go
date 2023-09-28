@@ -57,7 +57,7 @@ type ObjectMetaV2 struct {
 	ServerSideEncryptionKeyID string
 }
 
-func (om *ObjectMeta) fromResponse(res *Response) {
+func (om *ObjectMeta) fromResponse(res *Response, disableEncodingMeta bool) {
 	om.ETag = res.Header.Get(HeaderETag)
 	om.LastModified = res.Header.Get(HeaderLastModified)
 	om.DeleteMarker, _ = strconv.ParseBool(res.Header.Get(HeaderDeleteMarker))
@@ -67,12 +67,16 @@ func (om *ObjectMeta) fromResponse(res *Response) {
 
 	om.ObjectType = res.Header.Get(HeaderObjectType)
 	om.StorageClass = res.Header.Get(HeaderStorageClass)
-	om.Metadata = userMetadata(res.Header)
+	om.Metadata = userMetadata(res.Header, disableEncodingMeta)
 
 	om.ContentLength = res.ContentLength
 	om.ContentType = res.Header.Get(HeaderContentType)
 	om.CacheControl = res.Header.Get(HeaderCacheControl)
-	om.ContentDisposition = res.Header.Get(HeaderContentDisposition)
+	contentDisposition, err := url.QueryUnescape(res.Header.Get(HeaderContentDisposition))
+	if disableEncodingMeta || err != nil {
+		contentDisposition = res.Header.Get(HeaderContentDisposition)
+	}
+	om.ContentDisposition = contentDisposition
 	om.ContentEncoding = res.Header.Get(HeaderContentEncoding)
 	om.ContentLanguage = res.Header.Get(HeaderContentLanguage)
 	om.Expires = res.Header.Get(HeaderExpires)
@@ -83,7 +87,7 @@ func (om *ObjectMeta) fromResponse(res *Response) {
 	om.CSType = res.Header.Get(HeaderCSType)
 }
 
-func (om *ObjectMetaV2) fromResponseV2(res *Response) {
+func (om *ObjectMetaV2) fromResponseV2(res *Response, disableEncodingMeta bool) {
 	lastModified, _ := time.ParseInLocation(http.TimeFormat, res.Header.Get(HeaderLastModified), time.UTC)
 	deleteMarker, _ := strconv.ParseBool(res.Header.Get(HeaderDeleteMarker))
 	// If s is empty or contains invalid digits, err.Err = ErrSyntax and the returned value is 0;
@@ -100,11 +104,15 @@ func (om *ObjectMetaV2) fromResponseV2(res *Response) {
 	om.ObjectType = res.Header.Get(HeaderObjectType)
 	om.HashCrc64ecma = crc64
 	om.StorageClass = enum.StorageClassType(res.Header.Get(HeaderStorageClass))
-	om.Meta = &CustomMeta{m: userMetadata(res.Header)}
+	om.Meta = &CustomMeta{m: userMetadata(res.Header, disableEncodingMeta)}
 	om.ContentLength = length
 	om.ContentType = res.Header.Get(HeaderContentType)
 	om.CacheControl = res.Header.Get(HeaderCacheControl)
-	om.ContentDisposition, _ = url.QueryUnescape(res.Header.Get(HeaderContentDisposition))
+	contentDisposition, err := url.QueryUnescape(res.Header.Get(HeaderContentDisposition))
+	if disableEncodingMeta || err != nil {
+		contentDisposition = res.Header.Get(HeaderContentDisposition)
+	}
+	om.ContentDisposition = contentDisposition
 	om.ContentEncoding = res.Header.Get(HeaderContentEncoding)
 	om.ContentLanguage = res.Header.Get(HeaderContentLanguage)
 	om.Expires = expires
@@ -112,11 +120,15 @@ func (om *ObjectMetaV2) fromResponseV2(res *Response) {
 	om.ServerSideEncryptionKeyID = res.Header.Get(HeaderServerSideEncryptionKmsKeyID)
 }
 
-func userMetadata(header http.Header) map[string]string {
+func userMetadata(header http.Header, disableEncodingMeta bool) map[string]string {
 
 	meta := make(map[string]string)
 	for key := range header {
 		if strings.HasPrefix(key, HeaderMetaPrefix) {
+			if disableEncodingMeta {
+				meta[strings.ToLower(key[len(HeaderMetaPrefix):])] = header.Get(key)
+				continue
+			}
 			kk, err := url.QueryUnescape(key[len(HeaderMetaPrefix):])
 			if err != nil {
 				kk = key[len(HeaderMetaPrefix):]

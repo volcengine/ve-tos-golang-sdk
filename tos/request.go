@@ -26,7 +26,8 @@ const (
 	// urlModePath url pattern is http(s)://{bucket}.domain/{object}
 	urlModeDefault = 0
 	// urlModePath url pattern is http(s)://domain/{bucket}/{object}
-	urlModePath = 1
+	urlModePath           = 1
+	contentDispositionSep = ";"
 )
 
 type Request struct {
@@ -75,21 +76,22 @@ type CopySource struct {
 }
 
 type requestBuilder struct {
-	Signer         Signer
-	Scheme         string
-	Host           string
-	Bucket         string
-	Object         string
-	URLMode        urlMode
-	ContentLength  *int64
-	Range          *Range
-	Query          url.Values
-	Header         http.Header
-	Retry          *retryer
-	OnRetry        func(req *Request) error
-	Classifier     classifier
-	CopySource     *CopySource
-	IsCustomDomain bool
+	Signer              Signer
+	Scheme              string
+	Host                string
+	Bucket              string
+	Object              string
+	URLMode             urlMode
+	ContentLength       *int64
+	Range               *Range
+	Query               url.Values
+	Header              http.Header
+	Retry               *retryer
+	OnRetry             func(req *Request) error
+	Classifier          classifier
+	CopySource          *CopySource
+	IsCustomDomain      bool
+	DisableEncodingMeta bool
 	// CheckETag  bool
 	// CheckCRC32 bool
 }
@@ -160,6 +162,22 @@ func convertToString(iface interface{}, tag *reflect.StructTag) string {
 	return result
 }
 
+func encodeContentDisposition(input string) string {
+	metas := strings.Split(input, contentDispositionSep)
+	res := make([]string, 0, len(metas))
+	for _, meta := range metas {
+		metaValues := strings.SplitN(meta, "=", 2)
+		if len(metaValues) > 1 && strings.TrimSpace(strings.ToLower(metaValues[0])) == "filename" {
+			value := escapeHeader(metaValues[1], skipContentDispositionEscape)
+			res = append(res, metaValues[0]+"="+value)
+		} else {
+			res = append(res, meta)
+		}
+	}
+	return strings.Join(res, contentDispositionSep)
+
+}
+
 // WithParams will set filed with tag "header" in input to rb.Header.
 func (rb *requestBuilder) WithParams(input interface{}) *requestBuilder {
 
@@ -174,14 +192,24 @@ func (rb *requestBuilder) WithParams(input interface{}) *requestBuilder {
 		switch location {
 		case "header":
 			value := convertToString(v.Field(i).Interface(), &filed.Tag)
-			if filed.Tag.Get("encodeChinese") == "true" {
-				value = headerEncode(value)
+			if filed.Tag.Get("encodeChinese") == "true" && !rb.DisableEncodingMeta {
+				if filed.Tag.Get("locationName") == HeaderContentDisposition {
+					value = encodeContentDisposition(value)
+				} else {
+					value = headerEncode(value)
+				}
 			}
 			rb.WithHeader(filed.Tag.Get("locationName"), value)
 		case "headers":
 			if headers, ok := v.Field(i).Interface().(map[string]string); ok {
 				for k, v := range headers {
-					rb.Header.Set(HeaderMetaPrefix+headerEncode(k), headerEncode(v))
+					key := k
+					value := v
+					if !rb.DisableEncodingMeta {
+						key = headerEncode(k)
+						value = headerEncode(v)
+					}
+					rb.Header.Set(HeaderMetaPrefix+key, value)
 				}
 				return rb
 			}

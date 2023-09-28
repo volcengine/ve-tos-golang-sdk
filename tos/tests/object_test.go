@@ -11,6 +11,7 @@ import (
 	"io/ioutil"
 	"math/rand"
 	"net/http"
+	"net/url"
 	"os"
 	"sort"
 	"strconv"
@@ -157,7 +158,7 @@ func TestPutWithAllParams(t *testing.T) {
 			ContentMD5:         md5Sum,
 			Expires:            expires,
 			ACL:                acl,
-			ContentDisposition: "中文测试",
+			ContentDisposition: "attachment; filename=中文.pdf;",
 			StorageClass:       storageClass,
 			SSECAlgorithm:      "AES256",
 			SSECKey:            base64.StdEncoding.EncodeToString([]byte(ssecKey)),
@@ -191,7 +192,7 @@ func TestPutWithAllParams(t *testing.T) {
 		require.Equal(t, ok, true)
 		require.Equal(t, v, val)
 	}
-	require.Equal(t, "中文测试", get.ContentDisposition)
+	require.Equal(t, "attachment; filename=中文.pdf;", get.ContentDisposition)
 	require.Equal(t, expires.Format(time.UnixDate), get.Expires.Format(time.UnixDate))
 	require.Equal(t, storageClass, get.StorageClass)
 	ctx := context.Background()
@@ -2192,4 +2193,65 @@ func TestObjectIfMatch(t *testing.T) {
 	_, err = client.PutObjectV2(ctx, &tos.PutObjectV2Input{PutObjectBasicInput: tos.PutObjectBasicInput{Bucket: bucket, Key: key, IfMatch: out.ETag},
 		Content: strings.NewReader(randomString(1024))})
 	require.Nil(t, err)
+}
+
+func TestEncodingMeta(t *testing.T) {
+	var (
+		env    = newTestEnv(t)
+		bucket = generateBucketName("object-encoding-type")
+		ctx    = context.Background()
+		client = env.prepareClient(bucket)
+	)
+	defer cleanBucket(t, client, bucket)
+	// 默认情况下，SDK 进行编码
+	key := randomString(6)
+	metaKey := "中文😋"
+	metaValue := "中文😈"
+	specialKey := "中文😋.pdf"
+	contentDisposition := fmt.Sprintf("attachment; filename='%s'", specialKey)
+	contentEncodingDisposition := fmt.Sprintf("attachment; filename='%s'", url.PathEscape(specialKey))
+	_, err := client.PutObjectV2(ctx, &tos.PutObjectV2Input{
+		PutObjectBasicInput: tos.PutObjectBasicInput{Bucket: bucket, Key: key, Meta: map[string]string{metaKey: metaValue}, ContentDisposition: contentDisposition},
+		Content:             strings.NewReader("hello world"),
+	})
+	require.Nil(t, err)
+
+	hout, err := client.HeadObjectV2(ctx, &tos.HeadObjectV2Input{Bucket: bucket, Key: key})
+	require.Nil(t, err)
+	metaRes, _ := hout.Meta.Get(metaKey)
+	require.Equal(t, metaRes, metaValue)
+	require.Equal(t, contentDisposition, hout.ContentDisposition)
+	// 比较原始的 attachment
+	require.Equal(t, contentEncodingDisposition, hout.Header.Get(tos.HeaderContentDisposition))
+	t.Log(hout.Header.Get(tos.HeaderContentDisposition))
+}
+
+func TestDisableEncodingMeta(t *testing.T) {
+	var (
+		env    = newTestEnv(t)
+		bucket = generateBucketName("object-disable-encoding-meta")
+		ctx    = context.Background()
+		client = env.prepareClient(bucket, tos.WithDisableEncodingMeta(true))
+	)
+	defer cleanBucket(t, client, bucket)
+	// 默认情况下，SDK 进行编码
+	key := randomString(6)
+	metaKey := url.PathEscape("中文😋")
+	metaValue := "中文😈"
+	specialKey := "中文😋.pdf"
+	contentDisposition := fmt.Sprintf("attachment; filename='%s'", specialKey)
+	_, err := client.PutObjectV2(ctx, &tos.PutObjectV2Input{
+		PutObjectBasicInput: tos.PutObjectBasicInput{Bucket: bucket, Key: key, Meta: map[string]string{metaKey: metaValue}, ContentDisposition: contentDisposition},
+		Content:             strings.NewReader("hello world"),
+	})
+	require.Nil(t, err)
+
+	hout, err := client.HeadObjectV2(ctx, &tos.HeadObjectV2Input{Bucket: bucket, Key: key})
+	require.Nil(t, err)
+	metaRes, _ := hout.Meta.Get(metaKey)
+	require.Equal(t, metaRes, metaValue)
+	require.Equal(t, contentDisposition, hout.ContentDisposition)
+	// 比较原始的 attachment
+	require.Equal(t, contentDisposition, hout.Header.Get(tos.HeaderContentDisposition))
+	t.Log(hout.Header.Get(tos.HeaderContentDisposition))
 }

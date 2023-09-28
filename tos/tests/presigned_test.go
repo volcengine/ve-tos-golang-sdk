@@ -214,14 +214,16 @@ func TestPreSignedURLEndpoint(t *testing.T) {
 	res, err := client.Do(req)
 	require.Nil(t, err)
 	require.Equal(t, 200, res.StatusCode)
+	key := "put/key/test"
 	// put object
 	url, err = cli.PreSignedURL(&tos.PreSignedURLInput{
 		HTTPMethod:          http.MethodPut,
 		Bucket:              bucket,
-		Key:                 "put-key",
+		Key:                 key,
 		AlternativeEndpoint: endpoint,
 	})
 	require.Nil(t, err)
+	require.Contains(t, url.SignedUrl, key)
 	req, _ = http.NewRequest(http.MethodPut, url.SignedUrl, strings.NewReader(randomString(4096)))
 	res, err = client.Do(req)
 	require.Nil(t, err)
@@ -230,7 +232,7 @@ func TestPreSignedURLEndpoint(t *testing.T) {
 	url, err = cli.PreSignedURL(&tos.PreSignedURLInput{
 		HTTPMethod:          http.MethodHead,
 		Bucket:              bucket,
-		Key:                 "put-key",
+		Key:                 key,
 		AlternativeEndpoint: endpoint,
 	})
 	require.Nil(t, err)
@@ -242,7 +244,7 @@ func TestPreSignedURLEndpoint(t *testing.T) {
 	url, err = cli.PreSignedURL(&tos.PreSignedURLInput{
 		HTTPMethod:          http.MethodGet,
 		Bucket:              bucket,
-		Key:                 "put-key",
+		Key:                 key,
 		AlternativeEndpoint: endpoint,
 	})
 	require.Nil(t, err)
@@ -254,7 +256,7 @@ func TestPreSignedURLEndpoint(t *testing.T) {
 	url, err = cli.PreSignedURL(&tos.PreSignedURLInput{
 		HTTPMethod:          http.MethodDelete,
 		Bucket:              bucket,
-		Key:                 "put-key",
+		Key:                 key,
 		AlternativeEndpoint: endpoint,
 	})
 	require.Nil(t, err)

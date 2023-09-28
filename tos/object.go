@@ -42,7 +42,7 @@ func (bkt *Bucket) GetObject(ctx context.Context, objectKey string, options ...O
 		ContentRange: rb.Header.Get(HeaderContentRange),
 		Content:      res.Body,
 	}
-	output.ObjectMeta.fromResponse(res)
+	output.ObjectMeta.fromResponse(res, bkt.client.disableEncodingMeta)
 	return &output, nil
 }
 
@@ -111,7 +111,7 @@ func (cli *ClientV2) GetObjectV2(ctx context.Context, input *GetObjectV2Input) (
 		RequestInfo:  res.RequestInfo(),
 		ContentRange: res.Header.Get(HeaderContentRange),
 	}
-	basic.ObjectMetaV2.fromResponseV2(res)
+	basic.ObjectMetaV2.fromResponseV2(res, cli.disableEncodingMeta)
 	var serverCrc uint64
 	var checker hash.Hash64
 	// 200 为完整请求
@@ -152,7 +152,7 @@ func (bkt *Bucket) HeadObject(ctx context.Context, objectKey string, options ...
 		RequestInfo:  res.RequestInfo(),
 		ContentRange: rb.Header.Get(HeaderContentRange),
 	}
-	output.ObjectMeta.fromResponse(res)
+	output.ObjectMeta.fromResponse(res, bkt.client.disableEncodingMeta)
 	return &output, nil
 }
 
@@ -174,7 +174,7 @@ func (cli *ClientV2) HeadObjectV2(ctx context.Context, input *HeadObjectV2Input)
 	output := HeadObjectV2Output{
 		RequestInfo: res.RequestInfo(),
 	}
-	output.ObjectMetaV2.fromResponseV2(res)
+	output.ObjectMetaV2.fromResponseV2(res, cli.disableEncodingMeta)
 	return &output, nil
 }
 
@@ -384,11 +384,18 @@ func skipEscape(i byte) bool {
 		i == '~'
 }
 
-func escapeHeader(s string) string {
+func skipContentDispositionEscape(i byte) bool {
+	return skipEscape(i) ||
+		i == ' ' ||
+		i == '\'' ||
+		i == '"'
+}
+
+func escapeHeader(s string, skip func(i byte) bool) string {
 	var buf bytes.Buffer
 	for i := 0; i < len(s); i++ {
 		c := s[i]
-		if skipEscape(c) {
+		if skip(c) {
 			buf.WriteByte(c)
 		} else {
 			fmt.Fprintf(&buf, "%%%02X", c)
@@ -410,7 +417,7 @@ func existChinese(s string) bool {
 
 // url-encode Chinese characters only
 func headerEncode(s string) string {
-	return escapeHeader(s)
+	return escapeHeader(s, skipEscape)
 }
 
 func checkCrc64(res *Response, checker hash.Hash64) error {

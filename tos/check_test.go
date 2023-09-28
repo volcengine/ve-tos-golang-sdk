@@ -80,7 +80,7 @@ func TestIsValidObjectKey(t *testing.T) {
 
 func TestEncodeHeader(t *testing.T) {
 	rawStr := "!@#$%^&*()_+-=[]{}|;':\",./<>?中文测试编码%20%%%^&abcd /\\"
-	escapeStr := escapeHeader(rawStr)
+	escapeStr := escapeHeader(rawStr, skipEscape)
 
 	unescape, err := url.QueryUnescape(escapeStr)
 	require.Nil(t, err)
