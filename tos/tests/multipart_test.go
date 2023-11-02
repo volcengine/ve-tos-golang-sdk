@@ -331,6 +331,20 @@ func TestAbortMultipartUpload(t *testing.T) {
 	require.Equal(t, sort1[0], sort2[0])
 	require.Equal(t, sort1[1], sort2[1])
 
+	listMulti, err = client.ListMultipartUploadsV2(context.Background(), &tos.ListMultipartUploadsV2Input{
+		Bucket: bucket,
+		Prefix: "a",
+	})
+	require.Equal(t, 200, listMulti.StatusCode)
+	require.Equal(t, 0, len(listMulti.Uploads))
+
+	listMulti, err = client.ListMultipartUploadsV2(context.Background(), &tos.ListMultipartUploadsV2Input{
+		Bucket: bucket,
+		Prefix: "k",
+	})
+	require.Equal(t, 200, listMulti.StatusCode)
+	require.Equal(t, 2, len(listMulti.Uploads))
+
 	for _, upload := range listMulti.Uploads {
 		abort, err := client.AbortMultipartUpload(context.Background(), &tos.AbortMultipartUploadInput{
 			Bucket:   bucket,

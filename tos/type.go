@@ -1396,7 +1396,7 @@ type ListMultipartUploadsOutput struct {
 
 type ListMultipartUploadsV2Input struct {
 	Bucket         string
-	Prefix         string `location:"query" locationName:"uploads"`
+	Prefix         string `location:"query" locationName:"prefix"`
 	Delimiter      string `location:"query" locationName:"delimiter"`
 	KeyMarker      string `location:"query" locationName:"key-marker"`
 	UploadIDMarker string `location:"query" locationName:"upload-id-marker"`

@@ -1,4 +1,7 @@
 # ChangeLog of TOS SDK for Go
+## 版本号 v2.6.4 日期：2023-11-02
+
+- 修复 ListMultipartUploads Prefix 未生效的问题
 
 ## 版本号 v2.6.3 日期：2023-09-15
 
