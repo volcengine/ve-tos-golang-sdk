@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/volcengine/ve-tos-golang-sdk/v2/tos/enum"
 )
@@ -356,6 +357,7 @@ func (d downloadEvent) postDownloadEvent(event *DownloadEvent) {
 func (cli *ClientV2) downloadFile(ctx context.Context,
 	headOutput *HeadObjectV2Output, checkpoint *downloadCheckpoint, input *DownloadFileInput, event downloadEvent) (*DownloadFileOutput, error) {
 	// prepare tasks
+	start := time.Now()
 	tasks := getDownloadTasks(cli, ctx, headOutput, checkpoint, input)
 	routinesNum := min(input.TaskNum, len(tasks))
 	tg := newTaskGroup(getCancelHandle(input.CancelHook), routinesNum, checkpoint, event, input.EnableCheckpoint, tasks)
@@ -382,6 +384,8 @@ func (cli *ClientV2) downloadFile(ctx context.Context,
 		event.postDownloadEvent(event.newFailedEvent(err, enum.DownloadEventRenameTempFileFailed))
 		return nil, err
 	}
+
+	cli.printGetObjectSlowLog(&headOutput.RequestID, int(headOutput.ContentLength), headOutput.StatusCode, start)
 	event.postDownloadEvent(event.newSucceedEvent(enum.DownloadEventRenameTempFileSucceed))
 	_ = os.Remove(checkpoint.checkpointPath)
 	return &DownloadFileOutput{*headOutput}, nil

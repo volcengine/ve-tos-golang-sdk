@@ -31,35 +31,40 @@ func TestDnsCache(t *testing.T) {
 	}()
 	var wg sync.WaitGroup
 	count := 10
-	wg.Add(count)
-	for i := 0; i < count; i++ {
-		go func() {
-			defer func() {
-				fmt.Println("done")
-				wg.Done()
-			}()
-			key := randomString(8)
-			ctx := context.Background()
-			time.Sleep(time.Second)
-			putRes, err := client.PutObjectV2(ctx, &tos.PutObjectV2Input{
-				PutObjectBasicInput: tos.PutObjectBasicInput{
+	// 执行超过 30 S
+	for j := 0; j < 8; j++ {
+		wg.Add(count)
+		for i := 0; i < count; i++ {
+			go func() {
+				defer func() {
+					fmt.Println("done")
+					wg.Done()
+				}()
+				key := randomString(8)
+				ctx := context.Background()
+				time.Sleep(time.Second)
+				putRes, err := client.PutObjectV2(ctx, &tos.PutObjectV2Input{
+					PutObjectBasicInput: tos.PutObjectBasicInput{
+						Bucket: bucket,
+						Key:    key,
+					},
+					Content: bytes.NewBufferString(value),
+				})
+				require.Nil(t, err)
+				require.Equal(t, putRes.StatusCode, http.StatusOK)
+				time.Sleep(time.Second)
+
+				getRes, err := client.GetObjectV2(ctx, &tos.GetObjectV2Input{
 					Bucket: bucket,
 					Key:    key,
-				},
-				Content: bytes.NewBufferString(value),
-			})
-			require.Nil(t, err)
-			require.Equal(t, putRes.StatusCode, http.StatusOK)
-			time.Sleep(time.Second)
-
-			getRes, err := client.GetObjectV2(ctx, &tos.GetObjectV2Input{
-				Bucket: bucket,
-				Key:    key,
-			})
-			require.Nil(t, err)
-			require.Equal(t, getRes.StatusCode, http.StatusOK)
-		}()
+				})
+				require.Nil(t, err)
+				require.Equal(t, getRes.StatusCode, http.StatusOK)
+			}()
+		}
+		wg.Wait()
+		time.Sleep(5)
 	}
-	wg.Wait()
+	client.Close()
 
 }

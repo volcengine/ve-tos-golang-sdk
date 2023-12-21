@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"time"
 )
 
 type Bucket struct {
@@ -21,11 +22,12 @@ type Bucket struct {
 }
 
 // GetObject get data and metadata of an object
-//  objectKey: the name of object
-//  options: WithVersionID which version of this object
-//    WithRange the range of content,
-//    WithIfModifiedSince return if the object modified after the given date, otherwise return status code 304
-//    WithIfUnmodifiedSince, WithIfMatch, WithIfNoneMatch set If-Unmodified-Since, If-Match and If-None-Match
+//
+//	objectKey: the name of object
+//	options: WithVersionID which version of this object
+//	  WithRange the range of content,
+//	  WithIfModifiedSince return if the object modified after the given date, otherwise return status code 304
+//	  WithIfUnmodifiedSince, WithIfMatch, WithIfNoneMatch set If-Unmodified-Since, If-Match and If-None-Match
 //
 // Deprecated: use GetObject of ClientV2 instead
 func (bkt *Bucket) GetObject(ctx context.Context, objectKey string, options ...Option) (*GetObjectOutput, error) {
@@ -68,8 +70,9 @@ func (cli *ClientV2) GetObjectToFile(ctx context.Context, input *GetObjectToFile
 	}
 
 	tempFilePath := input.FilePath + TempFileSuffix
-
+	start := time.Now()
 	get, err := cli.GetObjectV2(ctx, &input.GetObjectV2Input)
+
 	if err != nil {
 		return nil, err
 	}
@@ -79,11 +82,24 @@ func (cli *ClientV2) GetObjectToFile(ctx context.Context, input *GetObjectToFile
 		return nil, newTosClientError("GetObject to File error", err)
 	}
 
+	cli.printGetObjectSlowLog(&get.RequestID, int(get.ContentLength), get.StatusCode, start)
 	err = os.Rename(tempFilePath, input.FilePath)
 	if err != nil {
 		return nil, err
 	}
 	return &GetObjectToFileOutput{get.GetObjectBasicOutput}, nil
+}
+
+func (cli *ClientV2) printGetObjectSlowLog(requestId *string, contentLength int, statusCode int, start time.Time) {
+	if cli.config.TransportConfig.HighLatencyLogThreshold != nil && isSlow(contentLength, *cli.config.TransportConfig.HighLatencyLogThreshold, time.Since(start)) {
+		logger := cli.logger
+		if logger == nil {
+			logger = stdlog
+		}
+
+		prefix := buildSlowPrefix(requestId)
+		logger.Warn(fmt.Sprintf("%s Response StatusCode:%d, Cost:%d ms", prefix, statusCode, time.Since(start).Milliseconds()))
+	}
 }
 
 // GetObjectV2 get data and metadata of an object
@@ -103,7 +119,7 @@ func (cli *ClientV2) GetObjectV2(ctx context.Context, input *GetObjectV2Input) (
 		rb.Range = &Range{Start: input.RangeStart, End: input.RangeEnd}
 		rb.WithHeader(HeaderRange, rb.Range.String())
 	}
-	res, err := rb.Request(ctx, http.MethodGet, nil, cli.roundTripper(expectedCode(rb)))
+	res, err := rb.Request(ctx, http.MethodGet, nil, cli.roundTripperWithSlowLog(expectedCode(rb)))
 	if err != nil {
 		return nil, err
 	}
@@ -128,11 +144,12 @@ func (cli *ClientV2) GetObjectV2(ctx context.Context, input *GetObjectV2Input) (
 }
 
 // HeadObject get metadata of an object
-//  objectKey: the name of object
-//  options: WithVersionID which version of this object
-//    WithRange the range of content,
-//    WithIfModifiedSince return if the object modified after the given date, otherwise return status code 304
-//    WithIfUnmodifiedSince, WithIfMatch, WithIfNoneMatch set If-Unmodified-Since, If-Match and If-None-Match
+//
+//	objectKey: the name of object
+//	options: WithVersionID which version of this object
+//	  WithRange the range of content,
+//	  WithIfModifiedSince return if the object modified after the given date, otherwise return status code 304
+//	  WithIfUnmodifiedSince, WithIfMatch, WithIfNoneMatch set If-Unmodified-Since, If-Match and If-None-Match
 //
 // Deprecated: use HeadObject of ClientV2 instead
 func (bkt *Bucket) HeadObject(ctx context.Context, objectKey string, options ...Option) (*HeadObjectOutput, error) {
@@ -187,8 +204,9 @@ func expectedCode(rb *requestBuilder) int {
 }
 
 // DeleteObject delete an object
-//  objectKey: the name of object
-//  options: WithVersionID which version of this object will be deleted
+//
+//	objectKey: the name of object
+//	options: WithVersionID which version of this object will be deleted
 //
 // Deprecated: use DeleteObject of ClientV2 instead
 func (bkt *Bucket) DeleteObject(ctx context.Context, objectKey string, options ...Option) (*DeleteObjectOutput, error) {
@@ -235,7 +253,8 @@ func (cli *ClientV2) DeleteObjectV2(ctx context.Context, input *DeleteObjectV2In
 }
 
 // DeleteMultiObjects delete multi-objects
-//   input: the objects will be deleted
+//
+//	input: the objects will be deleted
 //
 // Deprecated: use DeleteMultiObjects of ClientV2 instead
 func (bkt *Bucket) DeleteMultiObjects(ctx context.Context, input *DeleteMultiObjectsInput, options ...Option) (*DeleteMultiObjectsOutput, error) {
@@ -262,7 +281,7 @@ func (bkt *Bucket) DeleteMultiObjects(ctx context.Context, input *DeleteMultiObj
 	}
 	defer res.Close()
 	output := DeleteMultiObjectsOutput{RequestInfo: res.RequestInfo()}
-	if err = marshalOutput(output.RequestID, res.Body, &output); err != nil {
+	if err = marshalOutput(res, &output); err != nil {
 		return nil, err
 	}
 	return &output, nil
@@ -302,32 +321,34 @@ func (cli *ClientV2) DeleteMultiObjects(ctx context.Context, input *DeleteMultiO
 	defer res.Close()
 
 	output := DeleteMultiObjectsOutput{RequestInfo: res.RequestInfo()}
-	if err = marshalOutput(output.RequestID, res.Body, &output); err != nil {
+	if err = marshalOutput(res, &output); err != nil {
 		return nil, err
 	}
 	return &output, nil
 }
 
 // PutObject put an object
-//   objectKey: the name of object
-//   content: the content of object
-//   options: WithContentType set Content-Type,
-//     WithContentDisposition set Content-Disposition,
-//     WithContentLanguage set Content-Language,
-//     WithContentEncoding set Content-Encoding,
-//     WithCacheControl set Cache-Control,
-//     WithExpires set Expires,
-//     WithMeta set meta header(s),
-//     WithContentSHA256 set Content-Sha256,
-//     WithContentMD5 set Content-MD5
-//     WithExpires set Expires,
-//     WithServerSideEncryptionCustomer set server side encryption options
-//     WithACL WithACLGrantFullControl WithACLGrantRead WithACLGrantReadAcp WithACLGrantWrite WithACLGrantWriteAcp set object acl
+//
+//	objectKey: the name of object
+//	content: the content of object
+//	options: WithContentType set Content-Type,
+//	  WithContentDisposition set Content-Disposition,
+//	  WithContentLanguage set Content-Language,
+//	  WithContentEncoding set Content-Encoding,
+//	  WithCacheControl set Cache-Control,
+//	  WithExpires set Expires,
+//	  WithMeta set meta header(s),
+//	  WithContentSHA256 set Content-Sha256,
+//	  WithContentMD5 set Content-MD5
+//	  WithExpires set Expires,
+//	  WithServerSideEncryptionCustomer set server side encryption options
+//	  WithACL WithACLGrantFullControl WithACLGrantRead WithACLGrantReadAcp WithACLGrantWrite WithACLGrantWriteAcp set object acl
 //
 // NOTICE: only content with a known length is supported now,
-//   e.g, bytes.Buffer, bytes.Reader, strings.Reader, os.File, io.LimitedReader, net.Buffers.
-//   if the parameter content(an io.Reader) is not one of these,
-//   please use io.LimitReader(reader, length) to wrap this reader or use the WithContentLength option.
+//
+//	e.g, bytes.Buffer, bytes.Reader, strings.Reader, os.File, io.LimitedReader, net.Buffers.
+//	if the parameter content(an io.Reader) is not one of these,
+//	please use io.LimitReader(reader, length) to wrap this reader or use the WithContentLength option.
 //
 // Deprecated: use PutObjectV2 of ClientV2 instead
 func (bkt *Bucket) PutObject(ctx context.Context, objectKey string, content io.Reader, options ...Option) (*PutObjectOutput, error) {
@@ -427,13 +448,13 @@ func checkCrc64(res *Response, checker hash.Hash64) error {
 	crc64, err := strconv.ParseUint(res.Header.Get(HeaderHashCrc64ecma), 10, 64)
 	if err != nil {
 		return &TosServerError{
-			TosError:    TosError{"tos: server returned invalid crc"},
+			TosError:    newTosErr("tos: server returned invalid crc", res.RequestUrl),
 			RequestInfo: res.RequestInfo(),
 		}
 	}
 	if checker.Sum64() != crc64 {
 		return &TosServerError{
-			TosError:    TosError{Message: fmt.Sprintf("tos: crc64 check failed, expected:%d, in fact:%d", crc64, checker.Sum64())},
+			TosError:    newTosErr(fmt.Sprintf("tos: crc64 check failed, expected:%d, in fact:%d", crc64, checker.Sum64()), res.RequestUrl),
 			RequestInfo: res.RequestInfo(),
 		}
 	}
@@ -539,9 +560,14 @@ func (cli *ClientV2) PutObjectV2(ctx context.Context, input *PutObjectV2Input) (
 		onRetry    func(req *Request) error = nil
 		classifier classifier
 	)
+
 	if content != nil {
+		if _, ok := content.(*os.File); ok {
+			content = wrapCloser(content)
+		}
 		content = wrapReader(content, contentLength, input.DataTransferListener, input.RateLimiter, &crcChecker{checker: checker})
 	}
+
 	classifier = NoRetryClassifier{}
 	if seeker, ok := content.(io.Seeker); ok {
 		start, err := seeker.Seek(0, io.SeekCurrent)
@@ -568,7 +594,7 @@ func (cli *ClientV2) PutObjectV2(ctx context.Context, input *PutObjectV2Input) (
 		WithContentLength(contentLength).
 		WithParams(*input).
 		WithRetry(onRetry, classifier)
-	res, err := rb.Request(ctx, http.MethodPut, content, cli.roundTripper(http.StatusOK))
+	res, err := rb.Request(ctx, http.MethodPut, content, cli.roundTripperWithSlowLog(http.StatusOK))
 	if err != nil {
 		return nil, err
 	}
@@ -582,7 +608,7 @@ func (cli *ClientV2) PutObjectV2(ctx context.Context, input *PutObjectV2Input) (
 		callbackRes, err := ioutil.ReadAll(res.Body)
 		if err != nil {
 			return nil, &TosServerError{
-				TosError:    TosError{Message: fmt.Sprintf("tos: read callback result err:%s", err.Error())},
+				TosError:    newTosErr(fmt.Sprintf("tos: read callback result err:%s", err.Error()), res.RequestUrl),
 				RequestInfo: res.RequestInfo(),
 			}
 		}
@@ -622,25 +648,27 @@ func (cli *ClientV2) PutObjectFromFile(ctx context.Context, input *PutObjectFrom
 }
 
 // AppendObject append content at the tail of an appendable object
-//   objectKey: the name of object
-//   content: the content of object
-//   offset: append position, equals to the current object-size
-//   options: WithContentType set Content-Type,
-//     WithContentDisposition set Content-Disposition,
-//     WithContentLanguage set Content-Language,
-//     WithContentEncoding set Content-Encoding,
-//     WithCacheControl set Cache-Control,
-//     WithExpires set Expires,
-//     WithMeta set meta header(s),
-//     WithACL WithACLGrantFullControl WithACLGrantRead WithACLGrantReadAcp WithACLGrantWrite WithACLGrantWriteAcp set object acl
-//   above options only take effect when offset parameter is 0.
-//     WithContentSHA256 set Content-Sha256,
-//     WithContentMD5 set Content-MD5.
+//
+//	objectKey: the name of object
+//	content: the content of object
+//	offset: append position, equals to the current object-size
+//	options: WithContentType set Content-Type,
+//	  WithContentDisposition set Content-Disposition,
+//	  WithContentLanguage set Content-Language,
+//	  WithContentEncoding set Content-Encoding,
+//	  WithCacheControl set Cache-Control,
+//	  WithExpires set Expires,
+//	  WithMeta set meta header(s),
+//	  WithACL WithACLGrantFullControl WithACLGrantRead WithACLGrantReadAcp WithACLGrantWrite WithACLGrantWriteAcp set object acl
+//	above options only take effect when offset parameter is 0.
+//	  WithContentSHA256 set Content-Sha256,
+//	  WithContentMD5 set Content-MD5.
 //
 // NOTICE: only content with a known length is supported now,
-//   e.g, bytes.Buffer, bytes.Reader, strings.Reader, os.File, io.LimitedReader, net.Buffers.
-//   if the parameter content(an io.Reader) is not one of these,
-//   please use io.LimitReader(reader, length) to wrap this reader or use the WithContentLength option.
+//
+//	e.g, bytes.Buffer, bytes.Reader, strings.Reader, os.File, io.LimitedReader, net.Buffers.
+//	if the parameter content(an io.Reader) is not one of these,
+//	please use io.LimitReader(reader, length) to wrap this reader or use the WithContentLength option.
 //
 // Deprecated: use AppendObject of ClientV2 instead
 func (bkt *Bucket) AppendObject(ctx context.Context, objectKey string, content io.Reader, offset int64, options ...Option) (*AppendObjectOutput, error) {
@@ -652,7 +680,7 @@ func (bkt *Bucket) AppendObject(ctx context.Context, objectKey string, content i
 		WithQuery("append", "").
 		WithQuery("offset", strconv.FormatInt(offset, 10)).
 		WithRetry(nil, NoRetryClassifier{}).
-		Request(ctx, http.MethodPost, content, bkt.client.roundTripper(http.StatusOK))
+		Request(ctx, http.MethodPost, content, bkt.client.roundTripperWithSlowLog(http.StatusOK))
 	if err != nil {
 		return nil, err
 	}
@@ -710,7 +738,7 @@ func (cli *ClientV2) AppendObjectV2(ctx context.Context, input *AppendObjectV2In
 		WithParams(*input).
 		WithContentLength(contentLength).
 		WithRetry(nil, NoRetryClassifier{}).
-		Request(ctx, http.MethodPost, content, cli.roundTripper(http.StatusOK))
+		Request(ctx, http.MethodPost, content, cli.roundTripperWithSlowLog(http.StatusOK))
 	if err != nil {
 		return nil, err
 	}
@@ -720,7 +748,7 @@ func (cli *ClientV2) AppendObjectV2(ctx context.Context, input *AppendObjectV2In
 	appendOffset, err := strconv.ParseInt(nextOffset, 10, 64)
 	if err != nil {
 		return nil, &TosServerError{
-			TosError:    TosError{fmt.Sprintf("tos: server return unexpected Next-Append-Offset header %q", nextOffset)},
+			TosError:    newTosErr(fmt.Sprintf("tos: server return unexpected Next-Append-Offset header %q", nextOffset), res.RequestUrl),
 			RequestInfo: res.RequestInfo(),
 		}
 	}
@@ -737,15 +765,16 @@ func (cli *ClientV2) AppendObjectV2(ctx context.Context, input *AppendObjectV2In
 }
 
 // SetObjectMeta overwrites metadata of the object
-//   objectKey: the name of object
-//   options: WithContentType set Content-Type,
-//     WithContentDisposition set Content-Disposition,
-//     WithContentLanguage set Content-Language,
-//     WithContentEncoding set Content-Encoding,
-//     WithCacheControl set Cache-Control,
-//     WithExpires set Expires,
-//     WithMeta set meta header(s),
-//     WithVersionID which version of this object will be set
+//
+//	objectKey: the name of object
+//	options: WithContentType set Content-Type,
+//	  WithContentDisposition set Content-Disposition,
+//	  WithContentLanguage set Content-Language,
+//	  WithContentEncoding set Content-Encoding,
+//	  WithCacheControl set Cache-Control,
+//	  WithExpires set Expires,
+//	  WithMeta set meta header(s),
+//	  WithVersionID which version of this object will be set
 //
 // NOTICE: SetObjectMeta always overwrites all previous metadata
 //
@@ -804,7 +833,7 @@ func (bkt *Bucket) ListObjects(ctx context.Context, input *ListObjectsInput, opt
 	}
 	defer res.Close()
 	internalOutput := &listObjectsOutput{}
-	if err = marshalOutput(res.RequestInfo().RequestID, res.Body, &internalOutput); err != nil {
+	if err = marshalOutput(res, &internalOutput); err != nil {
 		return nil, err
 	}
 	output := ListObjectsOutput{
@@ -854,7 +883,7 @@ func (cli *ClientV2) ListObjectsV2(ctx context.Context, input *ListObjectsV2Inpu
 	temp := listObjectsV2Output{
 		RequestInfo: res.RequestInfo(),
 	}
-	if err = marshalOutput(temp.RequestID, res.Body, &temp); err != nil {
+	if err = marshalOutput(res, &temp); err != nil {
 		return nil, err
 	}
 	contents := make([]ListedObjectV2, 0, len(temp.Contents))
@@ -866,7 +895,7 @@ func (cli *ClientV2) ListObjectsV2(ctx context.Context, input *ListObjectsV2Inpu
 			hashCrc, err = strconv.ParseUint(object.HashCrc64ecma, 10, 64)
 			if err != nil {
 				return nil, &TosServerError{
-					TosError:    TosError{Message: "tos: server returned invalid HashCrc64Ecma"},
+					TosError:    newTosErr("tos: server returned invalid HashCrc64Ecma", res.RequestUrl),
 					RequestInfo: RequestInfo{RequestID: temp.RequestID},
 				}
 			}
@@ -913,7 +942,7 @@ func (cli *ClientV2) listObjectsType2(ctx context.Context, input *ListObjectsTyp
 	temp := listObjectsType2Output{
 		RequestInfo: res.RequestInfo(),
 	}
-	if err = marshalOutput(temp.RequestID, res.Body, &temp); err != nil {
+	if err = marshalOutput(res, &temp); err != nil {
 		return nil, err
 	}
 	contents := make([]ListedObjectV2, 0, len(temp.Contents))
@@ -925,7 +954,7 @@ func (cli *ClientV2) listObjectsType2(ctx context.Context, input *ListObjectsTyp
 			hashCrc, err = strconv.ParseUint(object.HashCrc64ecma, 10, 64)
 			if err != nil {
 				return nil, &TosServerError{
-					TosError:    TosError{Message: "tos: server returned invalid HashCrc64Ecma"},
+					TosError:    newTosErr("tos: server returned invalid HashCrc64Ecma", res.RequestUrl),
 					RequestInfo: RequestInfo{RequestID: temp.RequestID},
 				}
 			}
@@ -985,7 +1014,7 @@ func (cli *ClientV2) ListObjectsType2(ctx context.Context, input *ListObjectsTyp
 			output.Contents = append(output.Contents, res.Contents...)
 			output.CommonPrefixes = append(output.CommonPrefixes, res.CommonPrefixes...)
 		}
-		if !res.IsTruncated || len(res.Contents) >= input.MaxKeys {
+		if !res.IsTruncated || len(res.Contents)+len(output.CommonPrefixes) >= input.MaxKeys {
 			break
 		}
 		input.ContinuationToken = res.NextContinuationToken
@@ -1015,7 +1044,7 @@ func (bkt *Bucket) ListObjectVersions(ctx context.Context, input *ListObjectVers
 	defer res.Close()
 
 	interOutput := listObjectVersionsOutput{RequestInfo: res.RequestInfo()}
-	if err = marshalOutput(interOutput.RequestID, res.Body, &interOutput); err != nil {
+	if err = marshalOutput(res, &interOutput); err != nil {
 		return nil, err
 	}
 	output := ListObjectVersionsOutput{
@@ -1073,7 +1102,7 @@ func (cli *ClientV2) ListObjectVersionsV2(
 
 	temp := listObjectVersionsV2Output{RequestInfo: res.RequestInfo()}
 
-	if err = marshalOutput(temp.RequestID, res.Body, &temp); err != nil {
+	if err = marshalOutput(res, &temp); err != nil {
 		return nil, err
 	}
 	versions := make([]ListedObjectVersionV2, 0, len(temp.Versions))
@@ -1085,7 +1114,7 @@ func (cli *ClientV2) ListObjectVersionsV2(
 			hashCrc, err = strconv.ParseUint(version.HashCrc64ecma, 10, 64)
 			if err != nil {
 				return nil, &TosServerError{
-					TosError:    TosError{Message: "tos: server returned invalid HashCrc64Ecma"},
+					TosError:    newTosErr("tos: server returned invalid HashCrc64Ecma", res.RequestUrl),
 					RequestInfo: RequestInfo{RequestID: temp.RequestID},
 				}
 			}

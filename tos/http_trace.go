@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptrace"
 	"sync/atomic"
+	"time"
 )
 
 type accessLogRequest struct {
@@ -29,8 +30,7 @@ func newAccessLogRequest(actionStartMs int64) *accessLogRequest {
 		actionStartMs:                actionStartMs,
 	}
 }
-
-func (r *accessLogRequest) PrintAccessLog(logger Logger, req *http.Request, response *http.Response) {
+func (r *accessLogRequest) printAccessLog(logger Logger, req *http.Request, response *http.Response, start time.Time, err error) {
 	if logger == nil {
 		return
 	}
@@ -41,20 +41,62 @@ func (r *accessLogRequest) PrintAccessLog(logger Logger, req *http.Request, resp
 	}
 	prefix := buildPrefix(requestId)
 	if req != nil {
-		logger.Debug(fmt.Sprintf("%s, method: %s, host: %s, request uri: %s, dns cost: %d ms, dial cost: %d ms, tls handshake cost: %d ms, send headers and body cost: %d ms, wait response cost: %d ms, request cost: %d ms",
+		logger.Debug(fmt.Sprintf("%s method: %s, host: %s, request uri: %s, dns cost: %d ms, dial cost: %d ms, tls handshake cost: %d ms, send headers and body cost: %d ms, wait response cost: %d ms, request cost: %d ms",
 			prefix, req.Method, req.URL.Host, req.URL.EscapedPath(), r.clientDnsCost, r.clientDialCost, r.clientTlsHandShakeCost,
 			r.clientSendHeadersAndBodyCost, r.clientWaitResponseCost, r.clientSendRequestCost))
 	} else {
-		logger.Debug(fmt.Sprintf("%s, dns cost: %d ms, dial cost: %d ms, tls handshake cost: %d ms, send headers and body cost: %d ms, wait response cost: %d ms, request cost: %d ms",
+		logger.Debug(fmt.Sprintf("%s dns cost: %d ms, dial cost: %d ms, tls handshake cost: %d ms, send headers and body cost: %d ms, wait response cost: %d ms, request cost: %d ms",
 			prefix, r.clientDnsCost, r.clientDialCost, r.clientTlsHandShakeCost, r.clientSendHeadersAndBodyCost, r.clientWaitResponseCost, r.clientSendRequestCost))
+	}
+	if err != nil {
+		logger.Info(fmt.Sprintf("[tos]  http error:%s, Cost:%d ms.", err.Error(), time.Since(start).Milliseconds()))
+	} else {
+		logger.Info(fmt.Sprintf("%s Response StatusCode:%d, Cost:%d ms", prefix, response.StatusCode, time.Since(start).Milliseconds()))
 	}
 }
 
-func buildPrefix(requestId *string) string {
-	prefix := ""
+func (r *accessLogRequest) printSlowLog(logger Logger, req *http.Request, response *http.Response, start time.Time, err error) {
+	if logger == nil {
+		logger = stdlog
+	}
+	atomic.CompareAndSwapInt64(&r.clientSendRequestCost, -1, GetUnixTimeMs()-r.actionStartMs)
+	var requestId *string
+	if response != nil {
+		requestId = StringPtr(response.Header.Get(HeaderRequestID))
+	}
+	prefix := buildSlowPrefix(requestId)
+	if req != nil {
+		logger.Warn(fmt.Sprintf("%s, method: %s, host: %s, request uri: %s, dns cost: %d ms, dial cost: %d ms, tls handshake cost: %d ms, send headers and body cost: %d ms, wait response cost: %d ms, request cost: %d ms",
+			prefix, req.Method, req.URL.Host, req.URL.EscapedPath(), r.clientDnsCost, r.clientDialCost, r.clientTlsHandShakeCost,
+			r.clientSendHeadersAndBodyCost, r.clientWaitResponseCost, r.clientSendRequestCost))
+	} else {
+		logger.Warn(fmt.Sprintf("%s, dns cost: %d ms, dial cost: %d ms, tls handshake cost: %d ms, send headers and body cost: %d ms, wait response cost: %d ms, request cost: %d ms",
+			prefix, r.clientDnsCost, r.clientDialCost, r.clientTlsHandShakeCost, r.clientSendHeadersAndBodyCost, r.clientWaitResponseCost, r.clientSendRequestCost))
+	}
+	// GET 请求整体耗时需要在读流后打印
+	if req.Method == http.MethodGet {
+		return
+	}
+	if err != nil {
+		logger.Warn(fmt.Sprintf("%s http error:%s, Cost:%d ms.", prefix, err.Error(), time.Since(start).Milliseconds()))
+		return
+	}
+	logger.Warn(fmt.Sprintf("%s Response StatusCode:%d, Cost:%d ms", prefix, response.StatusCode, time.Since(start).Milliseconds()))
+}
+func buildSlowPrefix(requestId *string) string {
+	prefix := "[tos slow]"
 
 	if requestId != nil {
-		prefix = fmt.Sprintf("[requestId: %s] %s", *requestId, prefix)
+		prefix = fmt.Sprintf("[tos slow log] requestId: %s", *requestId)
+	}
+	return prefix
+}
+
+func buildPrefix(requestId *string) string {
+	prefix := "[tos]"
+
+	if requestId != nil {
+		prefix = fmt.Sprintf("[tos] requestId: %s", *requestId)
 	}
 	return prefix
 }

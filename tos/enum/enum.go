@@ -21,6 +21,7 @@ const (
 	StorageClassArchiveFr          StorageClassType = "ARCHIVE_FR"
 	StorageClassIntelligentTiering StorageClassType = "INTELLIGENT_TIERING"
 	StorageClassColdArchive        StorageClassType = "COLD_ARCHIVE"
+	StorageClassArchive            StorageClassType = "ARCHIVE"
 )
 
 type MetadataDirectiveType string

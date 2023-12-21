@@ -34,9 +34,11 @@ type fetchObjectInput struct {
 
 // FetchObject fetch an object from specified URL
 // options:
-//    WithMeta set meta header(s)
-//    WithServerSideEncryptionCustomer set server side encryption options
-//    WithACL WithACLGrantFullControl WithACLGrantRead WithACLGrantReadAcp WithACLGrantWrite WithACLGrantWriteAcp set object acl
+//
+//	WithMeta set meta header(s)
+//	WithServerSideEncryptionCustomer set server side encryption options
+//	WithACL WithACLGrantFullControl WithACLGrantRead WithACLGrantReadAcp WithACLGrantWrite WithACLGrantWriteAcp set object acl
+//
 // Calling FetchObject will be blocked util fetch operation is finished
 func (bkt *Bucket) FetchObject(ctx context.Context, input *FetchObjectInput, options ...Option) (*FetchObjectOutput, error) {
 	if err := isValidKey(input.Key); err != nil {
@@ -62,7 +64,7 @@ func (bkt *Bucket) FetchObject(ctx context.Context, input *FetchObjectInput, opt
 	}
 	defer res.Close()
 	out := FetchObjectOutput{RequestInfo: res.RequestInfo()}
-	if err = marshalOutput(out.RequestID, res.Body, &out); err != nil {
+	if err = marshalOutput(res, &out); err != nil {
 		return nil, err
 	}
 
@@ -84,9 +86,11 @@ type PutFetchTaskOutput struct {
 
 // PutFetchTask put a fetch task to a bucket
 // options:
-//    WithMeta set meta header(s)
-//    WithServerSideEncryptionCustomer set server side encryption options
-//    WithACL WithACLGrantFullControl WithACLGrantRead WithACLGrantReadAcp WithACLGrantWrite WithACLGrantWriteAcp set object acl
+//
+//	WithMeta set meta header(s)
+//	WithServerSideEncryptionCustomer set server side encryption options
+//	WithACL WithACLGrantFullControl WithACLGrantRead WithACLGrantReadAcp WithACLGrantWrite WithACLGrantWriteAcp set object acl
+//
 // Calling PutFetchTask will return immediately after the task created.
 func (bkt *Bucket) PutFetchTask(ctx context.Context, input *PutFetchTaskInput, options ...Option) (*PutFetchTaskOutput, error) {
 	if err := isValidKey(input.Object); err != nil {
@@ -108,7 +112,7 @@ func (bkt *Bucket) PutFetchTask(ctx context.Context, input *PutFetchTaskInput, o
 	}
 	defer res.Close()
 	out := PutFetchTaskOutput{RequestInfo: res.RequestInfo()}
-	if err = marshalOutput(out.RequestID, res.Body, &out); err != nil {
+	if err = marshalOutput(res, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil
@@ -126,10 +130,11 @@ type GetFetchTaskOutput struct {
 
 // GetFetchTask query the task state by the TaskID
 // Task state:
-//  FetchTaskStateFailed  = "Failed"
-//  FetchTaskStateSucceed = "Succeed"
-//  FetchTaskStateExpired = "Expired"
-//  FetchTaskStateRunning = "Running"
+//
+//	FetchTaskStateFailed  = "Failed"
+//	FetchTaskStateSucceed = "Succeed"
+//	FetchTaskStateExpired = "Expired"
+//	FetchTaskStateRunning = "Running"
 func (bkt *Bucket) GetFetchTask(ctx context.Context, input *GetFetchTaskInput, options ...Option) (*GetFetchTaskOutput, error) {
 	res, err := bkt.client.newBuilder(bkt.name, "", options...).
 		WithQuery("fetchTask", "").
@@ -142,7 +147,7 @@ func (bkt *Bucket) GetFetchTask(ctx context.Context, input *GetFetchTaskInput, o
 	defer res.Close()
 
 	out := GetFetchTaskOutput{RequestInfo: res.RequestInfo()}
-	if err = marshalOutput(out.RequestID, res.Body, &out); err != nil {
+	if err = marshalOutput(res, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil

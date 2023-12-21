@@ -7,7 +7,7 @@ import (
 
 const (
 	// Version tos-go-sdk version
-	Version = "v2.6.4"
+	Version = "v2.6.5"
 )
 
 const TempFileSuffix = ".temp"
@@ -22,9 +22,11 @@ const DefaultListMaxKeys = 1000
 
 func SupportedRegion() map[string]string {
 	return map[string]string{
-		"cn-beijing":   "tos-cn-beijing.volces.com",
-		"cn-guangzhou": "tos-cn-guangzhou.volces.com",
-		"cn-shanghai":  "tos-cn-shanghai.volces.com",
+		"cn-beijing":     "tos-cn-beijing.volces.com",
+		"cn-guangzhou":   "tos-cn-guangzhou.volces.com",
+		"cn-shanghai":    "tos-cn-shanghai.volces.com",
+		"cn-beijing2":    "tos-cn-beijing2.volces.com",
+		"ap-southeast-1": "tos-ap-southeast-1.volces.com",
 	}
 }
 

@@ -35,15 +35,17 @@ const (
 // use NewClient to create a new Client
 //
 // example:
-//   client, err := NewClient(endpoint, WithCredentials(credentials), WithRegion(region))
-//   if err != nil {
-//      // ...
-//   }
-//   // do something
+//
+//	client, err := NewClient(endpoint, WithCredentials(credentials), WithRegion(region))
+//	if err != nil {
+//	   // ...
+//	}
+//	// do something
 //
 // if you only access the public bucket:
-//   client, err := NewClient(endpoint)
-//   // do something
+//
+//	client, err := NewClient(endpoint)
+//	// do something
 //
 // Deprecated: use ClientV2 instead
 type Client struct {
@@ -67,16 +69,17 @@ type Client struct {
 // use NewClientV2 to create a new ClientV2
 //
 // example:
-//   client, err := NewClientV2(endpoint, WithCredentials(credentials), WithRegion(region))
-//   if err != nil {
-//      // ...
-//   }
-//   // do something
+//
+//	client, err := NewClientV2(endpoint, WithCredentials(credentials), WithRegion(region))
+//	if err != nil {
+//	   // ...
+//	}
+//	// do something
 //
 // if you only access the public bucket:
-//   client, err := NewClientV2(endpoint)
-//   // do something
 //
+//	client, err := NewClientV2(endpoint)
+//	// do something
 type ClientV2 struct {
 	Client
 	baseClient *baseClient
@@ -87,7 +90,11 @@ func (cli *ClientV2) Close() {
 		if h, ok := t.client.Transport.(*http.Transport); ok {
 			h.CloseIdleConnections()
 		}
+		if t.resolver != nil {
+			t.resolver.Close()
+		}
 	}
+
 }
 
 func (cli *ClientV2) SetHTTPTransport(transport http.RoundTripper) {
@@ -127,9 +134,7 @@ func WithRequestTimeout(timeout time.Duration) ClientOption {
 	}
 }
 
-//
 // WithLogger sets the tos sdk logger
-//
 func WithLogger(logger Logger) ClientOption {
 	return func(client *Client) {
 		client.logger = logger
@@ -284,6 +289,13 @@ func WithContentTypeRecognizer(recognizer ContentTypeRecognizer) ClientOption {
 	}
 }
 
+// With the HighLatencyLogThreshold set and assuming the unit is in kilobytes (KB)
+func WithHighLatencyLogThreshold(highLatencyLogThreshold int) ClientOption {
+	return func(client *Client) {
+		client.config.TransportConfig.HighLatencyLogThreshold = &highLatencyLogThreshold
+	}
+}
+
 func schemeHost(endpoint string) (scheme string, host string, urlMode urlMode) {
 	if strings.HasPrefix(endpoint, "https://") {
 		scheme = "https"
@@ -331,12 +343,13 @@ func initClient(client *Client, endpoint string, options ...ClientOption) error 
 }
 
 // NewClient create a new Tos Client
-//   endpoint: access endpoint
-//   options: WithCredentials set Credentials
-//     WithRegion set region, this is required if WithCredentials is used
-//     WithSocketTimeout set read-write timeout
-//     WithTransportConfig set TransportConfig
-//     WithTransport set self-defined Transport
+//
+//	endpoint: access endpoint
+//	options: WithCredentials set Credentials
+//	  WithRegion set region, this is required if WithCredentials is used
+//	  WithSocketTimeout set read-write timeout
+//	  WithTransportConfig set TransportConfig
+//	  WithTransport set self-defined Transport
 func NewClient(endpoint string, options ...ClientOption) (*Client, error) {
 	client := Client{
 		recognizer: ExtensionBasedContentTypeRecognizer{},
@@ -353,16 +366,17 @@ func NewClient(endpoint string, options ...ClientOption) (*Client, error) {
 }
 
 // NewClientV2 create a new Tos ClientV2
-//   endpoint: access endpoint
-//   options: WithCredentials set Credentials
-//     WithRegion set region, this is required if WithCredentials is used.
-//     If Region is supported and the Endpoint parameter is not set, the Endpoint will be resolved automatically
-//     WithSocketTimeout set read-write timeout
-//     WithTransportConfig set TransportConfig
-//     WithTransport set self-defined Transport
-//     WithLogger set self-defined Logger
-//     WithEnableCRC set CRC switch.
-//     WithMaxRetryCount  set Max Retry Count
+//
+//	endpoint: access endpoint
+//	options: WithCredentials set Credentials
+//	  WithRegion set region, this is required if WithCredentials is used.
+//	  If Region is supported and the Endpoint parameter is not set, the Endpoint will be resolved automatically
+//	  WithSocketTimeout set read-write timeout
+//	  WithTransportConfig set TransportConfig
+//	  WithTransport set self-defined Transport
+//	  WithLogger set self-defined Logger
+//	  WithEnableCRC set CRC switch.
+//	  WithMaxRetryCount  set Max Retry Count
 func NewClientV2(endpoint string, options ...ClientOption) (*ClientV2, error) {
 	if strings.Contains(endpoint, "s3") {
 		return nil, InvalidS3Endpoint
@@ -423,33 +437,34 @@ func (cli *Client) roundTrip(ctx context.Context, req *Request, expectedCode int
 	return res, nil
 }
 
+func (cli *Client) roundTripperWithSlowLog(expectedCode int, expectedCodes ...int) roundTripper {
+	return func(ctx context.Context, req *Request) (*Response, error) {
+		req.enableSlowLog = true
+		resp, err := cli.roundTrip(ctx, req, expectedCode, expectedCodes...)
+		return resp, err
+	}
+}
+
 func (cli *Client) roundTripper(expectedCode int, expectedCodes ...int) roundTripper {
 	return func(ctx context.Context, req *Request) (*Response, error) {
-		start := time.Now()
 		resp, err := cli.roundTrip(ctx, req, expectedCode, expectedCodes...)
-		if cli.logger != nil {
-			if err != nil {
-				cli.logger.Info(fmt.Sprintf("[tos] http error:%s.", err.Error()))
-			} else {
-				cli.logger.Info(fmt.Sprintf("[tos] Response StatusCode:%d, RequestId:%s, Cost:%d ms", resp.StatusCode, resp.RequestInfo().RequestID, time.Since(start).Milliseconds()))
-			}
-		}
 		return resp, err
 	}
 }
 
 // PreSignedURL return pre-signed url
-//   httpMethod: HTTP method, {
-//     PutObject: http.MethodPut
-//     GetObject: http.MethodGet
-//     HeadObject: http.MethodHead
-//     DeleteObject: http.MethodDelete
-//   },
-//   bucket: the bucket name
-//   objectKey: the object name
-//   ttl: the time-to-live of signed URL
-//   options: WithVersionID the version id of the object
-//  Deprecated: use PreSignedURL of ClientV2 instead
+//
+//	 httpMethod: HTTP method, {
+//	   PutObject: http.MethodPut
+//	   GetObject: http.MethodGet
+//	   HeadObject: http.MethodHead
+//	   DeleteObject: http.MethodDelete
+//	 },
+//	 bucket: the bucket name
+//	 objectKey: the object name
+//	 ttl: the time-to-live of signed URL
+//	 options: WithVersionID the version id of the object
+//	Deprecated: use PreSignedURL of ClientV2 instead
 func (cli *Client) PreSignedURL(httpMethod string, bucket, objectKey string, ttl time.Duration, options ...Option) (string, error) {
 
 	return cli.newBuilder(bucket, objectKey, options...).
@@ -587,7 +602,7 @@ func (cli *ClientV2) FetchObjectV2(ctx context.Context, input *FetchObjectInputV
 	}
 	defer res.Close()
 	output := FetchObjectOutputV2{RequestInfo: res.RequestInfo()}
-	if err = marshalOutput(output.RequestID, res.Body, &output); err != nil {
+	if err = marshalOutput(res, &output); err != nil {
 		return nil, err
 	}
 
@@ -632,7 +647,7 @@ func (cli *ClientV2) PutFetchTaskV2(ctx context.Context, input *PutFetchTaskInpu
 	}
 	defer res.Close()
 	output := PutFetchTaskOutputV2{RequestInfo: res.RequestInfo()}
-	if err = marshalOutput(output.RequestID, res.Body, &output); err != nil {
+	if err = marshalOutput(res, &output); err != nil {
 		return nil, err
 	}
 	return &output, nil

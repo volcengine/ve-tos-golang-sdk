@@ -47,7 +47,15 @@ var (
 )
 
 type TosError struct {
-	Message string
+	Message    string
+	RequestUrl string
+}
+
+func newTosErr(msg string, url string) TosError {
+	return TosError{
+		Message:    msg,
+		RequestUrl: url,
+	}
 }
 
 func (e *TosError) Error() string {
@@ -74,28 +82,34 @@ func (t *TosClientError) withCause(err error) error {
 	return t
 }
 
+func (t *TosClientError) withUrl(requestUrl string) error {
+	t.RequestUrl = requestUrl
+	return t
+}
+
 // try to unmarshal server error from response
 func newTosServerError(res *Response) error {
 	data, err := ioutil.ReadAll(io.LimitReader(res.Body, 64<<10)) // avoid too large
 	if err != nil && len(data) <= 0 {
 		return &TosServerError{
-			TosError:    TosError{"tos: server returned an empty body"},
+			TosError:    newTosErr("tos: server returned an empty body", res.RequestUrl),
 			RequestInfo: res.RequestInfo(),
 		}
 	}
 	se := Error{StatusCode: res.StatusCode}
 	if err = json.Unmarshal(data, &se); err != nil {
 		return &TosServerError{
-			TosError:    TosError{"tos: server returned an invalid body"},
+			TosError:    newTosErr("tos: server returned an invalid body", res.RequestUrl),
 			RequestInfo: res.RequestInfo(),
 		}
 	}
 	return &TosServerError{
-		TosError:    TosError{se.Message},
+		TosError:    newTosErr(se.Message, res.RequestUrl),
 		RequestInfo: res.RequestInfo(),
 		Code:        se.Code,
 		HostID:      se.HostID,
 		Resource:    se.Resource,
+		EC:          se.EC,
 	}
 }
 
@@ -106,6 +120,7 @@ type TosServerError struct {
 	Code        string `json:"Code,omitempty"`
 	HostID      string `json:"HostID,omitempty"`
 	Resource    string `json:"Resource,omitempty"`
+	EC          string `json:"EC,omitempty"`
 }
 
 type Error struct {
@@ -115,11 +130,12 @@ type Error struct {
 	RequestID  string `json:"RequestId,omitempty"`
 	HostID     string `json:"HostId,omitempty"`
 	Resource   string `json:"Resource,omitempty"`
+	EC         string `json:"EC,omitempty"`
 }
 
 func (e *Error) Error() string {
-	return fmt.Sprintf("tos: request error: StatusCode=%d, Code=%s, Message=%q, RequestID=%s, HostID=%s",
-		e.StatusCode, e.Code, e.Message, e.RequestID, e.HostID)
+	return fmt.Sprintf("tos: request error: StatusCode=%d, Code=%s, Message=%q, RequestID=%s, HostID=%s, EC=%s",
+		e.StatusCode, e.Code, e.Message, e.RequestID, e.HostID, e.EC)
 }
 
 // Code return error code saved in TosServerError
@@ -259,11 +275,12 @@ func checkError(res *Response, readBody bool, okCode int, okCodes ...int) error 
 		unexpected = unexpected.WithRequestBody(res)
 	}
 	return &TosServerError{
-		TosError:    TosError{unexpected.Error()},
+		TosError:    newTosErr(unexpected.Error(), res.RequestUrl),
 		RequestInfo: res.RequestInfo(),
 		Code:        unexpected.err.Code,
 		HostID:      unexpected.err.HostID,
 		Resource:    unexpected.err.Resource,
+		EC:          unexpected.err.EC,
 	}
 }
 

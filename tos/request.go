@@ -39,6 +39,7 @@ type Request struct {
 	Content       io.Reader
 	Query         url.Values
 	Header        http.Header
+	enableSlowLog bool
 }
 
 func (req *Request) URL() string {
@@ -298,17 +299,29 @@ func (rb *requestBuilder) Request(ctx context.Context, method string,
 		res *Response
 		err error
 	)
+	retryAfterSec := int64(-1)
 
 	req = rb.Build(method, content)
 
 	if rb.Retry != nil {
-		work := func() (err error) {
+		work := func(retryCount int) (retrySec int64, err error) {
+			if retryCount > 0 {
+				req.Header.Set("x-sdk-retry-count", "attempt="+strconv.Itoa(retryCount)+"; max="+strconv.Itoa(len(rb.Retry.backoff)))
+			}
 			err = rb.OnRetry(req)
 			if err != nil {
-				return err
+				return -1, err
 			}
 			res, err = roundTripper(ctx, req)
-			return err
+			if res != nil {
+				if retryAfter := res.Header.Get("Retry-After"); retryAfter != "" {
+					retryAfterInt, ierr := strconv.ParseInt(retryAfter, 10, 64)
+					if ierr == nil {
+						retryAfterSec = retryAfterInt
+					}
+				}
+			}
+			return retryAfterSec, err
 		}
 		err = rb.Retry.Run(ctx, work, rb.Classifier)
 		if err != nil {
@@ -317,7 +330,6 @@ func (rb *requestBuilder) Request(ctx context.Context, method string,
 		return res, err
 	}
 	res, err = roundTripper(ctx, req)
-
 	return res, err
 }
 
@@ -346,6 +358,7 @@ type Response struct {
 	ContentLength int64
 	Header        http.Header
 	Body          io.ReadCloser
+	RequestUrl    string
 }
 
 func (r *Response) RequestInfo() RequestInfo {
@@ -364,27 +377,30 @@ func (r *Response) Close() error {
 	return nil
 }
 
-func marshalOutput(requestID string, reader io.Reader, output interface{}) error {
+func marshalOutput(res *Response, output interface{}) error {
 	// Although status code is ok, we need to check if response body is valid.
 	// If response body is invalid, TosServerError should be raised. But we can't
 	// unmarshal error from response body now.
+	reader := res.Body
+	requestID := res.RequestInfo().RequestID
+	requestURL := res.RequestUrl
 	data, err := ioutil.ReadAll(reader)
 	if err != nil {
 		return &TosServerError{
-			TosError:    TosError{Message: "tos: unmarshal response body failed."},
+			TosError:    newTosErr("tos: unmarshal response body failed.", requestURL),
 			RequestInfo: RequestInfo{RequestID: requestID},
 		}
 	}
 	data = bytes.TrimSpace(data)
 	if len(data) == 0 {
 		return &TosServerError{
-			TosError:    TosError{Message: "server returns empty result"},
+			TosError:    newTosErr("server returns empty result", requestURL),
 			RequestInfo: RequestInfo{RequestID: requestID},
 		}
 	}
 	if err = json.Unmarshal(data, output); err != nil {
 		return &TosServerError{
-			TosError:    TosError{Message: err.Error()},
+			TosError:    newTosErr(err.Error(), requestURL),
 			RequestInfo: RequestInfo{RequestID: requestID},
 		}
 	}

@@ -59,7 +59,7 @@ func (cli *baseClient) GetObjectTagging(ctx context.Context, input *GetObjectTag
 	}
 	defer res.Close()
 	output := GetObjectTaggingOutput{RequestInfo: res.RequestInfo()}
-	if err = marshalOutput(output.RequestID, res.Body, &output); err != nil {
+	if err = marshalOutput(res, &output); err != nil {
 		return nil, err
 	}
 	output.VersionID = res.Header.Get(HeaderVersionID)

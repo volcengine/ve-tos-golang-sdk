@@ -3,12 +3,15 @@ package tos
 import (
 	"context"
 	"crypto/tls"
+	"io"
 	"math/rand"
 	"net"
 	"net/http"
 	"net/http/httptrace"
 	"time"
 )
+
+const DefaultHighLatencyLogThreshold = 100 // KB
 
 type TransportConfig struct {
 
@@ -57,6 +60,9 @@ type TransportConfig struct {
 
 	// Proxy Set http proxy for http client.
 	Proxy *Proxy
+
+	//  When HighLatencyLogThreshold is greater than 0, it indicates the activation of high-latency logging, unit: KB.
+	HighLatencyLogThreshold *int
 }
 
 type Transport interface {
@@ -64,8 +70,10 @@ type Transport interface {
 }
 
 type DefaultTransport struct {
-	client http.Client
-	logger Logger
+	client                  http.Client
+	logger                  Logger
+	resolver                *resolver
+	highLatencyLogThreshold int
 }
 
 func (d *DefaultTransport) WithDefaultTransportLogger(logger Logger) {
@@ -106,6 +114,12 @@ func NewDefaultTransport(config *TransportConfig) *DefaultTransport {
 		transport.Proxy = http.ProxyURL(config.Proxy.Url())
 	}
 
+	highLatencyLogThreshold := DefaultHighLatencyLogThreshold
+
+	if config.HighLatencyLogThreshold != nil {
+		highLatencyLogThreshold = *config.HighLatencyLogThreshold
+	}
+
 	return &DefaultTransport{
 		client: http.Client{
 			CheckRedirect: func(req *http.Request, via []*http.Request) error {
@@ -113,10 +127,12 @@ func NewDefaultTransport(config *TransportConfig) *DefaultTransport {
 			},
 			Transport: transport,
 		},
+		resolver:                r,
+		highLatencyLogThreshold: highLatencyLogThreshold,
 	}
 }
 
-//   newDefaultTranposrtWithHTTPTransport
+// newDefaultTranposrtWithHTTPTransport
 func newDefaultTranposrtWithHTTPTransport(transport http.RoundTripper) *DefaultTransport {
 	return &DefaultTransport{
 		client: http.Client{
@@ -131,6 +147,36 @@ func newDefaultTranposrtWithHTTPTransport(transport http.RoundTripper) *DefaultT
 // NewDefaultTransportWithClient crate a DefaultTransport with a http.Client
 func NewDefaultTransportWithClient(client http.Client) *DefaultTransport {
 	return &DefaultTransport{client: client}
+}
+
+type slowDetectWrap struct {
+	Size int
+	Body io.Reader
+}
+
+func isSlow(totalSize, highLatencyLogThreshold int, cost time.Duration) bool {
+	if highLatencyLogThreshold <= 0 {
+		return false
+	}
+	if cost > time.Millisecond*500 && int(float64(totalSize)/(float64(cost)/float64(time.Second))) < highLatencyLogThreshold*1024 {
+		return true
+	}
+	return false
+}
+
+func (s *slowDetectWrap) Close() error {
+	if closer, ok := s.Body.(io.Closer); ok {
+		return closer.Close()
+	}
+	return nil
+}
+
+func (s *slowDetectWrap) Read(p []byte) (n int, err error) {
+	n, err = s.Body.Read(p)
+	if n > 0 {
+		s.Size += n
+	}
+	return n, err
 }
 
 func (dt *DefaultTransport) RoundTrip(ctx context.Context, req *Request) (*Response, error) {
@@ -148,20 +194,29 @@ func (dt *DefaultTransport) RoundTrip(ctx context.Context, req *Request) (*Respo
 	}
 
 	var accessLog *accessLogRequest
-	if dt.logger != nil {
+	if dt.logger != nil || req.enableSlowLog {
 		var trace *httptrace.ClientTrace
 		trace, accessLog = getClientTrace(GetUnixTimeMs())
 		ctx = httptrace.WithClientTrace(ctx, trace)
 		hr = hr.WithContext(ctx)
 	}
+	var wrap *slowDetectWrap
+	start := time.Now()
+	if req.enableSlowLog && hr.Body != nil {
+		wrap = &slowDetectWrap{Body: hr.Body}
+		hr.Body = wrap
+	}
+
 	res, err := dt.client.Do(hr)
 
-	if accessLog != nil {
-		accessLog.PrintAccessLog(dt.logger, hr, res)
+	if req.enableSlowLog && hr.Body != nil && isSlow(wrap.Size, dt.highLatencyLogThreshold, time.Since(start)) {
+		accessLog.printSlowLog(dt.logger, hr, res, start, err)
+	} else if accessLog != nil {
+		accessLog.printAccessLog(dt.logger, hr, res, start, err)
 	}
 
 	if err != nil {
-		return nil, newTosClientError(err.Error(), err)
+		return nil, newTosClientError(err.Error(), err).withUrl(req.URL())
 	}
 
 	return &Response{
@@ -169,6 +224,7 @@ func (dt *DefaultTransport) RoundTrip(ctx context.Context, req *Request) (*Respo
 		ContentLength: res.ContentLength,
 		Header:        res.Header,
 		Body:          res.Body,
+		RequestUrl:    req.URL(),
 	}, nil
 }
 

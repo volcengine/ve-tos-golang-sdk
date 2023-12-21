@@ -15,19 +15,20 @@ import (
 )
 
 // CreateMultipartUpload create a multipart upload operation
-//   objectKey: the name of object
-//   options: WithContentType set Content-Type,
-//     WithContentDisposition set Content-Disposition,
-//     WithContentLanguage set Content-Language,
-//     WithContentEncoding set Content-Encoding,
-//     WithCacheControl set Cache-Control,
-//     WithExpires set Expires,
-//     WithMeta set meta header(s),
-//     WithContentSHA256 set Content-Sha256,
-//     WithContentMD5 set Content-MD5
-//     WithExpires set Expires,
-//     WithServerSideEncryptionCustomer set server side encryption options
-//     WithACL WithACLGrantFullControl WithACLGrantRead WithACLGrantReadAcp WithACLGrantWrite WithACLGrantWriteAcp set object acl
+//
+//	objectKey: the name of object
+//	options: WithContentType set Content-Type,
+//	  WithContentDisposition set Content-Disposition,
+//	  WithContentLanguage set Content-Language,
+//	  WithContentEncoding set Content-Encoding,
+//	  WithCacheControl set Cache-Control,
+//	  WithExpires set Expires,
+//	  WithMeta set meta header(s),
+//	  WithContentSHA256 set Content-Sha256,
+//	  WithContentMD5 set Content-MD5
+//	  WithExpires set Expires,
+//	  WithServerSideEncryptionCustomer set server side encryption options
+//	  WithACL WithACLGrantFullControl WithACLGrantRead WithACLGrantReadAcp WithACLGrantWrite WithACLGrantWriteAcp set object acl
 //
 // Deprecated: use CreateMultipartUpload of ClientV2 instead
 func (bkt *Bucket) CreateMultipartUpload(ctx context.Context, objectKey string, options ...Option) (*CreateMultipartUploadOutput, error) {
@@ -45,7 +46,7 @@ func (bkt *Bucket) CreateMultipartUpload(ctx context.Context, objectKey string, 
 	defer res.Close()
 
 	var upload multipartUpload
-	if err = marshalOutput(res.RequestInfo().RequestID, res.Body, &upload); err != nil {
+	if err = marshalOutput(res, &upload); err != nil {
 		return nil, err
 	}
 
@@ -90,7 +91,7 @@ func (cli *ClientV2) CreateMultipartUploadV2(
 	defer res.Close()
 
 	var upload multipartUpload
-	if err = marshalOutput(res.RequestInfo().RequestID, res.Body, &upload); err != nil {
+	if err = marshalOutput(res, &upload); err != nil {
 		return nil, err
 	}
 
@@ -203,6 +204,9 @@ func (cli *ClientV2) UploadPartV2(ctx context.Context, input *UploadPartV2Input)
 	)
 
 	if content != nil {
+		if _, ok := content.(*os.File); ok {
+			content = wrapCloser(content)
+		}
 		content = wrapReader(content, contentLength, input.DataTransferListener, input.RateLimiter, &crcChecker{checker: checker})
 	}
 
@@ -232,7 +236,7 @@ func (cli *ClientV2) UploadPartV2(ctx context.Context, input *UploadPartV2Input)
 		WithParams(*input).
 		WithContentLength(input.ContentLength).
 		WithRetry(onRetry, cf).
-		Request(ctx, http.MethodPut, content, cli.roundTripper(http.StatusOK))
+		Request(ctx, http.MethodPut, content, cli.roundTripperWithSlowLog(http.StatusOK))
 	if err != nil {
 		return nil, err
 	}
@@ -276,9 +280,10 @@ func (cli *ClientV2) UploadPartFromFile(ctx context.Context, input *UploadPartFr
 }
 
 // CompleteMultipartUpload complete a multipart upload operation
-//   input: input.Key the object name,
-//     input.UploadID the uploadID got from CreateMultipartUpload
-//     input.UploadedParts upload part output got from UploadPart or UploadPartCopy
+//
+//	input: input.Key the object name,
+//	  input.UploadID the uploadID got from CreateMultipartUpload
+//	  input.UploadedParts upload part output got from UploadPart or UploadPartCopy
 //
 // Deprecated: use CompleteMultipartUpload of ClientV2 instead
 func (bkt *Bucket) CompleteMultipartUpload(ctx context.Context, input *CompleteMultipartUploadInput, options ...Option) (*CompleteMultipartUploadOutput, error) {
@@ -356,14 +361,14 @@ func (cli *ClientV2) CompleteMultipartUploadV2(
 	}
 	var callbackResult string
 	if input.Callback == "" {
-		if err = marshalOutput(output.RequestID, res.Body, &output); err != nil {
+		if err = marshalOutput(res, &output); err != nil {
 			return nil, err
 		}
 	} else {
 		callbackRes, err := ioutil.ReadAll(res.Body)
 		if err != nil {
 			return nil, &TosServerError{
-				TosError:    TosError{Message: fmt.Sprintf("tos: read callback result err:%s", err.Error())},
+				TosError:    newTosErr(fmt.Sprintf("tos: read callback result err:%s", err.Error()), res.RequestUrl),
 				RequestInfo: res.RequestInfo(),
 			}
 		}
@@ -415,8 +420,9 @@ func (cli *ClientV2) AbortMultipartUpload(ctx context.Context, input *AbortMulti
 }
 
 // ListUploadedParts List Uploaded Parts
-//   objectKey: the object name
-//   input: key, uploadID and other parameters
+//
+//	objectKey: the object name
+//	input: key, uploadID and other parameters
 //
 // Deprecated: use ListParts of ClientV2 instead
 func (bkt *Bucket) ListUploadedParts(ctx context.Context, input *ListUploadedPartsInput, options ...Option) (*ListUploadedPartsOutput, error) {
@@ -436,7 +442,7 @@ func (bkt *Bucket) ListUploadedParts(ctx context.Context, input *ListUploadedPar
 	defer res.Close()
 
 	output := ListUploadedPartsOutput{RequestInfo: res.RequestInfo()}
-	if err = marshalOutput(output.RequestID, res.Body, &output); err != nil {
+	if err = marshalOutput(res, &output); err != nil {
 		return nil, err
 	}
 	return &output, nil
@@ -457,7 +463,7 @@ func (cli *ClientV2) ListParts(ctx context.Context, input *ListPartsInput) (*Lis
 	defer res.Close()
 
 	output := ListPartsOutput{RequestInfo: res.RequestInfo()}
-	if err = marshalOutput(output.RequestID, res.Body, &output); err != nil {
+	if err = marshalOutput(res, &output); err != nil {
 		return nil, err
 	}
 	return &output, nil
@@ -482,7 +488,7 @@ func (bkt *Bucket) ListMultipartUploads(ctx context.Context, input *ListMultipar
 	defer res.Close()
 
 	output := ListMultipartUploadsOutput{RequestInfo: res.RequestInfo()}
-	if err = marshalOutput(output.RequestID, res.Body, &output); err != nil {
+	if err = marshalOutput(res, &output); err != nil {
 		return nil, err
 	}
 	return &output, nil
@@ -506,7 +512,7 @@ func (cli *ClientV2) ListMultipartUploadsV2(
 	defer res.Close()
 
 	output := ListMultipartUploadsV2Output{RequestInfo: res.RequestInfo()}
-	if err = marshalOutput(output.RequestID, res.Body, &output); err != nil {
+	if err = marshalOutput(res, &output); err != nil {
 		return nil, err
 	}
 	return &output, nil

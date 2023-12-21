@@ -10,20 +10,21 @@ import (
 )
 
 // CopyObject copy an object
-//   srcObjectKey: the source object name
-//   dstObjectKey: the destination object name. srcObjectKey and dstObjectKey belongs to the same bucket.
-//   options: WithVersionID the version id of source object,
-//     WithMetadataDirective copy source object metadata or replace with new object metadata,
-//     WithACL WithACLGrantFullControl WithACLGrantRead WithACLGrantReadAcp WithACLGrantWrite WithACLGrantWriteAcp set object acl,
-//     WithCopySourceIfMatch WithCopySourceIfNoneMatch WithCopySourceIfModifiedSince WithCopySourceIfUnmodifiedSince set copy conditions
-//   if CopyObject called with WithMetadataDirective(tos.MetadataDirectiveReplace), these options can be used:
-//     WithContentType set Content-Type,
-//     WithContentDisposition set Content-Disposition,
-//     WithContentLanguage set Content-Language,
-//     WithContentEncoding set Content-Encoding,
-//     WithCacheControl set Cache-Control,
-//     WithExpires set Expires,
-//     WithMeta set meta header(s),
+//
+//	srcObjectKey: the source object name
+//	dstObjectKey: the destination object name. srcObjectKey and dstObjectKey belongs to the same bucket.
+//	options: WithVersionID the version id of source object,
+//	  WithMetadataDirective copy source object metadata or replace with new object metadata,
+//	  WithACL WithACLGrantFullControl WithACLGrantRead WithACLGrantReadAcp WithACLGrantWrite WithACLGrantWriteAcp set object acl,
+//	  WithCopySourceIfMatch WithCopySourceIfNoneMatch WithCopySourceIfModifiedSince WithCopySourceIfUnmodifiedSince set copy conditions
+//	if CopyObject called with WithMetadataDirective(tos.MetadataDirectiveReplace), these options can be used:
+//	  WithContentType set Content-Type,
+//	  WithContentDisposition set Content-Disposition,
+//	  WithContentLanguage set Content-Language,
+//	  WithContentEncoding set Content-Encoding,
+//	  WithCacheControl set Cache-Control,
+//	  WithExpires set Expires,
+//	  WithMeta set meta header(s),
 //
 // Deprecated: use CopyObject of ClientV2 instead
 func (bkt *Bucket) CopyObject(ctx context.Context, srcObjectKey, dstObjectKey string, options ...Option) (*CopyObjectOutput, error) {
@@ -35,21 +36,22 @@ func (bkt *Bucket) CopyObject(ctx context.Context, srcObjectKey, dstObjectKey st
 }
 
 // CopyObjectTo copy an object to target bucket
-//   dstBucket: the destination bucket
-//   dstObjectKey: the destination object name
-//   srcObjectKey: the source object name
-//   options: WithVersionID the version id of source object,
-//     WithMetadataDirective copy source object metadata or replace with new object metadata.
-//     WithACL WithACLGrantFullControl WithACLGrantRead WithACLGrantReadAcp WithACLGrantWrite WithACLGrantWriteAcp set object acl,
-//     WithCopySourceIfMatch WithCopySourceIfNoneMatch WithCopySourceIfModifiedSince WithCopySourceIfUnmodifiedSince set copy conditions
-//   if CopyObjectTo called with WithMetadataDirective(tos.MetadataDirectiveReplace), these options can be used:
-//     WithContentType set Content-Type,
-//     WithContentDisposition set Content-Disposition,
-//     WithContentLanguage set Content-Language,
-//     WithContentEncoding set Content-Encoding,
-//     WithCacheControl set Cache-Control,
-//     WithExpires set Expires,
-//     WithMeta set meta header(s),
+//
+//	dstBucket: the destination bucket
+//	dstObjectKey: the destination object name
+//	srcObjectKey: the source object name
+//	options: WithVersionID the version id of source object,
+//	  WithMetadataDirective copy source object metadata or replace with new object metadata.
+//	  WithACL WithACLGrantFullControl WithACLGrantRead WithACLGrantReadAcp WithACLGrantWrite WithACLGrantWriteAcp set object acl,
+//	  WithCopySourceIfMatch WithCopySourceIfNoneMatch WithCopySourceIfModifiedSince WithCopySourceIfUnmodifiedSince set copy conditions
+//	if CopyObjectTo called with WithMetadataDirective(tos.MetadataDirectiveReplace), these options can be used:
+//	  WithContentType set Content-Type,
+//	  WithContentDisposition set Content-Disposition,
+//	  WithContentLanguage set Content-Language,
+//	  WithContentEncoding set Content-Encoding,
+//	  WithCacheControl set Cache-Control,
+//	  WithExpires set Expires,
+//	  WithMeta set meta header(s),
 //
 // Deprecated: use CopyObject of ClientV2 instead
 func (bkt *Bucket) CopyObjectTo(ctx context.Context, dstBucket, dstObjectKey, srcObjectKey string, options ...Option) (*CopyObjectOutput, error) {
@@ -61,21 +63,22 @@ func (bkt *Bucket) CopyObjectTo(ctx context.Context, dstBucket, dstObjectKey, sr
 }
 
 // CopyObjectFrom copy an object from target bucket
-//   srcBucket: the srcBucket bucket
-//   srcObjectKey: the source object name
-//   dstObjectKey: the destination object name
-//   options: WithVersionID the version id of source object,
-//     WithMetadataDirective copy source object metadata or replace with new object metadata
-//     WithACL WithACLGrantFullControl WithACLGrantRead WithACLGrantReadAcp WithACLGrantWrite WithACLGrantWriteAcp set object acl,
-//     WithCopySourceIfMatch WithCopySourceIfNoneMatch WithCopySourceIfModifiedSince WithCopySourceIfUnmodifiedSince set copy conditions
-//   if CopyObjectFrom called with WithMetadataDirective(tos.MetadataDirectiveReplace), these options can be used:
-//     WithContentType set Content-Type,
-//     WithContentDisposition set Content-Disposition,
-//     WithContentLanguage set Content-Language,
-//     WithContentEncoding set Content-Encoding,
-//     WithCacheControl set Cache-Control,
-//     WithExpires set Expires,
-//     WithMeta set meta header(s),
+//
+//	srcBucket: the srcBucket bucket
+//	srcObjectKey: the source object name
+//	dstObjectKey: the destination object name
+//	options: WithVersionID the version id of source object,
+//	  WithMetadataDirective copy source object metadata or replace with new object metadata
+//	  WithACL WithACLGrantFullControl WithACLGrantRead WithACLGrantReadAcp WithACLGrantWrite WithACLGrantWriteAcp set object acl,
+//	  WithCopySourceIfMatch WithCopySourceIfNoneMatch WithCopySourceIfModifiedSince WithCopySourceIfUnmodifiedSince set copy conditions
+//	if CopyObjectFrom called with WithMetadataDirective(tos.MetadataDirectiveReplace), these options can be used:
+//	  WithContentType set Content-Type,
+//	  WithContentDisposition set Content-Disposition,
+//	  WithContentLanguage set Content-Language,
+//	  WithContentEncoding set Content-Encoding,
+//	  WithCacheControl set Cache-Control,
+//	  WithExpires set Expires,
+//	  WithMeta set meta header(s),
 //
 // Deprecated: use CopyObject of ClientV2 instead
 func (bkt *Bucket) CopyObjectFrom(ctx context.Context, srcBucket, srcObjectKey, dstObjectKey string, options ...Option) (*CopyObjectOutput, error) {
@@ -97,16 +100,17 @@ func (cli *Client) copyObject(ctx context.Context, dstBucket, dstObject string, 
 	defer res.Close()
 	marshalOut := copyObjectOutput{}
 
-	if err = marshalOutput(res.RequestInfo().RequestID, res.Body, &marshalOut); err != nil {
+	if err = marshalOutput(res, &marshalOut); err != nil {
 		return nil, err
 	}
 	if marshalOut.ETag == "" {
 		return nil, &TosServerError{
-			TosError:    TosError{marshalOut.Message},
+			TosError:    newTosErr(marshalOut.Message, res.RequestUrl),
 			RequestInfo: res.RequestInfo(),
 			Code:        marshalOut.Code,
 			HostID:      marshalOut.HostID,
 			Resource:    marshalOut.Resource,
+			EC:          marshalOut.EC,
 		}
 	}
 	out := CopyObjectOutput{RequestInfo: res.RequestInfo(), ETag: marshalOut.ETag, LastModified: marshalOut.LastModified}
@@ -144,17 +148,18 @@ func (cli *ClientV2) CopyObject(ctx context.Context, input *CopyObjectInput) (*C
 	}
 	defer res.Close()
 	marshalOut := copyObjectOutput{}
-	if err = marshalOutput(res.RequestInfo().RequestID, res.Body, &marshalOut); err != nil {
+	if err = marshalOutput(res, &marshalOut); err != nil {
 		return nil, err
 	}
 	//  Body 的 Etag 存在复制成功
 	if marshalOut.ETag == "" {
 		return nil, &TosServerError{
-			TosError:    TosError{marshalOut.Message},
+			TosError:    newTosErr(marshalOut.Message, res.RequestUrl),
 			RequestInfo: res.RequestInfo(),
 			Code:        marshalOut.Code,
 			HostID:      marshalOut.HostID,
 			Resource:    marshalOut.Resource,
+			EC:          marshalOut.EC,
 		}
 	}
 	out := CopyObjectOutput{RequestInfo: res.RequestInfo(), ETag: marshalOut.ETag, LastModified: marshalOut.LastModified}
@@ -195,8 +200,9 @@ func (up *UploadPartCopyOutput) uploadedPart() uploadedPart {
 }
 
 // UploadPartCopy copy a part of object as a part of a multipart upload operation
-//   input: uploadID, DestinationKey, SourceBucket, SourceKey and other parameters,
-//   options: WithCopySourceIfMatch WithCopySourceIfNoneMatch WithCopySourceIfModifiedSince WithCopySourceIfUnmodifiedSince set copy conditions
+//
+//	input: uploadID, DestinationKey, SourceBucket, SourceKey and other parameters,
+//	options: WithCopySourceIfMatch WithCopySourceIfNoneMatch WithCopySourceIfModifiedSince WithCopySourceIfUnmodifiedSince set copy conditions
 //
 // Deprecated: use UploadPartCopy of ClientV2 instead
 func (bkt *Bucket) UploadPartCopy(ctx context.Context, input *UploadPartCopyInput, options ...Option) (*UploadPartCopyOutput, error) {
@@ -217,16 +223,17 @@ func (bkt *Bucket) UploadPartCopy(ctx context.Context, input *UploadPartCopyInpu
 	}
 	defer res.Close()
 	var out uploadPartCopyOutput
-	if err = marshalOutput(res.RequestInfo().RequestID, res.Body, &out); err != nil {
+	if err = marshalOutput(res, &out); err != nil {
 		return nil, err
 	}
 	if out.ETag == "" {
 		return nil, &TosServerError{
-			TosError:    TosError{out.Message},
+			TosError:    newTosErr(out.Message, res.RequestUrl),
 			RequestInfo: res.RequestInfo(),
 			Code:        out.Code,
 			HostID:      out.HostID,
 			Resource:    out.Resource,
+			EC:          out.EC,
 		}
 	}
 	return &UploadPartCopyOutput{
@@ -282,18 +289,19 @@ func (cli *ClientV2) UploadPartCopyV2(
 	}
 	defer res.Close()
 	var out uploadPartCopyOutput
-	if err = marshalOutput(res.RequestInfo().RequestID, res.Body, &out); err != nil {
+	if err = marshalOutput(res, &out); err != nil {
 		return nil, err
 	}
 
 	lastModified, _ := time.ParseInLocation(http.TimeFormat, res.Header.Get(HeaderLastModified), time.UTC)
 	if out.ETag == "" {
 		return nil, &TosServerError{
-			TosError:    TosError{out.Message},
+			TosError:    newTosErr(out.Message, res.RequestUrl),
 			RequestInfo: res.RequestInfo(),
 			Code:        out.Code,
 			HostID:      out.HostID,
 			Resource:    out.Resource,
+			EC:          out.EC,
 		}
 	}
 	return &UploadPartCopyV2Output{

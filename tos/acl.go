@@ -98,8 +98,9 @@ func (cli *ClientV2) PutObjectACL(ctx context.Context, input *PutObjectACLInput)
 }
 
 // GetObjectAcl get object ACL
-//   objectKey: the name of object
-//   Options: WithVersionID the version of the object
+//
+//	objectKey: the name of object
+//	Options: WithVersionID the version of the object
 //
 // Deprecated: use GetObjectACL of ClientV2 instead
 func (bkt *Bucket) GetObjectAcl(ctx context.Context, objectKey string, options ...Option) (*GetObjectAclOutput, error) {
@@ -116,7 +117,7 @@ func (bkt *Bucket) GetObjectAcl(ctx context.Context, objectKey string, options .
 	}
 	defer res.Close()
 	out := GetObjectAclOutput{RequestInfo: res.RequestInfo()}
-	if err = marshalOutput(out.RequestID, res.Body, &out); err != nil {
+	if err = marshalOutput(res, &out); err != nil {
 		return nil, err
 	}
 
@@ -143,7 +144,7 @@ func (cli *ClientV2) GetObjectACL(ctx context.Context, input *GetObjectACLInput)
 	defer res.Close()
 
 	out := GetObjectACLOutput{RequestInfo: res.RequestInfo()}
-	if err = marshalOutput(out.RequestID, res.Body, &out); err != nil {
+	if err = marshalOutput(res, &out); err != nil {
 		return nil, err
 	}
 	out.VersionID = res.Header.Get(HeaderVersionID)
@@ -167,7 +168,7 @@ func (cli *ClientV2) GetBucketACL(ctx context.Context, input *GetBucketACLInput)
 	defer res.Close()
 	output := GetBucketACLOutput{RequestInfo: res.RequestInfo()}
 	marshalRes := bucketACL{}
-	if err = marshalOutput(output.RequestID, res.Body, &marshalRes); err != nil {
+	if err = marshalOutput(res, &marshalRes); err != nil {
 		return nil, err
 	}
 	output.Grants = marshalRes.GrantList
