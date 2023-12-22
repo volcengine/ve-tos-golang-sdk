@@ -2,6 +2,7 @@ package tos
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"sync"
 	"testing"
@@ -44,4 +45,53 @@ func TestResolverConcurrency(t *testing.T) {
 		}()
 	}
 	wg.Wait()
+}
+
+func TestFreshKey(t *testing.T) {
+	pq := make(priorityQueue, 0)
+	ctx, cancel := context.WithCancel(context.Background())
+	expire := time.Second
+	r := &resolver{cache: &cache{
+		heap:       &pq,
+		cleanTime:  time.Now().Add(expire),
+		data:       make(map[string]cacheItem),
+		expiration: expire,
+	}, ctx: ctx, closer: make(chan struct{})}
+	endPoint := os.Getenv("TOS_GO_SDK_ENDPOINT")
+	fmt.Println(r)
+	ipList, err := r.GetIpList(context.Background(), endPoint)
+	require.Nil(t, err)
+	require.True(t, len(ipList) > 0)
+	data, _ := r.cache.data[endPoint]
+	require.False(t, data.keepAlive)
+
+	// 刷新成功
+	RefreshInterval = time.Millisecond * 200
+	r.refresh()
+	time.Sleep(RefreshInterval * 2)
+	refreshData, _ := r.cache.data[endPoint]
+	require.True(t, refreshData.expireAt.After(data.expireAt))
+	require.False(t, refreshData.keepAlive)
+
+	// 刷新失败
+	cancel()
+	time.Sleep(RefreshInterval * 2)
+	refreshData, _ = r.cache.data[endPoint]
+	require.True(t, refreshData.keepAlive)
+
+	// 过期后可以从缓存中获取到
+	time.Sleep(expire)
+	ip, exist := r.cache.Get(endPoint)
+	require.True(t, exist)
+	require.True(t, len(ip) > 0)
+
+	// 恢复后可以正常刷新
+	r.ctx = context.Background()
+	time.Sleep(RefreshInterval * 2)
+	refreshData, _ = r.cache.data[endPoint]
+	require.False(t, refreshData.keepAlive)
+	require.True(t, refreshData.expireAt.After(time.Now()))
+
+	r.Close()
+
 }

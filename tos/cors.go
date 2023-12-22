@@ -24,7 +24,7 @@ func (cli *ClientV2) GetBucketCORS(ctx context.Context, input *GetBucketCORSInpu
 	defer res.Close()
 
 	output := GetBucketCORSOutput{RequestInfo: res.RequestInfo()}
-	if err = marshalOutput(output.RequestID, res.Body, &output); err != nil {
+	if err = marshalOutput(res, &output); err != nil {
 		return nil, err
 	}
 

@@ -6,7 +6,9 @@ import (
 	"crypto/aes"
 	"encoding/base64"
 	"encoding/hex"
+	"errors"
 	"fmt"
+	"github.com/sirupsen/logrus"
 	"io"
 	"io/ioutil"
 	"math/rand"
@@ -1679,14 +1681,170 @@ func TestUpload(t *testing.T) {
 	defer res.Content.Close()
 }
 
+func TestSlowLog(t *testing.T) {
+	var (
+		env    = newTestEnv(t)
+		bucket = generateBucketName("slow-log")
+		key    = randomString(6)
+		ctx    = context.Background()
+	)
+	slowLog := "tos slow"
+	ops := make([]tos.ClientOption, 0)
+	buff := bytes.NewBuffer(nil)
+	ops = append(ops, tos.WithHighLatencyLogThreshold(2*1024))
+	ops = append(ops, LongTimeOutClientOption...)
+	log := logrus.New()
+	log.Level = logrus.DebugLevel
+	log.Formatter = &logrus.TextFormatter{DisableQuote: true}
+	log.Out = buff
+	ops = append(ops, tos.WithLogger(log))
+	client := env.prepareClient(bucket, ops...)
+	defer cleanBucket(t, client, bucket)
+	rowData := randomString(1024 * 1024 * 2)
+	doFuns := make([]func(v2 *tos.ClientV2), 0)
+	limiter := tos.NewDefaultRateLimit(1024*1024, 1024*1024)
+	upload, err := client.CreateMultipartUploadV2(ctx, &tos.CreateMultipartUploadV2Input{
+		Bucket: bucket,
+		Key:    key,
+	})
+	require.Nil(t, err)
+	data := strings.NewReader(rowData)
+	filePath := bucket + ".tmp"
+	file, err := os.Create(filePath)
+	io.Copy(file, data)
+	defer os.Remove(filePath)
+	putObjectFromFile := func(client *tos.ClientV2) {
+		_, err = client.PutObjectFromFile(ctx, &tos.PutObjectFromFileInput{
+			PutObjectBasicInput: tos.PutObjectBasicInput{
+				Bucket:      bucket,
+				Key:         key,
+				RateLimiter: limiter,
+			},
+			FilePath: filePath,
+		})
+		require.Nil(t, err)
+	}
+
+	putObject := func(client *tos.ClientV2) {
+		data := strings.NewReader(rowData)
+		_, err := client.PutObjectV2(ctx, &tos.PutObjectV2Input{
+			PutObjectBasicInput: tos.PutObjectBasicInput{
+				Bucket:      bucket,
+				Key:         key,
+				RateLimiter: limiter,
+			},
+			Content: data,
+		})
+		require.Nil(t, err)
+	}
+
+	appendObject := func(client *tos.ClientV2) {
+		data := strings.NewReader(rowData)
+		_, err := client.AppendObjectV2(ctx, &tos.AppendObjectV2Input{
+			Bucket:      bucket,
+			Key:         randomString(6),
+			RateLimiter: limiter,
+			Content:     data,
+		})
+		require.Nil(t, err)
+	}
+
+	uploadPart := func(client *tos.ClientV2) {
+		data := strings.NewReader(rowData)
+		_, err = client.UploadPartV2(ctx, &tos.UploadPartV2Input{
+			UploadPartBasicInput: tos.UploadPartBasicInput{
+				Bucket:      bucket,
+				Key:         key,
+				RateLimiter: limiter,
+				PartNumber:  1,
+				UploadID:    upload.UploadID,
+			},
+
+			Content: data,
+		})
+		require.Nil(t, err)
+	}
+	uploadPartFromFile := func(client *tos.ClientV2) {
+		_, err = client.UploadPartFromFile(ctx, &tos.UploadPartFromFileInput{
+			UploadPartBasicInput: tos.UploadPartBasicInput{
+				Bucket:      bucket,
+				Key:         key,
+				RateLimiter: limiter,
+				PartNumber:  1,
+				UploadID:    upload.UploadID,
+			},
+			FilePath: filePath,
+		})
+		require.Nil(t, err)
+	}
+
+	getObjectToFile := func(client *tos.ClientV2) {
+		getFilePath := randomString(7)
+		defer os.Remove(getFilePath)
+		_, err = client.GetObjectToFile(ctx, &tos.GetObjectToFileInput{
+			GetObjectV2Input: tos.GetObjectV2Input{Bucket: bucket, Key: key, RateLimiter: limiter},
+			FilePath:         getFilePath,
+		})
+		require.Nil(t, err)
+	}
+
+	downloadFile := func(client *tos.ClientV2) {
+		getFilePath := randomString(7)
+		defer os.Remove(getFilePath)
+		_, err = client.DownloadFile(ctx, &tos.DownloadFileInput{
+			HeadObjectV2Input: tos.HeadObjectV2Input{Bucket: bucket, Key: key},
+			FilePath:          getFilePath,
+			TaskNum:           1,
+
+			RateLimiter: limiter,
+		})
+		require.Nil(t, err)
+	}
+
+	doFuns = append(doFuns, putObject)
+	doFuns = append(doFuns, appendObject)
+	doFuns = append(doFuns, uploadPart)
+	doFuns = append(doFuns, putObjectFromFile)
+	doFuns = append(doFuns, uploadPartFromFile)
+	doFuns = append(doFuns, getObjectToFile)
+	doFuns = append(doFuns, downloadFile)
+	for _, doFun := range doFuns {
+		now := time.Now()
+		doFun(client)
+		require.True(t, time.Now().Sub(now) >= time.Second*1)
+		require.True(t, time.Now().Sub(now) <= time.Second*4)
+		require.True(t, strings.Contains(buff.String(), slowLog))
+		buff.Reset()
+	}
+	ops = append(ops, tos.WithHighLatencyLogThreshold(100))
+	client = env.prepareClient(bucket, ops...)
+	for _, doFun := range doFuns {
+		now := time.Now()
+		doFun(client)
+		require.True(t, time.Now().Sub(now) >= time.Second*1)
+		require.True(t, time.Now().Sub(now) <= time.Second*4)
+		require.False(t, strings.Contains(buff.String(), slowLog))
+		buff.Reset()
+	}
+}
+
 func TestObjectWithRateLimit(t *testing.T) {
 	var (
 		env    = newTestEnv(t)
 		bucket = generateBucketName("object-with-rate-limit")
-		client = env.prepareClient(bucket)
 		key    = randomString(6)
 		ctx    = context.Background()
 	)
+	ops := make([]tos.ClientOption, 0)
+	buff := bytes.NewBuffer(nil)
+	ops = append(ops, tos.WithHighLatencyLogThreshold(1*1024*1024))
+	ops = append(ops, LongTimeOutClientOption...)
+	log := logrus.New()
+	log.Level = logrus.DebugLevel
+	log.Formatter = &logrus.TextFormatter{DisableQuote: true}
+	log.Out = buff
+	ops = append(ops, tos.WithLogger(log))
+	client := env.prepareClient(bucket, ops...)
 	defer cleanBucket(t, client, bucket)
 	rowData := randomString(1024 * 1024 * 7)
 	data := strings.NewReader(rowData)
@@ -1705,7 +1863,7 @@ func TestObjectWithRateLimit(t *testing.T) {
 	t.Logf("putobject cost: %v", time.Now().Sub(now).Seconds())
 	require.True(t, time.Now().Sub(now) >= time.Second*5)
 	require.True(t, time.Now().Sub(now) <= time.Second*10)
-
+	require.True(t, strings.Contains(buff.String(), "slow"))
 	// 限流耗时应大于不限流
 	start := time.Now()
 	getoutput, err := client.GetObjectV2(ctx, &tos.GetObjectV2Input{Bucket: bucket, Key: key, RateLimiter: limiter})
@@ -1813,6 +1971,18 @@ type retryReader struct {
 	reader io.Reader
 	n      int
 	t      *testing.T
+}
+
+func (r *retryReader) Write(p []byte) (n int, err error) {
+	if r.count == 5 {
+
+		return len(p), nil
+	}
+	r.count++
+
+	time.Sleep(time.Second * 3)
+
+	return 0, errors.New("time out")
 }
 
 func (r *retryReader) Read(p []byte) (n int, err error) {
@@ -2254,4 +2424,35 @@ func TestDisableEncodingMeta(t *testing.T) {
 	// 比较原始的 attachment
 	require.Equal(t, contentDisposition, hout.Header.Get(tos.HeaderContentDisposition))
 	t.Log(hout.Header.Get(tos.HeaderContentDisposition))
+}
+
+func TestRetryWithFileReader(t *testing.T) {
+	var (
+		env      = newTestEnv(t)
+		bucket   = generateBucketName("object-with-retry")
+		key      = randomString(6)
+		ctx      = context.Background()
+		fileName = key + ".file"
+	)
+	tsConfig := tos.DefaultTransportConfig()
+	tsConfig.ReadTimeout = time.Millisecond * 500
+	tsConfig.WriteTimeout = time.Millisecond * 500
+	client := env.prepareClient(bucket, tos.WithTransportConfig(&tsConfig), tos.WithMaxRetryCount(5))
+	defer cleanBucket(t, client, bucket)
+	file, err := os.Create(fileName)
+	defer os.Remove(fileName)
+	require.Nil(t, err)
+
+	data := randomString(1024 * 5)
+	io.Copy(file, strings.NewReader(data))
+	file.Close()
+
+	file, _ = os.Open(fileName)
+
+	resp, err := client.PutObjectV2(ctx, &tos.PutObjectV2Input{
+		PutObjectBasicInput: tos.PutObjectBasicInput{Bucket: bucket, Key: key},
+		Content:             file,
+	})
+	require.Nil(t, err)
+	require.Equal(t, resp.StatusCode, http.StatusOK)
 }

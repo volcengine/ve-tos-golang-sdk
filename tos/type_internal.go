@@ -679,25 +679,36 @@ func worthToRetry(ctx context.Context, waitTime time.Duration) bool {
 // returned to the caller. If the result is Retry, then Run sleeps according to its backoff policy
 // before retrying. If the total number of retries is exceeded then the return value of the work function
 // is returned to the caller regardless.
-func (r *retryer) Run(ctx context.Context, work func() error, classifier classifier) error {
+func (r *retryer) Run(ctx context.Context, work func(retryTime int) (int64, error), classifier classifier) error {
 	// run
-	ferr := work()
+	waitSec, ferr := work(0)
 	// try retry
-	for i := 0; i < len(r.backoff) && classifier.Classify(ferr) == Retry; i++ {
+	for i := 1; i <= len(r.backoff) && classifier.Classify(ferr) == Retry; i++ {
 		// 重试
-		sleepTime := r.calcSleep(i)
+		sleepTime := r.calcSleep(i-1, waitSec)
 		if !worthToRetry(ctx, sleepTime) {
 			return ferr
 		}
 		time.Sleep(sleepTime)
-		ferr = work()
+		waitSec, ferr = work(i)
 	}
 	return ferr
 }
 
-func (r *retryer) calcSleep(i int) time.Duration {
+func MinDuration(t1, t2 time.Duration) time.Duration {
+	if t1 <= t2 {
+		return t1
+	}
+	return t2
+}
+
+func (r *retryer) calcSleep(i int, waitSec int64) time.Duration {
+	waitDuration := time.Second * time.Duration(waitSec)
 	// take a random float in the range (-r.jitter, +r.jitter) and multiply it by the base amount
-	return r.backoff[i]
+	if waitDuration > r.backoff[i] {
+		return MinDuration(waitDuration, time.Minute)
+	}
+	return MinDuration(r.backoff[i], time.Minute)
 }
 
 // SetJitter sets the amount of jitter on each back-off to a factor between 0.0 and 1.0 (values outside this range

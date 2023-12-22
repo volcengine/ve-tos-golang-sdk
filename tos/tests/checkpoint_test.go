@@ -478,7 +478,6 @@ func (l *DownloadCancelListenerTest) EventChange(event *tos.DownloadEvent) {
 	}
 }
 
-//
 func TestDownloadCancelHook(t *testing.T) {
 	var (
 		env      = newTestEnv(t)
@@ -560,10 +559,15 @@ func TestLargeFile(t *testing.T) {
 		key    = "key123"
 		value1 = randomString(1000 * 1024 * 1024)
 		md5Sum = md5s(value1)
-
-		client   = env.prepareClient(bucket, LongTimeOutClientOption...)
-		fileName = randomString(16) + ".file"
 	)
+	config := tos.DefaultTransportConfig()
+	highLatencyLogThreshold := 100 * 1024 * 1024
+	config.HighLatencyLogThreshold = &highLatencyLogThreshold
+	ops := make([]tos.ClientOption, 0)
+	ops = append(ops, tos.WithTransportConfig(&config))
+	ops = append(ops, LongTimeOutClientOption...)
+	client := env.prepareClient(bucket, ops...)
+	fileName := randomString(16) + ".file"
 	defer func() {
 		cleanBucket(t, client, bucket)
 		cleanTestFile(t, fileName)

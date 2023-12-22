@@ -26,14 +26,14 @@ var (
 	TosStatus200  error = &TosServerError{RequestInfo: RequestInfo{StatusCode: 200}}
 )
 
-func genWork(returns []error) (func() error, *int) {
+func genWork(returns []error) (func(int) (int64, error), *int) {
 	i := 0
-	work := func() error {
+	work := func(retryTime int) (int64, error) {
 		i++
 		if i > len(returns) {
-			return nil
+			return 0, nil
 		}
-		return returns[i-1]
+		return 0, returns[i-1]
 	}
 	return work, &i
 }

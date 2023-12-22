@@ -52,7 +52,7 @@ func (cli *ClientV2) GetBucketReplication(ctx context.Context, input *GetBucketR
 	}
 	defer res.Close()
 	output := GetBucketReplicationOutput{RequestInfo: res.RequestInfo()}
-	if err = marshalOutput(output.RequestID, res.Body, &output); err != nil {
+	if err = marshalOutput(res, &output); err != nil {
 		return nil, err
 	}
 	return &output, nil

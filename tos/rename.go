@@ -78,7 +78,7 @@ func (cli *ClientV2) GetBucketRename(ctx context.Context, input *GetBucketRename
 	}
 	defer res.Close()
 	output := GetBucketRenameOutput{RequestInfo: res.RequestInfo()}
-	if err = marshalOutput(output.RequestID, res.Body, &output); err != nil {
+	if err = marshalOutput(res, &output); err != nil {
 		return nil, err
 	}
 	return &output, nil

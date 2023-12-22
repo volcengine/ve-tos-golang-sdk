@@ -1,4 +1,11 @@
 # ChangeLog of TOS SDK for Go
+## 版本号 v2.6.5 日期：2023-12-21
+- 增加慢日志打印
+- DNS 缓存增加异步保鲜
+- 新增华北2和柔佛region
+- SDK 重试时增加x-tos-sdk-retry-count 头域
+- 报错信息中添加 RequestUrl 和 EC 
+
 ## 版本号 v2.6.4 日期：2023-11-02
 
 - 修复 ListMultipartUploads Prefix 未生效的问题

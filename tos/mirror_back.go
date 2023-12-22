@@ -48,7 +48,7 @@ func (cli *ClientV2) GetBucketMirrorBack(ctx context.Context, input *GetBucketMi
 	}
 	defer res.Close()
 	output := GetBucketMirrorBackOutput{RequestInfo: res.RequestInfo()}
-	if err = marshalOutput(output.RequestID, res.Body, &output); err != nil {
+	if err = marshalOutput(res, &output); err != nil {
 		return nil, err
 	}
 	return &output, nil

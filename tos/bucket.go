@@ -145,7 +145,7 @@ func (cli *Client) ListBuckets(ctx context.Context, _ *ListBucketsInput) (*ListB
 	defer res.Close()
 
 	output := ListBucketsOutput{RequestInfo: res.RequestInfo()}
-	if err = marshalOutput(output.RequestID, res.Body, &output); err != nil {
+	if err = marshalOutput(res, &output); err != nil {
 		return nil, err
 	}
 	return &output, nil
@@ -162,7 +162,7 @@ func (cli *ClientV2) ListBuckets(ctx context.Context, _ *ListBucketsInput) (*Lis
 	defer res.Close()
 
 	output := ListBucketsOutput{RequestInfo: res.RequestInfo()}
-	if err = marshalOutput(output.RequestID, res.Body, &output); err != nil {
+	if err = marshalOutput(res, &output); err != nil {
 		return nil, err
 	}
 	return &output, nil
@@ -207,7 +207,7 @@ func (cli *ClientV2) GetBucketLocation(ctx context.Context, input *GetBucketLoca
 	}
 	defer res.Close()
 	output := GetBucketLocationOutput{RequestInfo: res.RequestInfo()}
-	if err = marshalOutput(output.RequestID, res.Body, &output); err != nil {
+	if err = marshalOutput(res, &output); err != nil {
 		return nil, err
 	}
 	return &output, nil
@@ -257,7 +257,7 @@ func (cli *ClientV2) GetBucketVersioning(ctx context.Context, input *GetBucketVe
 	}
 	defer res.Close()
 	output := GetBucketVersioningOutputV2{RequestInfo: res.RequestInfo()}
-	if err = marshalOutput(output.RequestID, res.Body, &output); err != nil {
+	if err = marshalOutput(res, &output); err != nil {
 		return nil, err
 	}
 	return &output, nil

@@ -4,7 +4,6 @@ import (
 	"container/heap"
 	"context"
 	"net"
-	"strings"
 	"sync"
 	"time"
 )
@@ -16,11 +15,14 @@ const (
 	HostSplitLength = 4
 )
 
+var RefreshInterval = time.Second * 30
+
 type cacheItem struct {
 	host      string
 	ipList    []string
 	expireAt  time.Time
 	heapIndex int
+	keepAlive bool
 }
 type priorityQueue []*cacheItem
 
@@ -70,6 +72,27 @@ type cache struct {
 	expiration time.Duration
 }
 
+func (c *cache) Keys() []string {
+	c.lock.RLock()
+	defer c.lock.RUnlock()
+	keys := make([]string, 0, len(c.data))
+	for key, _ := range c.data {
+		keys = append(keys, key)
+	}
+	return keys
+}
+
+func (c *cache) SetKeepAlive(key string) {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	data, ok := c.data[key]
+	if !ok {
+		return
+	}
+	data.keepAlive = true
+	c.data[key] = data
+}
+
 func (c *cache) Remove(key string, removeIp string) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
@@ -103,7 +126,7 @@ func (c *cache) Get(key string) ([]string, bool) {
 	if !ok {
 		return nil, false
 	}
-	if data.expireAt.Before(time.Now()) {
+	if !data.keepAlive && data.expireAt.Before(time.Now()) {
 		return nil, false
 	}
 	return data.ipList, true
@@ -159,17 +182,30 @@ func (c *cache) Put(key string, ipList []string) {
 }
 
 type resolver struct {
-	cache *cache
+	cache  *cache
+	closer chan struct{}
+	sync.Once
+	ctx context.Context
+}
+
+func (r *resolver) Close() {
+	r.Do(func() {
+		close(r.closer)
+	})
 }
 
 func newResolver(expiration time.Duration) *resolver {
 	pq := make(priorityQueue, 0)
-	return &resolver{cache: &cache{
+	cacheResolver := &resolver{cache: &cache{
 		heap:       &pq,
 		cleanTime:  time.Now().Add(expiration),
 		data:       make(map[string]cacheItem),
 		expiration: expiration,
-	}}
+	}, ctx: context.Background(),
+		closer: make(chan struct{}),
+	}
+	cacheResolver.refresh()
+	return cacheResolver
 }
 
 func ipToStringList(ips []net.IP) []string {
@@ -180,34 +216,75 @@ func ipToStringList(ips []net.IP) []string {
 	return res
 }
 
-func wrappedHost(host string) string {
-	if !strings.HasSuffix(host, VolceHostSuffix) {
-		return host
-	}
-	hostSplit := strings.Split(host, HostSplitSep)
-	if len(hostSplit) != HostSplitLength {
-		return host
-	}
-	return strings.Join(hostSplit[1:], HostSplitSep)
-
+func (r *resolver) getHost() []string {
+	return r.cache.Keys()
 }
 
-func (r *resolver) GetIpList(ctx context.Context, host string) ([]string, error) {
+func (r *resolver) SetHostNoExpires(host string) {
+	r.cache.SetKeepAlive(host)
+}
 
-	ipList, ok := r.cache.Get(wrappedHost(host))
-	if ok {
-		return ipList, nil
+func LookupIP(ctx context.Context, host string) ([]net.IP, error) {
+	addrs, err := net.DefaultResolver.LookupIPAddr(ctx, host)
+	if err != nil {
+		return nil, err
 	}
-	ips, err := net.LookupIP(host)
+	ips := make([]net.IP, len(addrs))
+	for i, ia := range addrs {
+		ips[i] = ia.IP
+	}
+	return ips, nil
+}
+
+func (r *resolver) GetIpListWithoutCache(ctx context.Context, host string) ([]string, error) {
+	ips, err := LookupIP(ctx, host)
 	if err != nil {
 		return nil, err
 	}
 	ipsStr := ipToStringList(ips)
-	r.cache.Put(wrappedHost(host), ipsStr)
+	r.cache.Put(host, ipsStr)
 
 	return ipsStr, nil
 }
 
+func (r *resolver) GetIpList(ctx context.Context, host string) ([]string, error) {
+	ipList, ok := r.cache.Get(host)
+	if ok {
+		return ipList, nil
+	}
+	ips, err := LookupIP(ctx, host)
+	if err != nil {
+		return nil, err
+	}
+	ipsStr := ipToStringList(ips)
+	r.cache.Put(host, ipsStr)
+
+	return ipsStr, nil
+}
+
+func (r *resolver) refresh() {
+	timer := time.NewTimer(RefreshInterval)
+	go func() {
+		for {
+			select {
+			case <-timer.C:
+				hosts := r.getHost()
+				for _, host := range hosts {
+					_, err := r.GetIpListWithoutCache(r.ctx, host)
+					if err != nil {
+						r.SetHostNoExpires(host)
+					}
+				}
+				timer.Reset(RefreshInterval)
+			case <-r.closer:
+				timer.Stop()
+				return
+			}
+		}
+	}()
+
+}
+
 func (r *resolver) Remove(host string, ip string) {
-	r.cache.Remove(wrappedHost(host), ip)
+	r.cache.Remove(host, ip)
 }
