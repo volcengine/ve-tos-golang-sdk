@@ -7,7 +7,7 @@ import (
 
 const (
 	// Version tos-go-sdk version
-	Version = "v2.6.5"
+	Version = "v2.6.6"
 )
 
 const TempFileSuffix = ".temp"
@@ -19,6 +19,20 @@ var DefaultCrcTable = func() *crc64.Table {
 
 const DefaultTaskBufferSize = 100
 const DefaultListMaxKeys = 1000
+
+func getS3Endpoints() []string {
+	return []string{
+		"tos-s3-cn-beijing.volces.com",
+		"tos-s3-cn-beijing.ivolces.com",
+		"tos-s3-cn-guangzhou.volces.com",
+		"tos-s3-cn-guangzhou.ivolces.com",
+		"tos-s3-cn-shanghai.ivolces.com",
+		"tos-s3-cn-shanghai.volces.com",
+		"tos-s3-cn-beijing2.volces.com",
+		"tos-s3-cn-beijing2.ivolces.com",
+		"tos-s3-ap-southeast-1.volces.com",
+		"tos-s3-ap-southeast-1.ivolces.com"}
+}
 
 func SupportedRegion() map[string]string {
 	return map[string]string{

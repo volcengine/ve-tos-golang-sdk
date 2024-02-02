@@ -147,6 +147,20 @@ func TestGetBucketLocation(t *testing.T) {
 	require.Equal(t, res.ExtranetEndpoint, env.endpoint)
 }
 
+func tryToGetBucketStorage(t *testing.T, bucket string, client *tos.ClientV2, storageClass enum.StorageClassType) {
+	start := time.Now()
+	for {
+		headRes, err := client.HeadBucket(context.Background(), &tos.HeadBucketInput{Bucket: bucket})
+		require.Nil(t, err)
+		if headRes.StorageClass == storageClass {
+			return
+		}
+		time.Sleep(3 * time.Second)
+		require.True(t, time.Since(start) < 2*time.Minute)
+	}
+
+}
+
 func TestPutBucketStorageClass(t *testing.T) {
 	var (
 		env    = newTestEnv(t)
@@ -164,9 +178,7 @@ func TestPutBucketStorageClass(t *testing.T) {
 	})
 	require.Nil(t, err)
 	require.NotNil(t, output)
-	headRes, err = client.HeadBucket(ctx, &tos.HeadBucketInput{Bucket: bucket})
-	require.Nil(t, err)
-	require.Equal(t, headRes.StorageClass, enum.StorageClassIa)
+	tryToGetBucketStorage(t, bucket, client, enum.StorageClassIa)
 
 	output, err = client.PutBucketStorageClass(ctx, &tos.PutBucketStorageClassInput{
 		Bucket:       bucket,
@@ -174,19 +186,15 @@ func TestPutBucketStorageClass(t *testing.T) {
 	})
 	require.Nil(t, err)
 	require.NotNil(t, output)
-	headRes, err = client.HeadBucket(ctx, &tos.HeadBucketInput{Bucket: bucket})
-	require.Nil(t, err)
-	require.Equal(t, headRes.StorageClass, enum.StorageClassArchiveFr)
-	
+	tryToGetBucketStorage(t, bucket, client, enum.StorageClassArchiveFr)
+
 	output, err = client.PutBucketStorageClass(ctx, &tos.PutBucketStorageClassInput{
 		Bucket:       bucket,
 		StorageClass: enum.StorageClassColdArchive,
 	})
 	require.Nil(t, err)
 	require.NotNil(t, output)
-	headRes, err = client.HeadBucket(ctx, &tos.HeadBucketInput{Bucket: bucket})
-	require.Nil(t, err)
-	require.Equal(t, headRes.StorageClass, enum.StorageClassColdArchive)
+	tryToGetBucketStorage(t, bucket, client, enum.StorageClassColdArchive)
 
 	output, err = client.PutBucketStorageClass(ctx, &tos.PutBucketStorageClassInput{
 		Bucket:       bucket,
