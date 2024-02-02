@@ -1890,6 +1890,67 @@ type GetBucketNotificationOutput struct {
 	RocketMQConfigurations      []RocketMQConfiguration      `json:"RocketMQConfigurations"`
 }
 
+type GetBucketNotificationType2Input struct {
+	Bucket string
+}
+
+type NotificationRule struct {
+	RuleID      string                  `json:"RuleId"`
+	Events      []string                `json:"Events"` // 支持的值在不断增加，不定义成枚举
+	Filter      NotificationFilter      `json:"Filter"`
+	Destination NotificationDestination `json:"Destination"`
+}
+
+type NotificationFilter struct {
+	TOSKey NotificationFilterKey `json:"TOSKey"`
+}
+
+type NotificationFilterKey struct {
+	FilterRules []NotificationFilterRule `json:"FilterRules"`
+}
+
+type NotificationFilterRule struct {
+	Name  string `json:"Name"`
+	Value string `json:"Value"`
+}
+
+type NotificationDestination struct {
+	RocketMQ []DestinationRocketMQ `json:"RocketMQ"`
+	VeFaaS   []DestinationVeFaaS   `json:"VeFaaS"`
+}
+
+type DestinationRocketMQ struct {
+	Role        string `json:"Role"`
+	InstanceID  string `json:"InstanceId"`
+	Topic       string `json:"Topic"`
+	AccessKeyID string `json:"AccessKeyId"`
+}
+
+type DestinationVeFaaS struct {
+	FunctionID string `json:"FunctionId"`
+}
+
+type GetBucketNotificationType2Output struct {
+	RequestInfo
+	Rules   []NotificationRule `json:"Rules"`
+	Version string             `json:"Version"`
+}
+
+type putBucketNotificationType2Input struct {
+	Rules   []NotificationRule `json:"Rules"`
+	Version string             `json:"Version"`
+}
+
+type PutBucketNotificationType2Input struct {
+	Bucket  string
+	Rules   []NotificationRule `json:"Rules"`
+	Version string             `json:"Version"`
+}
+
+type PutBucketNotificationType2Output struct {
+	RequestInfo
+}
+
 type putBucketVersioningInput struct {
 	Status enum.VersioningStatusType `json:"Status"`
 }
@@ -2205,6 +2266,35 @@ type RestoreObjectInput struct {
 }
 
 type RestoreObjectOutput struct {
+	RequestInfo
+}
+type putBucketTaggingInput struct {
+	TagSet TagSet `json:"TagSet"`
+}
+
+type PutBucketTaggingInput struct {
+	Bucket string
+	TagSet TagSet
+}
+
+type PutBucketTaggingOutput struct {
+	RequestInfo
+}
+
+type GetBucketTaggingInput struct {
+	Bucket string // required
+}
+
+type GetBucketTaggingOutput struct {
+	RequestInfo
+	TagSet TagSet
+}
+
+type DeleteBucketTaggingInput struct {
+	Bucket string // required
+}
+
+type DeleteBucketTaggingOutput struct {
 	RequestInfo
 }
 
