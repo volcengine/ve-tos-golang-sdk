@@ -135,6 +135,14 @@ func TestUploadEmptyFile(t *testing.T) {
 	data, err := ioutil.ReadAll(get.Content)
 	require.Nil(t, err)
 	require.Equal(t, md5s(string(data)), md5s(value1))
+	_, err = client.DownloadFile(context.Background(), &tos.DownloadFileInput{
+		HeadObjectV2Input: tos.HeadObjectV2Input{Bucket: bucket, Key: key},
+		FilePath:          fileName,
+	})
+	require.Nil(t, err)
+	data, err = ioutil.ReadAll(get.Content)
+	require.Nil(t, err)
+	require.Equal(t, md5s(string(data)), md5s(value1))
 }
 
 func TestUploadFileWithCheckpoint(t *testing.T) {

@@ -125,3 +125,48 @@ func TestNotificationMQ(t *testing.T) {
 	require.Nil(t, err)
 	require.NotNil(t, output)
 }
+
+func TestNotificationType2Func(t *testing.T) {
+	var (
+		env    = newTestEnv(t)
+		bucket = generateBucketName("notification")
+		client = env.prepareClient(bucket)
+	)
+	defer func() {
+		cleanBucket(t, client, bucket)
+	}()
+	ctx := context.Background()
+	input := tos.PutBucketNotificationType2Input{
+		Bucket: bucket,
+		Rules: []tos.NotificationRule{{
+			RuleID: "TestCreatePrefixSuffix",
+			Events: []string{"tos:ObjectCreated:Post", "tos:ObjectCreated:Origin"},
+			Filter: tos.NotificationFilter{TOSKey: tos.NotificationFilterKey{FilterRules: []tos.NotificationFilterRule{{
+				Name:  "prefix",
+				Value: "test-",
+			}, {
+				Name:  "suffix",
+				Value: "-ci",
+			}}}},
+			Destination: tos.NotificationDestination{VeFaaS: []tos.DestinationVeFaaS{{FunctionID: env.cloudFunction}}, RocketMQ: []tos.DestinationRocketMQ{{
+				Role:        fmt.Sprintf("trn:iam::%s:role/%s", env.accountId, env.mqRoleName),
+				InstanceID:  env.mqInstanceId,
+				Topic:       "SDK",
+				AccessKeyID: env.mqAccessKeyID,
+			}}},
+		}}}
+	output, err := client.PutBucketNotificationType2(ctx, &input)
+	require.Nil(t, err)
+	require.NotNil(t, output)
+
+	getOutput, err := client.GetBucketNotificationType2(ctx, &tos.GetBucketNotificationType2Input{Bucket: bucket})
+	require.Nil(t, err)
+	require.NotNil(t, getOutput)
+
+	require.Equal(t, len(getOutput.Rules), len(input.Rules))
+	require.Equal(t, len(getOutput.Rules[0].Events), len(input.Rules[0].Events))
+	require.Equal(t, getOutput.Rules[0].RuleID, input.Rules[0].RuleID)
+	require.Equal(t, getOutput.Rules[0].Filter, input.Rules[0].Filter)
+	require.Equal(t, getOutput.Rules[0].Destination, input.Rules[0].Destination)
+
+}

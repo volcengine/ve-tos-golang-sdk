@@ -378,8 +378,10 @@ func NewClient(endpoint string, options ...ClientOption) (*Client, error) {
 //	  WithEnableCRC set CRC switch.
 //	  WithMaxRetryCount  set Max Retry Count
 func NewClientV2(endpoint string, options ...ClientOption) (*ClientV2, error) {
-	if strings.Contains(endpoint, "s3") {
-		return nil, InvalidS3Endpoint
+	for _, s3Endpoint := range getS3Endpoints() {
+		if strings.HasSuffix(endpoint, s3Endpoint) {
+			return nil, InvalidS3Endpoint
+		}
 	}
 	client := ClientV2{
 		Client: Client{

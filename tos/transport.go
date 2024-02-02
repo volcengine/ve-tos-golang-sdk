@@ -209,7 +209,7 @@ func (dt *DefaultTransport) RoundTrip(ctx context.Context, req *Request) (*Respo
 
 	res, err := dt.client.Do(hr)
 
-	if req.enableSlowLog && hr.Body != nil && isSlow(wrap.Size, dt.highLatencyLogThreshold, time.Since(start)) {
+	if req.enableSlowLog && hr.Body != nil && wrap != nil && isSlow(wrap.Size, dt.highLatencyLogThreshold, time.Since(start)) {
 		accessLog.printSlowLog(dt.logger, hr, res, start, err)
 	} else if accessLog != nil {
 		accessLog.printAccessLog(dt.logger, hr, res, start, err)
