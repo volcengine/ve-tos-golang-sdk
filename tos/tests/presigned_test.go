@@ -3,6 +3,8 @@ package tests
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -630,4 +632,47 @@ func TestPreSignedPolicyURLWithExpires(t *testing.T) {
 	require.Nil(t, err)
 	require.Equal(t, 200, res.StatusCode)
 	require.Equal(t, "text/plain", res.Header.Get("Content-Type"))
+}
+
+func TestPreSignWithContentSha256(t *testing.T) {
+	var (
+		env    = newTestEnv(t)
+		bucket = generateBucketName("pre-signed-sha256")
+		cli    = env.prepareClient(bucket)
+		key    = randomString(6)
+	)
+	defer cleanBucket(t, cli, bucket)
+
+	body := randomString(1024)
+	sha := sha256.New()
+	sha.Write([]byte(body))
+	shaStr := hex.EncodeToString(sha.Sum(nil))
+	signedResult, err := cli.PreSignedURL(&tos.PreSignedURLInput{
+		HTTPMethod: http.MethodPut,
+		Bucket:     bucket,
+		Key:        key,
+		Expires:    3600,
+		Header:     map[string]string{"x-tos-content-sha256": shaStr},
+	})
+	require.Nil(t, err)
+	req, err := http.NewRequest(http.MethodPut, signedResult.SignedUrl, strings.NewReader(body))
+	require.Nil(t, err)
+	req.Header.Set("x-tos-content-sha256", shaStr)
+	resp, err := http.DefaultClient.Do(req)
+	require.Nil(t, err)
+	require.Equal(t, resp.StatusCode, 200)
+
+	req, err = http.NewRequest(http.MethodPut, signedResult.SignedUrl, strings.NewReader(body))
+	require.Nil(t, err)
+	resp, err = http.DefaultClient.Do(req)
+	require.Nil(t, err)
+	require.Equal(t, resp.StatusCode, 403)
+
+	req, err = http.NewRequest(http.MethodPut, signedResult.SignedUrl, strings.NewReader(body))
+	require.Nil(t, err)
+	req.Header.Set("x-tos-content-sha256", shaStr+randomString(1))
+	resp, err = http.DefaultClient.Do(req)
+	require.Nil(t, err)
+	require.Equal(t, resp.StatusCode, 403)
+
 }

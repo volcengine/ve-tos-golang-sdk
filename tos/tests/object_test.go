@@ -1897,7 +1897,7 @@ func TestObjectWithTraffic(t *testing.T) {
 	rowData := randomString(1024 * 1024 * 7)
 	data := strings.NewReader(rowData)
 	now := time.Now()
-	limiter := int64(1024 * 1024)
+	limiter := int64(1024 * 1024 * 8)
 	putoutput, err := client.PutObjectV2(ctx, &tos.PutObjectV2Input{
 		PutObjectBasicInput: tos.PutObjectBasicInput{
 			Bucket:       bucket,

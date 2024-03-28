@@ -270,6 +270,11 @@ func (sv *SignV4) SignQuery(req *Request, ttl time.Duration) url.Values {
 	query := req.Query
 	extra := make(url.Values)
 
+	contentSha256 := unsignedPayload
+	if headerSha256 := req.Header.Get(HeaderContentSha256); headerSha256 != "" {
+		contentSha256 = headerSha256
+	}
+
 	cred := sv.credentials.Credential()
 	credential := fmt.Sprintf("%s/%s/%s/tos/request", cred.AccessKeyID, now.Format(yyMMdd), sv.region)
 	extra.Add(v4Algorithm, signPrefix)
@@ -288,7 +293,7 @@ func (sv *SignV4) SignQuery(req *Request, ttl time.Duration) url.Values {
 	extra.Add(v4SignedHeaders, joinKeys(signedHeader))
 	signedQuery := sv.signedQuery(query, extra)
 
-	signRes := sv.doSign(req.Method, req.Path, unsignedPayload, signedHeader, signedQuery, now, &cred)
+	signRes := sv.doSign(req.Method, req.Path, contentSha256, signedHeader, signedQuery, now, &cred)
 	extra.Add(v4Signature, signRes.Sign)
 	if sv.logger != nil {
 		sv.logger.Debug("[tos] CanonicalString:" + "\n" + signRes.CanonicalString + "\n")
