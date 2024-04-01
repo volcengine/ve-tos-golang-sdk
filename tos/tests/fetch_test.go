@@ -90,7 +90,7 @@ func TestFetchObject(t *testing.T) {
 		URL:           "https://" + bucket + "." + env.endpoint + "/" + key,
 		IgnoreSameKey: true,
 	})
-	require.Nil(t, err)
+	require.NotNil(t, err)
 
 }
 
