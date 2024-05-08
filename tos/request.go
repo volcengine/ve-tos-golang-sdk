@@ -40,6 +40,8 @@ type Request struct {
 	Query         url.Values
 	Header        http.Header
 	enableSlowLog bool
+	RequestDate   time.Time // 不为空时，代表本次请求 Header 中指定的 X-Tos-Date 头域（转换为 UTC 时间），包含签名时和发送时
+	RequestHost   string    // 不为空时，代表本次请求 Header 中指定的 Host 头域，仅影响签名和发送请求时的 Host 头域，实际建立仍使用 Endpoint
 }
 
 func (req *Request) URL() string {
@@ -93,6 +95,8 @@ type requestBuilder struct {
 	CopySource          *CopySource
 	IsCustomDomain      bool
 	DisableEncodingMeta bool
+	RequestDate         time.Time
+	RequestHost         string
 	// CheckETag  bool
 	// CheckCRC32 bool
 }
@@ -254,13 +258,15 @@ func (rb *requestBuilder) hostPath() (string, string) {
 func (rb *requestBuilder) build(method string, content io.Reader) *Request {
 	host, path := rb.hostPath()
 	req := &Request{
-		Scheme:  rb.Scheme,
-		Method:  method,
-		Host:    host,
-		Path:    path,
-		Content: content,
-		Query:   rb.Query,
-		Header:  rb.Header,
+		Scheme:      rb.Scheme,
+		Method:      method,
+		Host:        host,
+		Path:        path,
+		Content:     content,
+		Query:       rb.Query,
+		Header:      rb.Header,
+		RequestHost: rb.RequestHost,
+		RequestDate: rb.RequestDate,
 	}
 
 	if content != nil {
@@ -290,6 +296,17 @@ func (rb *requestBuilder) Build(method string, content io.Reader) *Request {
 }
 
 type roundTripper func(ctx context.Context, req *Request) (*Response, error)
+
+func (rb *requestBuilder) SetGeneric(input GenericInput) *requestBuilder {
+	if !input.RequestDate.IsZero() {
+		rb.RequestDate = input.RequestDate
+	}
+	if input.RequestHost != "" {
+		rb.RequestHost = input.RequestHost
+
+	}
+	return rb
+}
 
 func (rb *requestBuilder) Request(ctx context.Context, method string,
 	content io.Reader, roundTripper roundTripper) (*Response, error) {

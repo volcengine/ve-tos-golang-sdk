@@ -2456,3 +2456,35 @@ func TestRetryWithFileReader(t *testing.T) {
 	require.Nil(t, err)
 	require.Equal(t, resp.StatusCode, http.StatusOK)
 }
+
+func TestGetFileStatus(t *testing.T) {
+	var (
+		env    = newTestEnv(t)
+		bucket = generateBucketName("get-file-status")
+		key    = randomString(6) + "/" + randomString(6)
+		ctx    = context.Background()
+		client = env.prepareClient(bucket)
+	)
+	defer cleanBucket(t, client, bucket)
+
+	resp, err := client.GetFileStatus(ctx, &tos.GetFileStatusInput{Bucket: bucket, Key: key})
+	require.NotNil(t, err)
+	_, err = client.PutObjectV2(context.Background(), &tos.PutObjectV2Input{
+		PutObjectBasicInput: tos.PutObjectBasicInput{Bucket: bucket, Key: key},
+		Content:             strings.NewReader("123"),
+	})
+	require.Nil(t, err)
+	resp, err = client.GetFileStatus(ctx, &tos.GetFileStatusInput{Bucket: bucket, Key: key})
+	require.Nil(t, err)
+	assert.Equal(t, resp.Key, key)
+
+	resp, err = client.GetFileStatus(ctx, &tos.GetFileStatusInput{Bucket: bucket, Key: key, GenericInput: tos.GenericInput{
+		RequestDate: time.Now().Add(-1 * time.Hour * 24),
+	}})
+	require.NotNil(t, err)
+
+	prefix := key[:7]
+	resp, err = client.GetFileStatus(ctx, &tos.GetFileStatusInput{Bucket: bucket, Key: prefix})
+	require.Nil(t, err)
+	assert.Equal(t, resp.Key, key)
+}
