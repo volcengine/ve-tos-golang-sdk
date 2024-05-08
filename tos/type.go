@@ -2302,6 +2302,26 @@ type RestoreJobParameters struct {
 	Tier enum.TierType `json:"Tier"`
 }
 
+type GenericInput struct {
+	RequestDate time.Time // 不为空时，代表本次请求 Header 中指定的 X-Tos-Date 头域（转换为 UTC 时间），包含签名时和发送时
+	RequestHost string    // 不为空时，代表本次请求 Header 中指定的 Host 头域，仅影响签名和发送请求时的 Host 头域，实际建立仍使用 Endpoint
+}
+
+type GetFileStatusInput struct {
+	GenericInput        // v2.8.0
+	Bucket       string // required
+	Key          string // required
+}
+
+type GetFileStatusOutput struct {
+	RequestInfo
+	Key          string
+	Size         int64
+	LastModified time.Time
+	Crc32        string
+	Crc64        string
+}
+
 type DataTransferListener interface {
 	DataTransferStatusChange(status *DataTransferStatus)
 }

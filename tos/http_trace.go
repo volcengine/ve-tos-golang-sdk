@@ -110,38 +110,38 @@ func getClientTrace(actionStartMs int64) (*httptrace.ClientTrace, *accessLogRequ
 	r := newAccessLogRequest(actionStartMs)
 	trace := &httptrace.ClientTrace{
 		GotFirstResponseByte: func() {
-			r.clientWaitResponseCost = GetUnixTimeMs() - waitResponseStart
+			atomic.StoreInt64(&r.clientWaitResponseCost, GetUnixTimeMs()-atomic.LoadInt64(&waitResponseStart))
 		},
 		DNSStart: func(info httptrace.DNSStartInfo) {
-			dnsStart = GetUnixTimeMs()
+			atomic.StoreInt64(&dnsStart, GetUnixTimeMs())
 		},
 		DNSDone: func(info httptrace.DNSDoneInfo) {
-			r.clientDnsCost = GetUnixTimeMs() - dnsStart
+			atomic.StoreInt64(&r.clientDnsCost, GetUnixTimeMs()-atomic.LoadInt64(&dnsStart))
 		},
 		ConnectStart: func(network, addr string) {
-			dialStart = GetUnixTimeMs()
+			atomic.StoreInt64(&dialStart, GetUnixTimeMs())
 		},
 		ConnectDone: func(network, addr string, err error) {
 			now := GetUnixTimeMs()
-			sendHeadersAndBodyStart = now
-			r.clientDialCost = now - dialStart
+			atomic.StoreInt64(&sendHeadersAndBodyStart, now)
+			atomic.StoreInt64(&r.clientDialCost, now-atomic.LoadInt64(&dialStart))
 		},
 		TLSHandshakeStart: func() {
-			tlsHandShakeStart = GetUnixTimeMs()
+			atomic.StoreInt64(&tlsHandShakeStart, GetUnixTimeMs())
 		},
 		TLSHandshakeDone: func(state tls.ConnectionState, err error) {
 			now := GetUnixTimeMs()
-			sendHeadersAndBodyStart = now
-			r.clientTlsHandShakeCost = now - tlsHandShakeStart
+			atomic.StoreInt64(&sendHeadersAndBodyStart, now)
+			atomic.StoreInt64(&r.clientTlsHandShakeCost, now-atomic.LoadInt64(&tlsHandShakeStart))
 		},
 
 		GotConn: func(httptrace.GotConnInfo) {
-			sendHeadersAndBodyStart = GetUnixTimeMs()
+			atomic.StoreInt64(&sendHeadersAndBodyStart, GetUnixTimeMs())
 		},
 
 		WroteRequest: func(info httptrace.WroteRequestInfo) {
-			waitResponseStart = GetUnixTimeMs()
-			r.clientSendHeadersAndBodyCost = waitResponseStart - sendHeadersAndBodyStart
+			atomic.StoreInt64(&waitResponseStart, GetUnixTimeMs())
+			atomic.StoreInt64(&r.clientSendHeadersAndBodyCost, atomic.LoadInt64(&waitResponseStart)-atomic.LoadInt64(&sendHeadersAndBodyStart))
 		},
 	}
 	return trace, r

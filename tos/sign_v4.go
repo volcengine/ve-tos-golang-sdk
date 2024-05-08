@@ -231,11 +231,19 @@ func (sv *SignV4) SignHeader(req *Request) http.Header {
 	now := sv.now()
 	date := now.Format(iso8601Layout)
 	contentSha256 := req.Header.Get(v4ContentSHA256)
+	if !req.RequestDate.IsZero() {
+		date = req.RequestDate.Format(iso8601Layout)
+	}
+
+	host := req.Host
+	if req.RequestHost != "" {
+		host = req.RequestHost
+	}
 
 	signedHeader := sv.signedHeader(req.Header, false)
 	signedHeader = append(signedHeader, KV{Key: strings.ToLower(v4Date), Values: []string{date}})
 	signedHeader = append(signedHeader, KV{Key: "date", Values: []string{date}})
-	signedHeader = append(signedHeader, KV{Key: "host", Values: []string{req.Host}})
+	signedHeader = append(signedHeader, KV{Key: "host", Values: []string{host}})
 	// if len(contentSha256) == 0 {
 	//	signedHeader = append(signedHeader, KV{Key: strings.ToLower(v4ContentSHA256), Values: []string{unsignedPayload}})
 	//	signed.Set(v4ContentSHA256, unsignedPayload)
@@ -269,6 +277,14 @@ func (sv *SignV4) SignQuery(req *Request, ttl time.Duration) url.Values {
 	date := now.Format(iso8601Layout)
 	query := req.Query
 	extra := make(url.Values)
+	if !req.RequestDate.IsZero() {
+		date = req.RequestDate.Format(iso8601Layout)
+	}
+
+	host := req.Host
+	if req.RequestHost != "" {
+		host = req.RequestHost
+	}
 
 	contentSha256 := unsignedPayload
 	if headerSha256 := req.Header.Get(HeaderContentSha256); headerSha256 != "" {
@@ -287,7 +303,7 @@ func (sv *SignV4) SignQuery(req *Request, ttl time.Duration) url.Values {
 	}
 
 	signedHeader := sv.signedHeader(req.Header, true)
-	signedHeader = append(signedHeader, KV{Key: "host", Values: []string{req.Host}})
+	signedHeader = append(signedHeader, KV{Key: "host", Values: []string{host}})
 	sort.Sort(signedHeader)
 
 	extra.Add(v4SignedHeaders, joinKeys(signedHeader))

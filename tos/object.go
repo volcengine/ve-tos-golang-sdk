@@ -1155,3 +1155,24 @@ func (cli *ClientV2) ListObjectVersionsV2(
 func (cli *ClientV2) RestoreObject(ctx context.Context, input *RestoreObjectInput) (*RestoreObjectOutput, error) {
 	return cli.baseClient.RestoreObject(ctx, input)
 }
+
+func (cli *ClientV2) GetFileStatus(ctx context.Context, input *GetFileStatusInput) (*GetFileStatusOutput, error) {
+	if err := isValidBucketName(input.Bucket, cli.isCustomDomain); err != nil {
+		return nil, err
+	}
+	res, err := cli.newBuilder(input.Bucket, input.Key).
+		WithQuery("stat", "").
+		WithRetry(nil, StatusCodeClassifier{}).
+		SetGeneric(input.GenericInput).
+		Request(ctx, http.MethodGet, nil, cli.roundTripper(http.StatusOK))
+	if err != nil {
+		return nil, err
+	}
+	defer res.Close()
+	output := GetFileStatusOutput{RequestInfo: res.RequestInfo()}
+	if err = marshalOutput(res, &output); err != nil {
+		return nil, err
+	}
+	return &output, nil
+
+}

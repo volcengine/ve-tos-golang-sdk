@@ -1,7 +1,10 @@
 # ChangeLog of TOS SDK for Go
 
+## 版本号 v2.6.8 日期：2024-03-26
+- 增加 GetFileStatus 接口
+
 ## 版本号 v2.6.7 日期：2024-03-26
-- 预签名兼容 content-sha256 header:
+- 预签名兼容 content-sha256 header
 
 ## 版本号 v2.6.6 日期：2024-01-29
 - 增加 bucket tagging 接口
