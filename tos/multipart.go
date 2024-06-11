@@ -309,11 +309,15 @@ func (bkt *Bucket) CompleteMultipartUpload(ctx context.Context, input *CompleteM
 		return nil, err
 	}
 	defer res.Close()
-
-	return &CompleteMultipartUploadOutput{
+	output := &CompleteMultipartUploadOutput{
 		RequestInfo: res.RequestInfo(),
 		VersionID:   res.Header.Get(HeaderVersionID),
-	}, nil
+	}
+	if err = marshalOutput(res, &output); err != nil {
+		return nil, err
+	}
+
+	return output, nil
 }
 
 // CompleteMultipartUploadV2 complete a multipart upload operation

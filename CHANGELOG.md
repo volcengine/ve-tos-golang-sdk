@@ -1,4 +1,6 @@
 # ChangeLog of TOS SDK for Go
+## 版本号 v2.6.9 日期：2024-06-11
+- 优化 CompleteMultipartUpload 返回值
 
 ## 版本号 v2.6.8 日期：2024-03-26
 - 增加 GetFileStatus 接口

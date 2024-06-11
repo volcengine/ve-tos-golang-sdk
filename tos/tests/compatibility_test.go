@@ -74,7 +74,10 @@ func TestCurdV1(t *testing.T) {
 	require.Nil(t, err)
 	created, err := client.CreateBucket(context.Background(), &tos.CreateBucketInput{Bucket: bucket})
 	checkSuccess(t, created, err, 200)
-	defer cleanBucketV1(t, client, bucket)
+	clientV2, err := tos.NewClientV2(endpoint, tos.WithCredentials(tos.NewStaticCredentials(accessKey, secretKey)), tos.WithMaxRetryCount(5), tos.WithRegion(region))
+	require.Nil(t, err)
+	enableMultiVersion(t, clientV2, bucket)
+	defer cleanBucket(t, clientV2, bucket)
 	buckets, err := client.ListBuckets(context.Background(), &tos.ListBucketsInput{})
 	checkSuccess(t, buckets, err, 200)
 	head, err := client.HeadBucket(context.Background(), bucket)
@@ -135,6 +138,8 @@ func TestCurdV1(t *testing.T) {
 		UploadedParts: []tos.MultipartUploadedPart{upload1, upload2, upload3},
 	})
 	checkSuccess(t, complete, err, 200)
+	require.NotEqual(t, complete.ETag, "")
+	require.NotEqual(t, complete.VersionID, "")
 	// copy
 	srcKey := "test-src-key"
 	dstKey := "test-dst-key"
