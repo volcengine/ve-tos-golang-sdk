@@ -354,7 +354,7 @@ func NewClient(endpoint string, options ...ClientOption) (*Client, error) {
 	client := Client{
 		recognizer: ExtensionBasedContentTypeRecognizer{},
 		config:     defaultConfig(),
-		userAgent:  fmt.Sprintf("tos-go-sdk/%s (%s/%s;%s)", Version, runtime.GOOS, runtime.GOARCH, runtime.Version()),
+		userAgent:  fmt.Sprintf("ve-tos-go-sdk/%s (%s/%s;%s)", Version, runtime.GOOS, runtime.GOARCH, runtime.Version()),
 		retry:      newRetryer([]time.Duration{}),
 	}
 	client.retry.SetJitter(0.25)
@@ -388,7 +388,7 @@ func NewClientV2(endpoint string, options ...ClientOption) (*ClientV2, error) {
 			recognizer: ExtensionBasedContentTypeRecognizer{},
 			config:     defaultConfig(),
 			retry:      newRetryer(exponentialBackoff(DefaultRetryTime, DefaultRetryBackoffBase)),
-			userAgent:  fmt.Sprintf("tos-go-sdk/%s (%s/%s;%s)", Version, runtime.GOOS, runtime.GOARCH, runtime.Version()),
+			userAgent:  fmt.Sprintf("ve-tos-go-sdk/%s (%s/%s;%s)", Version, runtime.GOOS, runtime.GOARCH, runtime.Version()),
 			enableCRC:  true,
 		},
 	}

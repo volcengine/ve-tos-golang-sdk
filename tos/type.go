@@ -1319,8 +1319,14 @@ type CompleteMultipartUploadInput struct {
 }
 
 type CompleteMultipartUploadOutput struct {
-	RequestInfo `json:"-"`
-	VersionID   string `json:"VersionId,omitempty"`
+	RequestInfo               `json:"-"`
+	VersionID                 string `json:"VersionId,omitempty"`
+	Bucket                    string
+	Key                       string
+	ETag                      string
+	Location                  string
+	ServerSideEncryption      string
+	ServerSideEncryptionKeyID string
 }
 
 type CompleteMultipartUploadV2Input struct {
