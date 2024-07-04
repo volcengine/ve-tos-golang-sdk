@@ -942,7 +942,7 @@ func TestAppend(t *testing.T) {
 		env    = newTestEnv(t)
 		bucket = generateBucketName("append")
 		key    = "key123"
-		value1 = randomString(4 * 1024)
+		value1 = randomString(1024 * 1024)
 		value2 = randomString(4 * 1024)
 		md5Sum = md5s(value1 + value2)
 		client = env.prepareClient(bucket)
@@ -959,6 +959,10 @@ func TestAppend(t *testing.T) {
 		Content: strings.NewReader(value1),
 	})
 	checkFail(t, appendOutput, err, 404)
+	fmt.Println(err.Error())
+	serr, ok := err.(*tos.TosServerError)
+	require.True(t, ok)
+	require.True(t, serr.EC != "")
 	appendOutput, err = client.AppendObjectV2(context.Background(), &tos.AppendObjectV2Input{
 		Bucket:           bucket,
 		Key:              key,
@@ -2029,24 +2033,30 @@ func TestObjectWithRetry(t *testing.T) {
 	defer cleanBucket(t, client, bucket)
 	// Case 1: 测试内存流
 	rawData := "hello world"
+	dataListener := &dataTransferListenerTest{}
 	data := &retryReader{reader: strings.NewReader(rawData), t: t}
 	_, err := client.PutObjectV2(ctx, &tos.PutObjectV2Input{
 		PutObjectBasicInput: tos.PutObjectBasicInput{
-			Bucket: bucket,
-			Key:    key,
+			Bucket:               bucket,
+			Key:                  key,
+			DataTransferListener: dataListener,
 		},
 		Content: data,
 	})
 	require.Nil(t, err)
 	require.Equal(t, data.count, 5)
+	require.Equal(t, dataListener.RetryCount, 5)
 
-	getOutput, err := client.GetObjectV2(ctx, &tos.GetObjectV2Input{Bucket: bucket, Key: key})
+	dataListener = &dataTransferListenerTest{}
+	getOutput, err := client.GetObjectV2(ctx, &tos.GetObjectV2Input{Bucket: bucket, Key: key, DataTransferListener: dataListener})
 	require.Nil(t, err)
 	getData, err := ioutil.ReadAll(getOutput.Content)
 	require.Nil(t, err)
 	require.Equal(t, string(getData), rawData)
+	require.Equal(t, dataListener.RetryCount, 0)
 
 	// case 2: 测试文件流重试
+	dataListener = &dataTransferListenerTest{}
 	fileName := randomString(5)
 	file, err := os.Create(fileName)
 	require.Nil(t, err)
@@ -2064,32 +2074,40 @@ func TestObjectWithRetry(t *testing.T) {
 	data = &retryReader{reader: file, t: t}
 	_, err = client.PutObjectV2(ctx, &tos.PutObjectV2Input{
 		PutObjectBasicInput: tos.PutObjectBasicInput{
-			Bucket: bucket,
-			Key:    key,
+			Bucket:               bucket,
+			Key:                  key,
+			DataTransferListener: dataListener,
 		},
 		Content: data,
 	})
 	require.Nil(t, err)
 	require.Equal(t, data.count, 5)
-	getOutput, err = client.GetObjectV2(ctx, &tos.GetObjectV2Input{Bucket: bucket, Key: key})
+	require.Equal(t, dataListener.RetryCount, 5)
+
+	dataListener = &dataTransferListenerTest{}
+	getOutput, err = client.GetObjectV2(ctx, &tos.GetObjectV2Input{Bucket: bucket, Key: key, DataTransferListener: dataListener})
 	require.Nil(t, err)
 	getData, err = ioutil.ReadAll(getOutput.Content)
 	require.Nil(t, err)
 	t.Log("getData:", string(getData), "RealValue:", value[1000:])
 	require.Equal(t, string(getData), string(value[1000:]))
+	require.Equal(t, dataListener.RetryCount, 0)
 
 	// Case3: 网络流不可重试
+	dataListener = &dataTransferListenerTest{}
 	res, err := http.Get("https://www.volcengine.com/")
 	require.Nil(t, err)
 	nrReader := &noRetryReader{reader: res.Body}
 	_, err = client.PutObjectV2(ctx, &tos.PutObjectV2Input{
 		PutObjectBasicInput: tos.PutObjectBasicInput{
-			Bucket: bucket,
-			Key:    key,
+			Bucket:               bucket,
+			Key:                  key,
+			DataTransferListener: dataListener,
 		},
 		Content: nrReader,
 	})
 	require.NotNil(t, err)
+	require.Equal(t, dataListener.RetryCount, 0)
 
 }
 
@@ -2249,6 +2267,15 @@ func TestRestoreObject(t *testing.T) {
 	})
 	require.Nil(t, err)
 	require.Equal(t, out.StatusCode, http.StatusAccepted)
+
+	headResp, err := client.HeadObjectV2(ctx, &tos.HeadObjectV2Input{Bucket: bucket, Key: key})
+	require.Nil(t, err)
+	require.Equal(t, headResp.RestoreInfo.RestoreStatus.OngoingRequest, true)
+	require.Equal(t, headResp.RestoreInfo.RestoreParam.ExpiryDays, 10)
+	require.Equal(t, headResp.RestoreInfo.RestoreParam.Tier, enum.TierExpedited)
+
+	_, err = client.GetObjectV2(ctx, &tos.GetObjectV2Input{Bucket: bucket, Key: key})
+	require.NotNil(t, err)
 
 }
 
@@ -2487,4 +2514,26 @@ func TestGetFileStatus(t *testing.T) {
 	resp, err = client.GetFileStatus(ctx, &tos.GetFileStatusInput{Bucket: bucket, Key: prefix})
 	require.Nil(t, err)
 	assert.Equal(t, resp.Key, key)
+}
+
+func TestDocPreview(t *testing.T) {
+	var (
+		env    = newTestEnv(t)
+		bucket = generateBucketName("doc-preview")
+		key    = randomString(3) + ".docx"
+		ctx    = context.Background()
+		client = env.prepareClient(bucket)
+	)
+	defer cleanBucket(t, client, bucket)
+	doc := "UEsDBAoAAAAAAIdO4kAAAAAAAAAAAAAAAAAJAAAAZG9jUHJvcHMvUEsDBBQAAAAIAIdO4kBtOBLsWwEAAG8CAAAQAAAAZG9jUHJvcHMvYXBwLnhtbJ2RUW+CMBSF35fsPxDeoYCCzhSMw/m0bCbifDRNuUAzaJu2Gv33K7Ioe93bPee2J1978PLStc4ZlGaCp27oB64DnIqS8Tp198XGm7uONoSXpBUcUvcK2l1mz094q4QEZRhox0ZwnbqNMXKBkKYNdET7ds3tphKqI8ZKVSNRVYzCWtBTB9ygKAgSBBcDvITSk/dAd0hcnM1/Q0tBez79VVylBc5wAZ1siYHso8dp/VKYDqO7i7ekBp2FGA0DPghV6izAaBhw3hBFqLH/1Jsjhd8ZtzetOQw2SZFaEdnczJHChTCkLVgH/emHwDtKWsgtblaRVgNGD6NP/9Z7WYh1D/+7/2uO2A7MNDtJ6AD0oBz5eCVlyygxtu/ssN05n7dOjokf+5E/nyXJcRO+TaLZa+5FyUvuTSdx6a3COPKCOI+nwTwIonyF0TgH20p3QE+KmWv/uLG0X3ovNvsBUEsDBBQAAAAIAIdO4kDfFD1aVgEAAI0CAAARAAAAZG9jUHJvcHMvY29yZS54bWyNks1KxDAUhfeC71Cyb9N2fpDQdmCUWTkgOKK4C8mdmWCTliROp658Bbfi0+mLmHY6teIszCJwOed+9+Qnme1l7u1AG1GoFEVBiDxQrOBCbVJ0t1r4F8gzlipO80JBimowaJadnyWsJKzQcKOLErQVYDxHUoawMkVba0uCsWFbkNQEzqGcuC60pNaVeoNLyp7oBnAchlMswVJOLcUN0C97IuqQnPXI8lnnLYAzDDlIUNbgKIjwj9eCluZkQ6sMnFLYunRn6uIO2ZwdxN69N6I3VlUVVKM2hssf4Yfl9W17VF+o5q4YoCzhrB1HmAZqgXsOQA7jjsr96PJqtUBZHMZjP5z68WQVjclkQsLwMcFHV9ffAA+sQmef72+eW/OX2u1frx+Nuxebl8mpsUv3iGsBfF6f8P/19IFl1/f/xFMSxoPER0DWJNGwE83fyqIED8u2+v2Bsm9QSwMEFAAAAAgAh07iQPP+9r0oAQAADwIAABMAAABkb2NQcm9wcy9jdXN0b20ueG1spZFNS8QwEIbvgv8h5J4mTW3aLm2XfoJ4UHDdq5Q23S00SWnS1UX872ZZV/HgRY/DOzzzzEy8fhUjOPBZD0om0HUIBFy2qhvkLoFPmxqFEGjTyK4ZleQJPHIN1+n1Vfwwq4nPZuAaWITUCdwbM60w1u2ei0Y7NpY26dUsGmPLeYdV3w8tL1W7CC4NpoQw3C7aKIGmLxw881YH81dkp9qTnd5ujpPVTeNP+BH0wgxdAt9KvyhLn/iIVlGBXOLmKPKiAJGQEJrToo6y6h2C6dRMIZCNsKvfPd5bbLe0Jl+Gsdvy2aIPZjVOL9rMKSU+RczxHeqEAWMx/o5ifDH4p4t3cbkttj+Gh1kQUBJQnxFS5VFEKMuCjLE6Cqsyq73nG+83IXy61fmT6QdQSwMECgAAAAAAh07iQAAAAAAAAAAAAAAAAAUAAAB3b3JkL1BLAwQUAAAACACHTuJA9IHaXaIJAACqZQAADwAAAHdvcmQvc3R5bGVzLnhtbL1dW3OjOBZ+36r9DxRPuw+Jc5tkOtXuqe5cNl2TdGXLycyzDLKtaUCsgDjpX79H4mJig9o6cOYpMTbfdziXD0lI4uNvr3HkvXCVCZlM/ePDI9/jSSBDkSyn/vPT7cGvvpflLAlZJBM+9d945v/26Z//+Li+zPK3iGceACTZZRxM/VWep5eTSRaseMyyQ5nyBL5cSBWzHD6q5SRm6nuRHgQyTlku5iIS+dvk5Ojo3K9g5NQvVHJZQRzEIlAyk4tcn3IpFwsR8OpPfYbah7c881oGRcyT3DBOFI/ABplkK5FmNVqMRYNLXNUgL7aLeImj+nfrfcjWUoWpkgHPMohJHJXGx0wkDczx2Q5Q47hDcNykvPyJhoLTj4/Mfy07jo9sFldu12fXlFm0w9gR7TKK92KumCrDDAnQsjvNroosl/E1y1mDt16vD9dpdhgkldmtqB2fTuCrzUm+FweXX5eJVGweQXKuj8/8T5CZoQyu+YIVUZ7pj+pRVR+rT+bPrUzyzFtfsiwQ4glSFgBiAVh3n5NM+PDNSv/T+Q1nWf45E6z95U11TJ8ZZHkL8IsIhT/59HFiTKn/tkxKGwPLX23ZD3kKWTsryw3AZZHkU//kHGoVrpUv/ntrSmzq1week5UI+Z8rnjxnPISyrn4447G4E2HIdalXx56/PiohFRTi1P/woTp4L4PvPJzlQKxRtb+iLLx5DXiqSwZo/1dzGpxii9AYUogNsjmQtejNgYRpp3/T1kfaQZQsK860qHnH+xBtW14aWkOcDIc4HQ5xNhzil+EQ58MhLoZD/Doc4kMnxKDEFknIX3sSbgTg7jQcAbg7OUcA7k7ZEYC7E3kE4O70HgG4O+lHAO4uhRGACQoklwFFeWhYguLQsASloWEJCkPDEpSFhiUoCg1LUBIalqAgNCxBOZQNIe8r3DaSfPzb0ULKPJE593L+SgDPEgA3PSoiAt384orGLxS45e2/ajR2mr3ViO5udQbMtLk7AQbJeq47TZ5ceAuxLBT067ta4IMYePLCI+gYeiwMgYCSQfEcBg7Gv4SmaBRfcAVDI3x8jlblELJEIuFeUsRzilxP2ZIOnCeh0S1C59QUNNLYVBor8pXuawuKaosZDJaNn525ZJ5NxAYpxL3ICG5FGtX7UkQRpwL/RlRHxnKCtqvBJWi8Gtyz8ZPO4BI0Xw1umRkUXYQ2PJW3K+upnF7BU/m+LBwy31fwVL6v4Kl8X8F3+36rsThkxPVJ5BFBO+YqkvoZxfhqMBPLhEH7bojN5RBuNejuPTLFloqlK08/Bhjf4i8yfPOeSPpZDTRZR9Go2BX4RSTFEJf3jPe/gydTgtp+iiGb91dApQbNFXTrwaB21wP0xnST/a6/Tz2i3syKeU4jOTMWFeWgw/g1DI8lCbJ/U763QkEzlWq0p5uHoty+6TElnUgk2r+5DoJm8QacoMWwAS9jTOH7HQ6K64jgaTDRzezuLeUKRia+j1++tzKK5JqHdooxVS5Xsqf1MyLLTZyuWCay8R12XU2P8R5YOj76YwRTP4iy6OYA5pVE3hjNxJ42SzU0/68/+fzf4/vm7unh3vsMozfJW0yFTjUCa2y/EhS3yhJahgR3YQMNnQGRwGCcJBg3NgS/87e5ZDBtavSRdQP/CAOiZuZPzqkoZixOKbqKxv4nEP81jIZSDEgbgj+YEvohxwD/t6coeU8DwXrEpTX+nxXzv3hA0CE1poNC6nBSPHN/h0/QUnuHT9DIKfGvIgbTLEkmJbwnIPNQfQXkLiLo9VYukpFUiyKiy9KrmoEuCjUDXRhkVMRJRuokQ0DpI0NA7iLKTDVXQDA+U5bCf5QI6SJs0MnCa9DJYmvQyQJr0GmjSjCHqpUzBFOpWugEM6pKdDOu2j1Be9BoZwudLN+N7WT5btDJ8t2gk+W7QSfLd4NOlu8GnSzfT689vlhAe5/wPt7iIMv9FgdZBeinITxOYamPehvQn+vpgpUKcRPxJaN4HFjCPyq50Mu4ZNKz3GUEkdOPWkh7eCU+WSrBABtdi0eDk1pOkP1fGAxjw5IrmofJZWLq9g5VTZklcjjwcoFbT8Xei+Uq92arAY+dzs3aNSu+1n+k8Sd6LZ0VHO/281ML+AMPRRHXrsFW0/nZ/hTImjr/5ecU5gaMbBKew7Li3hBUXjL4WPsvfo5vuhJY+2Ht9c/sN/hY+81yz54Urfxj8JGydmFb9XkNS8E9fHld2Gq3GeAZJA8XtgpuKAZcgq2IG/wBImFz/zv5hGdPASw5QUuFLRYlkSmzgSy2cJQsJlkHstiCsq2sQ/3mIrFDufbW2qFEe4vuUKK91Xco0d4yPJRobz0eSLSfMA8lsalCI2+VQg/lsmlDwzWCCF3Y5KEhGkOHnMUb2wiwhWlXvLEstgDtijeWxRadPvHGcmHEG8vlLN5YImfxxhI5izeWyFm8sUTO4o0kchNvLIlNFRqd2xJvLJdNGxqutnhjiWzy0BC1xRtJtP/ARX3fQ/aw9hzBGMpiC9CueGOvxRadPvHGcmHEG8vlLN5YImfxxhI5izeWyFm8sUTO4o0kchNvLAlGvLFcNm1oNLUt3lgimzw0RG3xRhK5izfyuayjeGNZbAHaFW8siy06feKN5cKIN5bLWbyxRM7ijSVyFm8skbN4Y4mcxRtJ5CbeWBKMeGO5bNrQaGpbvLFENnloiNrijSRyF2/ktBdH8cay2AK0K95YFlt0+sQby4URbyyXs3hjiZzFG0vkLN5YImfxxhI5izeSyE28sSQY8cZy2bSh0dS2eGOJbPLQELXFG0nkLt7IWYWO4o1lsQVoV7yxLLbo9Ik3lgsj3lguZ/HGEjmLN5bIWbyxRM7ijSVyFm8kkZt4Y0kw4o3lsmlDo6lt8cYS2eShIWqLtyGCrerbu87rrdnN6x5gPlIOqzanflpvoKOnKMEe9Hqz/WpTefPDr2bbeX2eXkEJv3lh8M6A9lbv1Zp4szR2s1V8/cujctYd7IyvMdYilGs9A1jJaOsXfwX1gbmEVzAAHNhenQYb/+uz1d+/1f/68jtXep98c9nVY4TsR3OgmhGW/bjSryAof1R3eRjsUl8d48nB80x7uH7hwNT/sTq4+qYPzeGtAlOfqYPZ5+qqzeXC1ZsA7IYsWEHMAr3aFs7uCdmp2eu/HTLbjkmbqWO2KPZblJv1tP3WnOxYU63DN9NWywzZzwZI23lUZgP8c8Wj6IGZ3MhlCvzwJg7zvL3M7fCVldgRX+Tlt8dHRlO3voeMg9dX9J+vzBxVA98FAI5pG1N+1EZuPFb/l336P1BLAwQUAAAACACHTuJAUwiawQkEAADSCQAAEQAAAHdvcmQvc2V0dGluZ3MueG1stVZbb9s2FH4fsP9g6N2WZTvpIMQpYjtuUthtUCXbM0UdW1x4EUjKqvPrdyiKlrGkQdFhT6LO5Tv3Q159/C744ADaMCXnUTIaRwOQVBVM7ufR0+N6+Ec0MJbIgnAlYR4dwUQfr3//7apJDViLYmaAENKkgs6j0toqjWNDSxDEjFQFEpk7pQWx+Kv3sSD6ua6GVImKWJYzzuwxnozHl1EHo+ZRrWXaQQwFo1oZtbNOJVW7HaPQfYKG/hm7XnOlaC1A2tZirIGjD0qaklUmoIlfRcMQywByeC+Ig+BBrknG70l24TZKFyeNn3HPKVRaUTAGCyS4D1cQJk8wyewV0CnVI0x17G3HDgrVk3F76j03/JX+G9X2VdywXBPty4wNcOZFZZa1sUqsiCUnvKZpRk1lRlR2TpxVLZnGyOqVooGg6f1eKk1yju3ZJLPoGnvzRSkxaNIKNMVyY2OPx1HsGCByKLKjsSDWSlrTEnMMEkdgpb4om9Vaq1oWd0CQhhgHgqEmXvstwbVS9pVg0TXag0YmdU2GSCBxEii4BpxHnT8F7EjN7SPJM6uqYG42CWxNGizhJ82KP0FbRgnPKkKRFESTi0vvW8FMxcnxTmn2gpERvup1b3HCj0EjQHv5APsj6YlHpyXRhGKgnfklmtCKB0w3zxrb7aGW1NbtVHV67aC7zBv0G9ZKP218zgknkkKGoXBYHC2sVI0ldKe/WGHLVqhwFdkAOcCC0GfDiSlv3B5qmTV/1IS1+fCEVvr2e4XbKivZzn4Di6uklSXF39hoGybhDti+tPcSM847HAPr2w05qtq2sn43ZX67YYCSCOwsT+021lYVECGr1uzUtmHp/XCMnIJvptl5bv5tSGGtsNzQOpjZI8ekSZuxF7iRxWeMguEO9Bn+dQ/ecwCkS81X3N2PxwrWQDCLuPX/H2NtzdacVVuGc6fvZYHT8V+NxU3qy+X6Dq+2woTDNxzWUIYP09V6NVt04+PEAmf6YbG+mS7f4JzroJUOW6Ru+T/o6yt/cgUbCF/sJRG5ZmSwddcD9pdIc/28YDLwc8ClAOecrM4Dczj0DCMI52scwMBoZ1ikbuZXsGth+ZbofY/bSeg3qbh1Pp+w3IYE/Qm3XuWtNZpUvhDBXDKbdXhM4hSJQDd1ngUtiSv+jIUr9OtBO8C4T0+TWnwZtA29If0OAzl8ylyDATH2xjC8C17K4fKL08ZScp25BwVsSVX5zZfvk3nE3SAnTs3iX4EPi/Yn30863qTl4Z/jtT+EumBRujs4AX9Eqe7Q06aBNu1peG16uVlPuwi0i552GWj4sGnSEgdJcyafcVuEo6PvFOeqgeIuEOfRK5JPQjsn95LyugBsELxfzL3MLD6rXIb7x9j1P1BLAwQKAAAAAACHTuJAAAAAAAAAAAAAAAAACwAAAHdvcmQvdGhlbWUvUEsDBBQAAAAIAIdO4kDdtRryCgYAALsYAAAVAAAAd29yZC90aGVtZS90aGVtZTEueG1s7VnNjxM3FL9X6v8wmjvsJORjWZFFm49lC7uwIgHE0ck4M2Y948h2dsmtgmOlSlVp1UOReuuhaosEUi/0r9mWqqUS/0Kf7cnETpyuoKhCiJxmPL/3/D5+7/kjly7fz2hwjLkgLG+FlfNRGOB8xGKSJ63w1mD33GYYCInyGFGW41Y4wyK8vP3xR5fQlkxxhgOQz8UWaoWplJOtjQ0xgmEkzrMJzuHbmPEMSXjlyUbM0QnozehGNYoaGxkieRjkKAO1dw774fZcZ4+C4lwKNTCivK804iVgfFRRn8VMdCgPjhFthaA7ZicDfF+GAUVCwodWGOlfuLF9aQNtFUJUrpG15Hb1r5ArBOKjqp6TJ8Ny0lqtXmvslPo1gMpVXK/Za/QapT4NQKMRuGlscXRuNmuddoG1QObRo7u3Wa3uOnhL/4UVm3er7Z2o6uA1yOivreCb9Xa35uI1yODrK/gLUSdq1xz9GmTwjRV8r17r1HsOXoNSSvKjFXQUVRu9eoEuIWNG97zwZq+yu9Mt4AsUsKGklppizHLpJVqG7jG+C18ViiJJ8kDOJniMRkDbDqJkyEmwT5JUqjnQFkbWdzM0EitDarpAjDiZyFZ4dYKgEBZaXz3/8dXzp8Hpg2enD345ffjw9MHPRpEjtYfyxJZ6+f0Xfz/+NPjr6XcvH33lxwsb//tPn/3265d+IFTQwpwXXz/549mTF998/ucPjzzwHY6GNnxAMiyC6/gkuMkycExHxbUcD/nrSQxSRGyJnTwRKEdqFo/+nkwd9PUZosiDa2M3grc5dBAf8Mr0nmNwP+VTSTwar6WZAzxgjLYZ90bhmprLCvNgmif+yfnUxt1E6Ng3dwflTn570wn0TeJT2UmxY+YhRblECc6xDNQ3doSxx7u7hDhxPSAjzgQby+AuCdqIeEMyIEOHTQuhPZJBXmY+AyHfTmwObgdtRn1ed/Gxi4SqQNRj/ABTJ4xX0FSizKdygDJqB3wfydRnZH/GRzauJyRkOsGUBb0YC+GTucHBXyvp16CB+NN+QGeZi+SSHPl07iPGbGSXHXVSlE182D7JUxv7iTgCiqLgkEkf/IC5FaLeIQ8oX5vu2wQ76T67G9yC3mmbtCCI+jLlnlxewczhb39GxwjrVgN93enYGcnPbN9mhrfXuKFVvvj2scfud7Vl73DirZm9pUa9DrfcnjuMx+Td785dNM0PMRTE6hL1oTl/aM7he9+c19Xz22/Jiy4MDVptBs1eW++8M//Ge0wo7csZxftC770FLDzxLgwqIX3KxOUpbJLCoypj0O7gEo5KmUQUmhIRTJiAs2G4VpX6QKfZjfHYnC0rzXoUzSfQ51GYUE+X6GPqXGXFHDfX6jUmKhmwtDQI9gAB7BxaYbVp5OFogCiOlYmFhO2H/fyaPqVTXPp0rlqHc/g74paixVLCaW6nn+bBCVxQqAiFwQhNWuEYTmPwmE0gTkLtUxBN4A5jJLnJ65vwZcKF7CKRmqxrKpnVISMS84CSrBVumhyZxNBcU+W9Mu6/FI1DsJrm15zDZc3+D3VT8dTNG+UWeOnyEI/HeCRtZlojigvmtWg1bAq06afxSTCkU34TAVUrUaWhOBwTAWf/egR0Ui9wV1WvFdW/IHLAmbxDZNpP0QTuG87oWIhOUmSoC1OsqezSJJ0Gy1pw1euK9nXFM47HFAIB14ZwP7ijHFETwuVhDC8XisdD1Wa1V3N/q8rJZX/FrBWeK1pnUcVDOIIt+24q7o0tLh1f5KLerNTLVFQuRubldVJh39upCIBzKlR2JiAYZQkYuI58ac5ZeXDzUhBrmKil0Kahs+6VtWbYsHZ9PFtIeQOXXtIouqjSbDqiQPKAxWa4otetoubKubVjzgzzzrKU2oqOWbkczhfTM9huWTUPMaz+tlWGk0AbGE9RjAsfVAM3PsASv/AhUt3K64O7xhutWul8J2BHeSlgi8kc05TF80Bapi1GXdPmDgIX3PC6pp21/ViKRGOudilu/74tABvKVJU7l7J3rd+5gNwya2FoPN/+abbo/xTs+382vAddpgv3rVMqhekAGrT9D1BLAwQUAAAACACHTuJAs+IekYwCAADTBgAAEQAAAHdvcmQvZG9jdW1lbnQueG1spVXdb5swEH+ftP8B8d4A+VKCSqqtXas+TKqU7XlyjANWsM+yTbzsr98ZJyQbVdWPF7Dh7vdx5o7rm9+iifZMGw6yiLNRGkdMUii5rIr454/7q0UcGUtkSRqQrIgPzMQ3q8+frl1eAm0FkzZCCGlyp2gR19aqPEkMrZkgZiQ41WBga0cURALbLacscaDLZJxmabdSGigzBvluidwTEx/hxBANFJPItQUtiDUj0FUiiN616grRFbF8wxtuD4idzk8wUMStlvlR0FUvyKfkQdDxdsrQAxfP8IbMu2MFOsZEswY1gDQ1V2cb70VDi/VJ0v4lE3vRnOKcyqYDvt7ya87gThOHR3EGHMA9U4wyJIkm1MGf7/lU/0d8DeC/CCdcQbjshb3P6EWpsvSloh6/DC/kTDkbaH+xtuPu+76gVNhSH2mQBw2t6uUo/jG0R7nrsXxnv0FZOh9YM28CGPT+uiaK9XKUuW2NBXFHLOlxnXMjp8yIyuMguei+bJLgq3NSHAmaP1YSNNk06M1l08hls8g3SLzC2bWB8uDvyl90d3kKt3uQ1kQur7m0RcyIsV8MJ3Gyuk4wMgTZlS+WwUHnRe2hoUxWXLKuw3AsmmQ+mS6T5STLZgufZ0N2YIadn1prS7RFHl4WMQ5dl0siUOmvB/hK6M7zeZUh9pss+8ggpNNtGLVBkKrWfzDC4QTPln74oX5czxeTRUBS1Xei8akFhc+n045R86pGj9ki7bYbsFjz8+uGbS/e1oyUDGfjYpZ5+C2A9dvlcuy3VWu7bRroKDS+hkYRip6m45mPka0HDwFYpAfNvSt7UBjSYPVwZrrcL564pSh/knXQtCZ6HYA6dCznyTguw0HiAhG7v9HqL1BLAwQUAAAACACHTuJAH2vY3I4DAACYDgAAEgAAAHdvcmQvZm9udFRhYmxlLnhtbOVWwW7TQBC9I/EPlu+t164TJ1HTKk0bgZB6oEU9b5xNssLrjXadhn4CggviHzgggcQNqPibgsRfMLtrJ6mzDkmp4ICtyM54Zjz7/ObN7h++YIlzSYSkPG27/i5yHZLGfEDTUdt9dt7babiOzHA6wAlPSdu9ItI9PHj4YH/WGvI0kw7Ep7LF4rY7zrJJy/NkPCYMy10+ISk8HHLBcAZ/xchjWDyfTnZiziY4o32a0OzKCxCqu3kasUkWPhzSmBzzeMpImul4T5AEMvJUjulEFtlmm2SbcTGYCB4TKWHNLDH5GKbpPI0friRiNBZc8mG2C4vxTEWeSgXhPtJ3LHEdFrcej1IucD8B7GZ+6B7kwDmzVooZGM8pI9I5JTPnKWc41Q4TnHJJfPC5xEnbRQGcdbSHaiiEXwB3oeupTPEYC0myuSMy5iFmNLkqrELn1f4TmsXjwn6JBVWFmRhJR/BgKvuo7cInQVGnEbnG4rfdBljUkVsCKMocQA8dtTe3aJ9Y59Eufq+nfMACefIoXadnKLSCyPePr26+vdVA4CQ7BZQgXAPx49PLm+v3N1/eKZevr59cmNLLcBUvWbpuAReeZjzPu4zWgAzxNMlWwSresgCrZFmAVcBXDRaEbgfWBZBWNau0EqdWlLK42pEIjPk2cf4VEstk25w2HWBzYkUhQEfQPqFuowA14VrRPr4NBTmjUpoHt9qnkhAnCuyOYT30U876qBHu5RRZEMLPLVZChCqPf7TUPce9XqSMqpqq7vl5/WZ993z+AC5VraPUqw4Q1eGan2bpJaVp1G1QbUsY/aEDs0KD1F6j24u6vU4ZKR9GxFqdUWBpNDcnTJdPBSVCaW8FbSIgjaJLAKrbhPttaMP4gIj0z3ijFvW3eHN2xfrc9E9JdZ8oeYFR55zRUbGg0oCqAUA+wOSjCKij4IqstEFWnakaUJUdpnpAHTknlueKYcmiwwofa4fdTWi6OKF9QW0D6hFJLklGYwykmuaDtTydAtTTQ1zRKoRRXqlG1mG+tRoZpDbCaq0a6Tx+c0mN5pnXqNHqxFbjvgwJAhDqkC4sNAda2ba/uR/V6ajCb6mO3zi5u+psObBLFLHBobZfNWCGOdS/CuGxMmRbET5Rm4RgeVwpQ9Q8PloR4bXNZKrddv+SE6QYSjY4/id23NZaGxobS+29kGP5o5oJ7eemMjnmCmNV2jzodxM639TIg19QSwMECgAAAAAAh07iQAAAAAAAAAAAAAAAAAYAAABfcmVscy9QSwMEFAAAAAgAh07iQAEiIh/9AAAA4QIAAAsAAABfcmVscy8ucmVsc62S3UoDMRCF7wXfIcx9N9sqItJsb0TonUh9gCGZ3Q3d/JBMtX17g3+4sK698HIyZ858c8h6c3SDeKGUbfAKllUNgrwOxvpOwfPuYXELIjN6g0PwpOBEGTbN5cX6iQbkMpR7G7MoLj4r6JnjnZRZ9+QwVyGSL502JIdcytTJiHqPHclVXd/I9NMDmpGn2BoFaWuuQexOsWz+2zu0rdV0H/TBkeeJFXKsKM6YOmIFryEZaT4Hq4IMcppmdT7N75dKR4wGGaUOiRYxlZwS25LsN1BheSzP+V0xB7Q8H2h8/FQ8dGTyhsw8EsY4R3T1n0T6kDm4eZ4PzReSHH3M5g1QSwMECgAAAAAAh07iQAAAAAAAAAAAAAAAAAsAAAB3b3JkL19yZWxzL1BLAwQUAAAACACHTuJAyBQGUOcAAACoAgAAHAAAAHdvcmQvX3JlbHMvZG9jdW1lbnQueG1sLnJlbHOtks9qwzAMxu+DvYPRfXHSjTFGnV7GoNeRPYDnKH+YYxtLG8vbTwTatVC6Sy6GT8Lf90PSdvczefWNmcYYDFRFCQqDi+0YegPvzevdEyhiG1rrY0ADMxLs6tub7Rt6y/KJhjGREpdABgbm9Kw1uQEnS0VMGKTTxTxZFpl7naz7tD3qTVk+6nzqAfWZp9q3BvK+fQDVzEmS//eOXTc6fInua8LAFyJ0FwM39sOjmNrcIxs4lgohBX0Z4n5NCJbhnAAsUi9vdY1hsyYDIbOsmP7mcKhcQ6hWReDZyzEdF0GLPsTrs/uqfwFQSwMEFAAAAAgAh07iQHzJSX5iAQAAFAUAABMAAABbQ29udGVudF9UeXBlc10ueG1stZTLbsIwEEX3lfoPkbdVYuiiqioCiz6WLQv6Aa4zAat+yTNQ+PtOAmEBFEpRN5ES2/cc31gejJbOZgtIaIIvRb/oiQy8DpXx01K8T17ye5EhKV8pGzyUYgUoRsPrq8FkFQEzXu2xFDOi+CAl6hk4hUWI4HmkDskp4tc0lVHpTzUFedvr3UkdPIGnnJoMMRw8Qa3mlrLnJX9emySwKLLH9cSGVQoVozVaEZvKha92KPmGUPDKdg7OTMQb1hDyIKEZ+RmwWffG1SRTQTZWiV6VYw1ZBT1OIaJkoeJ4ygHNUNdGA2fMHVdQQLPlCqo8ciQkMrB1PsrWIcH58K6jZvXZxDlScOczdzas25hfwr9Cqpq+111d2nWTxjVrQOTj7WyxTXbK+O6oHKq99aj5ME7Uh/1D7zsd7Ilso09KIBCxPF78H/YcuuTTCrSy8B8Cbe5JPPEdA7J99i9uoY3pkLK904bfUEsBAhQAFAAAAAgAh07iQHzJSX5iAQAAFAUAABMAAAAAAAAAAQAgAAAAKyIAAFtDb250ZW50X1R5cGVzXS54bWxQSwECFAAKAAAAAACHTuJAAAAAAAAAAAAAAAAABgAAAAAAAAAAABAAAACXHwAAX3JlbHMvUEsBAhQAFAAAAAgAh07iQAEiIh/9AAAA4QIAAAsAAAAAAAAAAQAgAAAAux8AAF9yZWxzLy5yZWxzUEsBAhQACgAAAAAAh07iQAAAAAAAAAAAAAAAAAkAAAAAAAAAAAAQAAAAAAAAAGRvY1Byb3BzL1BLAQIUABQAAAAIAIdO4kBtOBLsWwEAAG8CAAAQAAAAAAAAAAEAIAAAACcAAABkb2NQcm9wcy9hcHAueG1sUEsBAhQAFAAAAAgAh07iQN8UPVpWAQAAjQIAABEAAAAAAAAAAQAgAAAAsAEAAGRvY1Byb3BzL2NvcmUueG1sUEsBAhQAFAAAAAgAh07iQPP+9r0oAQAADwIAABMAAAAAAAAAAQAgAAAANQMAAGRvY1Byb3BzL2N1c3RvbS54bWxQSwECFAAKAAAAAACHTuJAAAAAAAAAAAAAAAAABQAAAAAAAAAAABAAAACOBAAAd29yZC9QSwECFAAKAAAAAACHTuJAAAAAAAAAAAAAAAAACwAAAAAAAAAAABAAAADhIAAAd29yZC9fcmVscy9QSwECFAAUAAAACACHTuJAyBQGUOcAAACoAgAAHAAAAAAAAAABACAAAAAKIQAAd29yZC9fcmVscy9kb2N1bWVudC54bWwucmVsc1BLAQIUABQAAAAIAIdO4kCz4h6RjAIAANMGAAARAAAAAAAAAAEAIAAAAB4ZAAB3b3JkL2RvY3VtZW50LnhtbFBLAQIUABQAAAAIAIdO4kAfa9jcjgMAAJgOAAASAAAAAAAAAAEAIAAAANkbAAB3b3JkL2ZvbnRUYWJsZS54bWxQSwECFAAUAAAACACHTuJAUwiawQkEAADSCQAAEQAAAAAAAAABACAAAACADgAAd29yZC9zZXR0aW5ncy54bWxQSwECFAAUAAAACACHTuJA9IHaXaIJAACqZQAADwAAAAAAAAABACAAAACxBAAAd29yZC9zdHlsZXMueG1sUEsBAhQACgAAAAAAh07iQAAAAAAAAAAAAAAAAAsAAAAAAAAAAAAQAAAAuBIAAHdvcmQvdGhlbWUvUEsBAhQAFAAAAAgAh07iQN21GvIKBgAAuxgAABUAAAAAAAAAAQAgAAAA4RIAAHdvcmQvdGhlbWUvdGhlbWUxLnhtbFBLBQYAAAAAEAAQANADAAC+IwAAAAA="
+	docBody, err := base64.StdEncoding.DecodeString(doc)
+	require.Nil(t, err)
+	_, err = client.PutObjectV2(ctx, &tos.PutObjectV2Input{
+		PutObjectBasicInput: tos.PutObjectBasicInput{Bucket: bucket, Key: key},
+		Content:             bytes.NewReader(docBody),
+	})
+	require.Nil(t, err)
+	resp, err := client.GetObjectV2(ctx, &tos.GetObjectV2Input{Bucket: bucket, Key: key, Process: "doc-preview", SrcType: "docx", DstType: "jpg", DocPage: 1})
+	require.Nil(t, err)
+	require.Equal(t, resp.ContentType, "image/jpeg")
 }

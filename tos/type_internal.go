@@ -421,6 +421,7 @@ type downloadTask struct {
 	cli         *ClientV2
 	ctx         context.Context
 	input       *DownloadFileInput
+	output      *HeadObjectV2Output
 	consumed    *int64
 	subtotal    *int64
 	total       int64
@@ -494,7 +495,7 @@ func (t *downloadTask) do() (result interface{}, err error) {
 }
 
 func (t *downloadTask) getBaseInput() interface{} {
-	return GetObjectV2Input{
+	resp := GetObjectV2Input{
 		Bucket:            t.input.Bucket,
 		Key:               t.input.Key,
 		VersionID:         t.input.VersionID,
@@ -512,6 +513,10 @@ func (t *downloadTask) getBaseInput() interface{} {
 		DataTransferListener: nil,
 		RateLimiter:          nil,
 	}
+	if resp.IfMatch == "" && t.output != nil {
+		resp.IfMatch = t.output.ETag
+	}
+	return resp
 }
 
 type uploadPostEvent struct {
@@ -790,6 +795,7 @@ func (r *parallelReadCloserWithListener) Read(p []byte) (n int, err error) {
 			RWOnceBytes:   subtotal,
 			ConsumedBytes: consumed,
 			TotalBytes:    r.total,
+			RetryCount:    -1,
 		})
 	}
 
@@ -801,6 +807,7 @@ func (r *parallelReadCloserWithListener) Read(p []byte) (n int, err error) {
 					RWOnceBytes:   subtotal,
 					ConsumedBytes: consumed,
 					TotalBytes:    r.total,
+					RetryCount:    -1,
 				})
 				break
 			} else {
@@ -811,6 +818,7 @@ func (r *parallelReadCloserWithListener) Read(p []byte) (n int, err error) {
 			Type:          enum.DataTransferSucceed,
 			ConsumedBytes: consumed,
 			TotalBytes:    r.total,
+			RetryCount:    -1,
 		})
 	}
 	return
@@ -822,12 +830,13 @@ func (r *parallelReadCloserWithListener) Close() error {
 
 // readCloserWithListener warp io.ReadCloser with DataTransferListener
 type readCloserWithListener struct {
-	listener DataTransferListener
-	base     io.ReadCloser
-	consumed int64
-	subtotal int64
-	total    int64
-	onceEof  bool
+	listener   DataTransferListener
+	base       io.ReadCloser
+	consumed   int64
+	subtotal   int64
+	total      int64
+	onceEof    bool
+	retryCount int
 }
 
 func (r *readCloserWithListener) Seek(offset int64, whence int) (int64, error) {
@@ -839,6 +848,7 @@ func (r *readCloserWithListener) Seek(offset int64, whence int) (int64, error) {
 		r.consumed = 0
 		r.subtotal = 0
 		r.onceEof = false
+		r.retryCount += 1
 	}
 
 	return seeker.Seek(offset, whence)
@@ -860,6 +870,7 @@ func (r *readCloserWithListener) Read(p []byte) (n int, err error) {
 					RWOnceBytes:   r.subtotal,
 					ConsumedBytes: r.consumed,
 					TotalBytes:    r.total,
+					RetryCount:    r.retryCount,
 				})
 				r.subtotal = 0
 			}
@@ -872,6 +883,7 @@ func (r *readCloserWithListener) Read(p []byte) (n int, err error) {
 					Type:          enum.DataTransferSucceed,
 					ConsumedBytes: r.consumed,
 					TotalBytes:    r.total,
+					RetryCount:    r.retryCount,
 				})
 				r.onceEof = true
 			}
@@ -896,6 +908,7 @@ func (r *readCloserWithListener) Read(p []byte) (n int, err error) {
 			RWOnceBytes:   r.subtotal,
 			ConsumedBytes: r.consumed,
 			TotalBytes:    r.total,
+			RetryCount:    r.retryCount,
 		})
 		r.subtotal = 0
 	}
@@ -950,6 +963,7 @@ func (r *ReadCloserWithLimiter) Close() error {
 type copyTask struct {
 	cli        *ClientV2
 	input      *ResumableCopyObjectInput
+	output     *HeadObjectV2Output
 	ctx        context.Context
 	UploadID   string
 	ContentMD5 string
@@ -994,7 +1008,7 @@ func (c *copyTask) getBaseInput() interface{} {
 			SSECKeyMD5:    c.input.SSECKeyMD5,
 		}}
 	}
-	return UploadPartCopyV2Input{
+	resp := UploadPartCopyV2Input{
 		Bucket:                      c.input.Bucket,
 		Key:                         c.input.Key,
 		UploadID:                    c.UploadID,
@@ -1017,4 +1031,8 @@ func (c *copyTask) getBaseInput() interface{} {
 		SSECAlgorithm:               c.input.SSECAlgorithm,
 		TrafficLimit:                c.input.TrafficLimit,
 	}
+	if resp.CopySourceIfMatch == "" && c.output != nil {
+		resp.CopySourceIfMatch = c.output.ETag
+	}
+	return resp
 }

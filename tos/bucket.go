@@ -99,6 +99,7 @@ func (cli *Client) HeadBucket(ctx context.Context, bucket string) (*HeadBucketOu
 		Region:       res.Header.Get(HeaderBucketRegion),
 		StorageClass: enum.StorageClassType(res.Header.Get(HeaderStorageClass)),
 		AzRedundancy: enum.AzRedundancyType(res.Header.Get(HeaderAzRedundancy)),
+		ProjectName:  res.Header.Get(HeaderProjectName),
 	}, nil
 }
 
@@ -152,8 +153,9 @@ func (cli *Client) ListBuckets(ctx context.Context, _ *ListBucketsInput) (*ListB
 }
 
 // ListBuckets list the buckets that the AK can access
-func (cli *ClientV2) ListBuckets(ctx context.Context, _ *ListBucketsInput) (*ListBucketsOutput, error) {
+func (cli *ClientV2) ListBuckets(ctx context.Context, input *ListBucketsInput) (*ListBucketsOutput, error) {
 	res, err := cli.newBuilder("", "").
+		WithParams(*input).
 		WithRetry(nil, StatusCodeClassifier{}).
 		Request(ctx, http.MethodGet, nil, cli.roundTripper(http.StatusOK))
 	if err != nil {

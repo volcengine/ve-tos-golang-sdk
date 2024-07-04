@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"github.com/volcengine/ve-tos-golang-sdk/v2/tos/enum"
 	"net"
 	"net/http"
 	"net/url"
@@ -49,20 +50,21 @@ const (
 //
 // Deprecated: use ClientV2 instead
 type Client struct {
-	scheme              string
-	host                string
-	urlMode             urlMode
-	userAgent           string
-	credentials         Credentials // nullable
-	signer              Signer      // nullable
-	transport           Transport
-	recognizer          ContentTypeRecognizer
-	config              Config
-	retry               *retryer
-	enableCRC           bool
-	logger              Logger
-	isCustomDomain      bool
-	disableEncodingMeta bool
+	scheme                     string
+	host                       string
+	urlMode                    urlMode
+	userAgent                  string
+	credentials                Credentials // nullable
+	signer                     Signer      // nullable
+	transport                  Transport
+	recognizer                 ContentTypeRecognizer
+	config                     Config
+	retry                      *retryer
+	enableCRC                  bool
+	logger                     Logger
+	isCustomDomain             bool
+	disableEncodingMeta        bool
+	except100ContinueThreshold int64
 }
 
 // ClientV2 TOS ClientV2
@@ -145,6 +147,13 @@ func WithLogger(logger Logger) ClientOption {
 func WithConnectionTimeout(timeout time.Duration) ClientOption {
 	return func(client *Client) {
 		client.config.TransportConfig.DialTimeout = timeout
+	}
+}
+
+// WithExcept100ContinueThreshold set threshold for 100 continue
+func WithExcept100ContinueThreshold(threshold int64) ClientOption {
+	return func(client *Client) {
+		client.except100ContinueThreshold = threshold
 	}
 }
 
@@ -322,6 +331,11 @@ func initClient(client *Client, endpoint string, options ...ClientOption) error 
 		option(client)
 	}
 	client.scheme, client.host, client.urlMode = schemeHost(client.config.Endpoint)
+	if len(client.config.Region) == 0 {
+		if region, ok := SupportedEndpoint()[client.host]; ok {
+			client.config.Region = region
+		}
+	}
 	if client.transport == nil {
 		transport := NewDefaultTransport(&client.config.TransportConfig)
 		transport.WithDefaultTransportLogger(client.logger)
@@ -329,11 +343,7 @@ func initClient(client *Client, endpoint string, options ...ClientOption) error 
 	}
 	if cred := client.credentials; cred != nil && client.signer == nil {
 		if len(client.config.Region) == 0 {
-			if region, ok := SupportedEndpoint()[client.host]; ok {
-				client.config.Region = region
-			} else {
-				return newTosClientError("tos: missing Region option", nil)
-			}
+			return newTosClientError("tos: missing Region option", nil)
 		}
 		signer := NewSignV4(cred, client.config.Region)
 		signer.WithSignLogger(client.logger)
@@ -352,10 +362,11 @@ func initClient(client *Client, endpoint string, options ...ClientOption) error 
 //	  WithTransport set self-defined Transport
 func NewClient(endpoint string, options ...ClientOption) (*Client, error) {
 	client := Client{
-		recognizer: ExtensionBasedContentTypeRecognizer{},
-		config:     defaultConfig(),
-		userAgent:  fmt.Sprintf("ve-tos-go-sdk/%s (%s/%s;%s)", Version, runtime.GOOS, runtime.GOARCH, runtime.Version()),
-		retry:      newRetryer([]time.Duration{}),
+		recognizer:                 ExtensionBasedContentTypeRecognizer{},
+		config:                     defaultConfig(),
+		userAgent:                  fmt.Sprintf("ve-tos-go-sdk/%s (%s/%s;%s)", Version, runtime.GOOS, runtime.GOARCH, runtime.Version()),
+		retry:                      newRetryer([]time.Duration{}),
+		except100ContinueThreshold: enum.DefaultExcept100ContinueThreshold,
 	}
 	client.retry.SetJitter(0.25)
 	err := initClient(&client, endpoint, options...)
@@ -363,6 +374,15 @@ func NewClient(endpoint string, options ...ClientOption) (*Client, error) {
 		return nil, err
 	}
 	return &client, nil
+}
+
+func isInvalidEndpoint(endpoint string) bool {
+	for _, s3Endpoint := range getS3Endpoints() {
+		if strings.HasSuffix(endpoint, s3Endpoint) {
+			return true
+		}
+	}
+	return false
 }
 
 // NewClientV2 create a new Tos ClientV2
@@ -378,18 +398,19 @@ func NewClient(endpoint string, options ...ClientOption) (*Client, error) {
 //	  WithEnableCRC set CRC switch.
 //	  WithMaxRetryCount  set Max Retry Count
 func NewClientV2(endpoint string, options ...ClientOption) (*ClientV2, error) {
-	for _, s3Endpoint := range getS3Endpoints() {
-		if strings.HasSuffix(endpoint, s3Endpoint) {
-			return nil, InvalidS3Endpoint
-		}
+
+	if isInvalidEndpoint(endpoint) {
+		return nil, InvalidS3Endpoint
 	}
+
 	client := ClientV2{
 		Client: Client{
-			recognizer: ExtensionBasedContentTypeRecognizer{},
-			config:     defaultConfig(),
-			retry:      newRetryer(exponentialBackoff(DefaultRetryTime, DefaultRetryBackoffBase)),
-			userAgent:  fmt.Sprintf("ve-tos-go-sdk/%s (%s/%s;%s)", Version, runtime.GOOS, runtime.GOARCH, runtime.Version()),
-			enableCRC:  true,
+			recognizer:                 ExtensionBasedContentTypeRecognizer{},
+			config:                     defaultConfig(),
+			retry:                      newRetryer(exponentialBackoff(DefaultRetryTime, DefaultRetryBackoffBase)),
+			userAgent:                  fmt.Sprintf("ve-tos-go-sdk/%s (%s/%s;%s)", Version, runtime.GOOS, runtime.GOARCH, runtime.Version()),
+			enableCRC:                  true,
+			except100ContinueThreshold: enum.DefaultExcept100ContinueThreshold,
 		},
 	}
 	client.retry.SetJitter(0.25)
@@ -584,10 +605,14 @@ func (cli *ClientV2) FetchObjectV2(ctx context.Context, input *FetchObjectInputV
 		return nil, InvalidACL
 	}
 
+	if input.ContentMD5 == "" && input.HexMD5 != "" {
+		input.ContentMD5 = input.HexMD5
+	}
+
 	data, contentMD5, err := marshalInput("FetchObjectInputV2", &fetchObjectInput{
 		URL:           input.URL,
 		IgnoreSameKey: input.IgnoreSameKey,
-		ContentMD5:    input.HexMD5,
+		ContentMD5:    input.ContentMD5,
 	})
 	if err != nil {
 		return nil, err
@@ -628,11 +653,19 @@ func (cli *ClientV2) PutFetchTaskV2(ctx context.Context, input *PutFetchTaskInpu
 		return nil, err
 	}
 
+	if input.ContentMD5 == "" && input.HexMD5 != "" {
+		input.ContentMD5 = input.HexMD5
+	}
+
 	data, contentMD5, err := marshalInput("PutFetchTaskInputV2", putFetchTaskV2Input{
-		URL:           input.URL,
-		IgnoreSameKey: input.IgnoreSameKey,
-		HexMD5:        input.HexMD5,
-		Object:        input.Key,
+		URL:              input.URL,
+		IgnoreSameKey:    input.IgnoreSameKey,
+		ContentMD5:       input.ContentMD5,
+		Object:           input.Key,
+		CallbackUrl:      input.CallbackUrl,
+		CallbackHost:     input.CallbackHost,
+		CallbackBodyType: input.CallbackBodyType,
+		CallbackBody:     input.CallbackBody,
 	})
 	if err != nil {
 		return nil, err
@@ -662,6 +695,20 @@ func (cli *ClientV2) PreSignedPolicyURL(ctx context.Context, input *PreSingedPol
 	}
 	if input.Expires == 0 {
 		input.Expires = defaultSignExpires
+	}
+	resScheme := cli.scheme
+	resHost := cli.host
+	if input.AlternativeEndpoint != "" {
+		resScheme, resHost, _ = schemeHost(input.AlternativeEndpoint)
+	}
+
+	if cli.credentials == nil {
+		return &PreSingedPolicyURLOutput{
+			bucket:         input.Bucket,
+			scheme:         resScheme,
+			host:           resHost,
+			isCustomDomain: input.IsCustomDomain,
+		}, nil
 	}
 
 	policyConditions := make(map[string]interface{})
@@ -750,11 +797,7 @@ func (cli *ClientV2) PreSignedPolicyURL(ctx context.Context, input *PreSingedPol
 	query.Add(v4Signature, hex.EncodeToString(sign))
 	rawQuery := query.Encode()
 	// set scheme and host
-	resScheme := cli.scheme
-	resHost := cli.host
-	if input.AlternativeEndpoint != "" {
-		resScheme, resHost, _ = schemeHost(input.AlternativeEndpoint)
-	}
+
 	return &PreSingedPolicyURLOutput{
 		bucket:         input.Bucket,
 		SignatureQuery: rawQuery,

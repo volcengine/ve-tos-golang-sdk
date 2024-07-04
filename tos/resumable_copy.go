@@ -135,7 +135,7 @@ func initCopyCheckpoint(input *ResumableCopyObjectInput, headOutput *HeadObjectV
 	}
 	return cp, nil
 }
-func prepareCopyTasks(cli *ClientV2, ctx context.Context, checkpoint *copyObjectCheckpoint, input *ResumableCopyObjectInput) []task {
+func prepareCopyTasks(cli *ClientV2, ctx context.Context, checkpoint *copyObjectCheckpoint, input *ResumableCopyObjectInput, headOutput *HeadObjectV2Output) []task {
 	tasks := make([]task, 0)
 	for _, part := range checkpoint.PartsInfo {
 		if !part.IsCompleted {
@@ -143,6 +143,7 @@ func prepareCopyTasks(cli *ClientV2, ctx context.Context, checkpoint *copyObject
 				cli:        cli,
 				ctx:        ctx,
 				input:      input,
+				output:     headOutput,
 				UploadID:   checkpoint.UploadID,
 				PartNumber: part.PartNumber,
 				PartInfo:   part,
@@ -152,8 +153,8 @@ func prepareCopyTasks(cli *ClientV2, ctx context.Context, checkpoint *copyObject
 	return tasks
 }
 
-func (cli *ClientV2) copyPart(ctx context.Context, cp *copyObjectCheckpoint, input *ResumableCopyObjectInput, event *copyEvent) (*ResumableCopyObjectOutput, error) {
-	tasks := prepareCopyTasks(cli, ctx, cp, input)
+func (cli *ClientV2) copyPart(ctx context.Context, cp *copyObjectCheckpoint, input *ResumableCopyObjectInput, event *copyEvent, headOutput *HeadObjectV2Output) (*ResumableCopyObjectOutput, error) {
+	tasks := prepareCopyTasks(cli, ctx, cp, input, headOutput)
 	routinesNum := min(input.TaskNum, len(tasks))
 	cancelHandle := getCancelHandle(input.CancelHook)
 	tg := newTaskGroup(cancelHandle, routinesNum, cp, event, input.EnableCheckpoint, tasks)
@@ -286,5 +287,5 @@ func (cli *ClientV2) ResumableCopyObject(ctx context.Context, input *ResumableCo
 	}
 	bindCancelHookWithCleaner(copyInput.CancelHook, cleaner)
 
-	return cli.copyPart(ctx, cp, copyInput, event)
+	return cli.copyPart(ctx, cp, copyInput, event, headOutput)
 }

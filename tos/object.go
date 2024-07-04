@@ -448,13 +448,13 @@ func checkCrc64(res *Response, checker hash.Hash64) error {
 	crc64, err := strconv.ParseUint(res.Header.Get(HeaderHashCrc64ecma), 10, 64)
 	if err != nil {
 		return &TosServerError{
-			TosError:    newTosErr("tos: server returned invalid crc", res.RequestUrl),
+			TosError:    newTosErr("tos: server returned invalid crc", res.RequestUrl, res.RequestInfo().EcCode, res.RequestInfo().RequestID),
 			RequestInfo: res.RequestInfo(),
 		}
 	}
 	if checker.Sum64() != crc64 {
 		return &TosServerError{
-			TosError:    newTosErr(fmt.Sprintf("tos: crc64 check failed, expected:%d, in fact:%d", crc64, checker.Sum64()), res.RequestUrl),
+			TosError:    newTosErr(fmt.Sprintf("tos: crc64 check failed, expected:%d, in fact:%d", crc64, checker.Sum64()), res.RequestUrl, res.RequestInfo().EcCode, res.RequestInfo().RequestID),
 			RequestInfo: res.RequestInfo(),
 		}
 	}
@@ -527,6 +527,12 @@ func wrapReader(reader io.Reader, totalBytes int64, listener DataTransferListene
 	return wrapped
 }
 
+func (cli *ClientV2) setExpectHeader(rb *requestBuilder, contentLength int64) {
+	if cli.except100ContinueThreshold > 0 && (contentLength < 0 || contentLength > cli.except100ContinueThreshold) {
+		rb.WithHeader(HeaderExpect, "100-continue")
+	}
+}
+
 // PutObjectV2 put an object
 func (cli *ClientV2) PutObjectV2(ctx context.Context, input *PutObjectV2Input) (*PutObjectV2Output, error) {
 	if err := isValidNames(input.Bucket, input.Key, cli.isCustomDomain); err != nil {
@@ -594,6 +600,8 @@ func (cli *ClientV2) PutObjectV2(ctx context.Context, input *PutObjectV2Input) (
 		WithContentLength(contentLength).
 		WithParams(*input).
 		WithRetry(onRetry, classifier)
+
+	cli.setExpectHeader(rb, contentLength)
 	res, err := rb.Request(ctx, http.MethodPut, content, cli.roundTripperWithSlowLog(http.StatusOK))
 	if err != nil {
 		return nil, err
@@ -608,7 +616,7 @@ func (cli *ClientV2) PutObjectV2(ctx context.Context, input *PutObjectV2Input) (
 		callbackRes, err := ioutil.ReadAll(res.Body)
 		if err != nil {
 			return nil, &TosServerError{
-				TosError:    newTosErr(fmt.Sprintf("tos: read callback result err:%s", err.Error()), res.RequestUrl),
+				TosError:    newTosErr(fmt.Sprintf("tos: read callback result err:%s", err.Error()), res.RequestUrl, res.RequestInfo().EcCode, res.RequestInfo().RequestID),
 				RequestInfo: res.RequestInfo(),
 			}
 		}
@@ -733,12 +741,13 @@ func (cli *ClientV2) AppendObjectV2(ctx context.Context, input *AppendObjectV2In
 	if content != nil {
 		content = wrapReader(content, contentLength, input.DataTransferListener, input.RateLimiter, &crcChecker{checker: checker})
 	}
-	res, err := cli.newBuilder(input.Bucket, input.Key).
+	rb := cli.newBuilder(input.Bucket, input.Key).
 		WithQuery("append", "").
 		WithParams(*input).
 		WithContentLength(contentLength).
-		WithRetry(nil, NoRetryClassifier{}).
-		Request(ctx, http.MethodPost, content, cli.roundTripperWithSlowLog(http.StatusOK))
+		WithRetry(nil, NoRetryClassifier{})
+	cli.setExpectHeader(rb, contentLength)
+	res, err := rb.Request(ctx, http.MethodPost, content, cli.roundTripperWithSlowLog(http.StatusOK))
 	if err != nil {
 		return nil, err
 	}
@@ -748,7 +757,7 @@ func (cli *ClientV2) AppendObjectV2(ctx context.Context, input *AppendObjectV2In
 	appendOffset, err := strconv.ParseInt(nextOffset, 10, 64)
 	if err != nil {
 		return nil, &TosServerError{
-			TosError:    newTosErr(fmt.Sprintf("tos: server return unexpected Next-Append-Offset header %q", nextOffset), res.RequestUrl),
+			TosError:    newTosErr(fmt.Sprintf("tos: server return unexpected Next-Append-Offset header %q", nextOffset), res.RequestUrl, res.RequestInfo().EcCode, res.RequestInfo().RequestID),
 			RequestInfo: res.RequestInfo(),
 		}
 	}
@@ -895,7 +904,7 @@ func (cli *ClientV2) ListObjectsV2(ctx context.Context, input *ListObjectsV2Inpu
 			hashCrc, err = strconv.ParseUint(object.HashCrc64ecma, 10, 64)
 			if err != nil {
 				return nil, &TosServerError{
-					TosError:    newTosErr("tos: server returned invalid HashCrc64Ecma", res.RequestUrl),
+					TosError:    newTosErr("tos: server returned invalid HashCrc64Ecma", res.RequestUrl, res.RequestInfo().EcCode, res.RequestInfo().RequestID),
 					RequestInfo: RequestInfo{RequestID: temp.RequestID},
 				}
 			}
@@ -954,7 +963,7 @@ func (cli *ClientV2) listObjectsType2(ctx context.Context, input *ListObjectsTyp
 			hashCrc, err = strconv.ParseUint(object.HashCrc64ecma, 10, 64)
 			if err != nil {
 				return nil, &TosServerError{
-					TosError:    newTosErr("tos: server returned invalid HashCrc64Ecma", res.RequestUrl),
+					TosError:    newTosErr("tos: server returned invalid HashCrc64Ecma", res.RequestUrl, res.RequestInfo().EcCode, res.RequestInfo().RequestID),
 					RequestInfo: RequestInfo{RequestID: temp.RequestID},
 				}
 			}
@@ -1114,7 +1123,7 @@ func (cli *ClientV2) ListObjectVersionsV2(
 			hashCrc, err = strconv.ParseUint(version.HashCrc64ecma, 10, 64)
 			if err != nil {
 				return nil, &TosServerError{
-					TosError:    newTosErr("tos: server returned invalid HashCrc64Ecma", res.RequestUrl),
+					TosError:    newTosErr("tos: server returned invalid HashCrc64Ecma", res.RequestUrl, res.RequestInfo().EcCode, res.RequestInfo().RequestID),
 					RequestInfo: RequestInfo{RequestID: temp.RequestID},
 				}
 			}

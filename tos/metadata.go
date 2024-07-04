@@ -10,6 +10,22 @@ import (
 	"github.com/volcengine/ve-tos-golang-sdk/v2/tos/enum"
 )
 
+type RestoreInfo struct {
+	RestoreStatus RestoreStatus
+	RestoreParam  *RestoreParam // GetObject 接口当前该值为空
+}
+
+type RestoreStatus struct {
+	OngoingRequest bool
+	ExpiryDate     time.Time
+}
+
+type RestoreParam struct {
+	RequestDate time.Time
+	ExpiryDays  int
+	Tier        enum.TierType
+}
+
 // ObjectMeta object metadata
 type ObjectMeta struct {
 	ContentLength        int64             `json:"ContentLength,omitempty"`
@@ -26,7 +42,7 @@ type ObjectMeta struct {
 	DeleteMarker         bool              `json:"DeleteMarker,omitempty"`
 	ObjectType           string            `json:"ObjectType,omitempty"` // "" or "Appendable"
 	StorageClass         string            `json:"StorageClass,omitempty"`
-	Restore              string            `json:"Restore,omitempty"`
+	RestoreInfo          *RestoreInfo      `json:"Restore,omitempty"`
 	Metadata             map[string]string `json:"Metadata,omitempty"`
 	Tag                  string            `json:"Tag,omitempty"`
 	SSECustomerAlgorithm string            `json:"SSECustomerAlgorithm,omitempty"`
@@ -55,6 +71,48 @@ type ObjectMetaV2 struct {
 	Expires                   time.Time
 	ServerSideEncryption      string
 	ServerSideEncryptionKeyID string
+	ReplicationStatus         enum.ReplicationStatusType
+	RestoreInfo               *RestoreInfo `json:"Restore,omitempty"`
+}
+
+func parseRestoreInfo(res *Response) *RestoreInfo {
+	restore := res.Header.Get(HeaderRestore)
+	if restore == "" {
+		return nil
+	}
+	resp := &RestoreInfo{}
+	param := parseParams(restore)
+	if result, ok := param["ongoing-request"]; ok && result == "true" {
+		resp.RestoreStatus.OngoingRequest = true
+	}
+	if param["expiry-date"] != "" {
+		expiryDate, _ := time.ParseInLocation(http.TimeFormat, param["expiry-date"], time.UTC)
+		resp.RestoreStatus.ExpiryDate = expiryDate
+	}
+
+	if res.Header.Get(HeaderRestoreRequestDate) != "" || res.Header.Get(HeaderRestoreTier) != "" || res.Header.Get(HeaderRestoreExpiryDays) != "" {
+		resp.RestoreParam = &RestoreParam{}
+	}
+
+	if res.Header.Get(HeaderRestoreRequestDate) != "" {
+		requestDate, _ := time.ParseInLocation(http.TimeFormat, res.Header.Get(HeaderRestoreRequestDate), time.UTC)
+		resp.RestoreParam.RequestDate = requestDate
+
+	}
+
+	if res.Header.Get(HeaderRestoreExpiryDays) != "" {
+		expiryDays := res.Header.Get(HeaderRestoreExpiryDays)
+		expiryDay, err := strconv.ParseInt(expiryDays, 10, 64)
+		if err == nil {
+			resp.RestoreParam.ExpiryDays = int(expiryDay)
+
+		}
+	}
+
+	if res.Header.Get(HeaderRestoreTier) != "" {
+		resp.RestoreParam.Tier = enum.TierType(res.Header.Get(HeaderRestoreTier))
+	}
+	return resp
 }
 
 func (om *ObjectMeta) fromResponse(res *Response, disableEncodingMeta bool) {
@@ -82,9 +140,25 @@ func (om *ObjectMeta) fromResponse(res *Response, disableEncodingMeta bool) {
 	om.Expires = res.Header.Get(HeaderExpires)
 
 	om.ContentMD5 = res.Header.Get(HeaderContentMD5)
-	om.Restore = res.Header.Get(HeaderRestore)
 	om.Tag = res.Header.Get(HeaderTag)
 	om.CSType = res.Header.Get(HeaderCSType)
+	om.RestoreInfo = parseRestoreInfo(res)
+
+}
+func parseParams(params string) map[string]string {
+	result := make(map[string]string)
+	parts := strings.Split(params, ",") // 按逗号分割参数
+
+	for _, part := range parts {
+		keyValue := strings.Split(part, "=") // 按等号分割键和值
+		if len(keyValue) == 2 {
+			key := strings.TrimSpace(keyValue[0])
+			value := strings.Trim(keyValue[1], `"`) // 去除可能存在的引号
+			result[key] = value
+		}
+	}
+
+	return result
 }
 
 func (om *ObjectMetaV2) fromResponseV2(res *Response, disableEncodingMeta bool) {
@@ -118,6 +192,8 @@ func (om *ObjectMetaV2) fromResponseV2(res *Response, disableEncodingMeta bool) 
 	om.Expires = expires
 	om.ServerSideEncryption = res.Header.Get(HeaderServerSideEncryption)
 	om.ServerSideEncryptionKeyID = res.Header.Get(HeaderServerSideEncryptionKmsKeyID)
+	om.ReplicationStatus = enum.ReplicationStatusType(res.Header.Get(HeaderReplicationStatus))
+	om.RestoreInfo = parseRestoreInfo(res)
 }
 
 func userMetadata(header http.Header, disableEncodingMeta bool) map[string]string {

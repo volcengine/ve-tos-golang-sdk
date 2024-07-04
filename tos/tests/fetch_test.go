@@ -66,6 +66,7 @@ func TestFetchObject(t *testing.T) {
 	}()
 	length := 1024
 	value := randomString(length)
+	md5Str := md5s(value)
 	_, err := client.PutObjectV2(ctx, &tos.PutObjectV2Input{
 		PutObjectBasicInput: tos.PutObjectBasicInput{Bucket: bucket, Key: key, ACL: enum.ACLPublicRead},
 		Content:             bytes.NewReader([]byte(value)),
@@ -78,8 +79,20 @@ func TestFetchObject(t *testing.T) {
 		StorageClass: enum.StorageClassIa,
 		Meta:         map[string]string{"test-key": "test-value"},
 		URL:          "https://" + bucket + "." + env.endpoint + "/" + key,
+		ContentMD5:   md5Str,
 	})
 	require.Nil(t, err)
+	md5Str = md5s(value + "a")
+	_, err = client.FetchObjectV2(ctx, &tos.FetchObjectInputV2{
+		Bucket:       bucket,
+		Key:          fetchKey,
+		ACL:          enum.ACLPrivate,
+		StorageClass: enum.StorageClassIa,
+		Meta:         map[string]string{"test-key": "test-value"},
+		URL:          "https://" + bucket + "." + env.endpoint + "/" + key,
+		ContentMD5:   md5Str,
+	})
+	require.NotNil(t, err)
 
 	_, err = client.FetchObjectV2(ctx, &tos.FetchObjectInputV2{
 		Bucket:        bucket,
@@ -102,22 +115,30 @@ func TestPutFetchTaskV2(t *testing.T) {
 		key      = "key123"
 		fetchKey = randomString(6)
 		ctx      = context.Background()
+		length   = 1024
+		data     = randomString(length)
+		md5Str   = md5s(data)
 	)
 	defer func() {
 		cleanBucket(t, client, bucket)
 	}()
-	length := 1024
 	_, err := client.PutObjectV2(ctx, &tos.PutObjectV2Input{
 		PutObjectBasicInput: tos.PutObjectBasicInput{Bucket: bucket, Key: key, ACL: enum.ACLPublicRead},
-		Content:             bytes.NewReader([]byte(randomString(length))),
+		Content:             bytes.NewReader([]byte(data)),
 	})
 	require.Nil(t, err)
 	res, err := client.PutFetchTaskV2(ctx, &tos.PutFetchTaskInputV2{
-		Bucket: bucket,
-		Key:    fetchKey,
-		ACL:    enum.ACLPrivate,
-		Meta:   map[string]string{"test-key": "test-value"},
-		URL:    "https://" + bucket + "." + env.endpoint + "/" + key})
+		Bucket:           bucket,
+		Key:              fetchKey,
+		ACL:              enum.ACLPrivate,
+		Meta:             map[string]string{"test-key": "test-value"},
+		URL:              "https://" + bucket + "." + env.endpoint + "/" + key,
+		CallbackBody:     "{\\\"bucket\\\": ${bucket}, \\\"object\\\": ${object}}",
+		CallbackBodyType: "application/json",
+		CallbackUrl:      env.callbackUrl,
+		ContentMD5:       md5Str,
+	})
+	require.Nil(t, err)
 	fmt.Println(res.TaskID)
 	var headRes *tos.HeadObjectV2Output
 	for i := 0; i < 20; i++ {

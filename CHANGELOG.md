@@ -1,4 +1,13 @@
 # ChangeLog of TOS SDK for Go
+## 版本号 v2.7.0 日期：2024-06-25
+- 新增桶加密相关接口
+- 新增桶标签相关接口
+- 新增归档存储类型 StorageClassArchive
+- 镜像回源支持配置将源端的头域写入自定义元数据
+- GetObject 支持设置文档转码参数
+- 创建桶和查询桶元数据支持 Project
+- 新增柔佛 Region
+
 ## 版本号 v2.6.9 日期：2024-06-11
 - 优化 CompleteMultipartUpload 返回值
 

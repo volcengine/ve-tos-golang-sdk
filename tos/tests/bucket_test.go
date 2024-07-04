@@ -54,15 +54,23 @@ func TestAllParamsV2(t *testing.T) {
 		ACL:          enum.ACLPrivate,
 		StorageClass: enum.StorageClassStandard,
 		AzRedundancy: enum.AzRedundancySingleAz,
+		ProjectName:  "default",
 	})
 	checkSuccess(t, created, err, 200)
 	defer func() {
 		cleanBucket(t, client, bucket)
 	}()
-	checkBucketMeta(t, client, bucket, &tos.HeadBucketOutput{
+	newBucket := generateBucketName("project")
+	created, err = client.CreateBucketV2(context.Background(), &tos.CreateBucketV2Input{
+		Bucket:       newBucket,
+		ACL:          enum.ACLPrivate,
 		StorageClass: enum.StorageClassStandard,
-		Region:       env.region,
+		AzRedundancy: enum.AzRedundancySingleAz,
+		ProjectName:  randomString(8),
 	})
+	require.NotNil(t, err)
+	serr := err.(*tos.TosServerError)
+	require.Equal(t, serr.EC, "0002-00000201")
 }
 
 func TestInvalidBucketNameV2(t *testing.T) {
@@ -92,6 +100,23 @@ func TestDeleteBucketV2(t *testing.T) {
 	)
 	del, err := client.DeleteBucket(context.Background(), &tos.DeleteBucketInput{Bucket: bucket})
 	checkSuccess(t, del, err, 204)
+
+}
+
+func TestListBucketProject(t *testing.T) {
+	var (
+		env    = newTestEnv(t)
+		bucket = generateBucketName("list-bucket")
+		client = env.prepareClient(bucket)
+		ctx    = context.Background()
+	)
+	defer cleanBucket(t, client, bucket)
+	resp, err := client.ListBuckets(ctx, &tos.ListBucketsInput{ProjectName: "default"})
+	require.Nil(t, err)
+	require.True(t, len(resp.Buckets) != 0)
+	resp, err = client.ListBuckets(ctx, &tos.ListBucketsInput{ProjectName: randomString(6)})
+	require.Nil(t, err)
+	fmt.Println(resp)
 
 }
 
@@ -171,6 +196,7 @@ func TestPutBucketStorageClass(t *testing.T) {
 	headRes, err := client.HeadBucket(ctx, &tos.HeadBucketInput{Bucket: bucket})
 	require.Nil(t, err)
 	require.True(t, headRes.StorageClass != enum.StorageClassIa)
+	require.Equal(t, headRes.ProjectName, "default")
 
 	output, err := client.PutBucketStorageClass(ctx, &tos.PutBucketStorageClassInput{
 		Bucket:       bucket,

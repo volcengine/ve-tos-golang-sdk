@@ -135,10 +135,14 @@ type PutObjectACLOutput struct {
 }
 
 type putFetchTaskV2Input struct {
-	URL           string `json:"URL,omitempty"`
-	IgnoreSameKey bool   `json:"IgnoreSameKey,omitempty"`
-	HexMD5        string `json:"ContentMD5,omitempty"`
-	Object        string `json:"Object,omitempty"`
+	URL              string `json:"URL,omitempty"`
+	IgnoreSameKey    bool   `json:"IgnoreSameKey,omitempty"`
+	ContentMD5       string `json:"ContentMD5,omitempty"`
+	Object           string `json:"Object,omitempty"`
+	CallbackUrl      string `json:"CallbackUrl,omitempty"`
+	CallbackHost     string `json:"CallbackHost,omitempty"`
+	CallbackBodyType string `json:"CallbackBodyType,omitempty"`
+	CallbackBody     string `json:"CallbackBody,omitempty"`
 }
 
 type PutFetchTaskInputV2 struct {
@@ -158,7 +162,14 @@ type PutFetchTaskInputV2 struct {
 
 	URL           string `json:"URL,omitempty"`
 	IgnoreSameKey bool   `json:"IgnoreSameKey,omitempty"`
-	HexMD5        string `json:"ContentMD5,omitempty"`
+	// Deprecated: use content md5 instead
+	HexMD5 string
+
+	ContentMD5       string `json:"ContentMD5,omitempty"`
+	CallbackUrl      string `json:"CallbackUrl,omitempty"`
+	CallbackHost     string `json:"CallbackHost,omitempty"`
+	CallbackBodyType string `json:"CallbackBodyType,omitempty"`
+	CallbackBody     string `json:"CallbackBody,omitempty"`
 }
 
 type PutFetchTaskOutputV2 struct {
@@ -182,7 +193,11 @@ type FetchObjectInputV2 struct {
 
 	URL           string `json:"URL,omitempty"`
 	IgnoreSameKey bool   `json:"IgnoreSameKey,omitempty"`
-	HexMD5        string `json:"ContentMD5,omitempty"`
+
+	ContentMD5 string `json:"ContentMD5,omitempty"`
+
+	// Deprecated: use content md5 instead
+	HexMD5 string
 }
 
 type FetchObjectOutputV2 struct {
@@ -282,7 +297,12 @@ func (output *PreSingedPolicyURLOutput) GetSignedURLForGetOrHead(key string, add
 	} else {
 		domain = fmt.Sprintf("%s.%s", output.bucket, output.host)
 	}
-	str := fmt.Sprintf("%s://%s/%s?%s%s", output.scheme, domain, key, output.SignatureQuery, queryStr)
+	var str string
+	if output.SignatureQuery != "" {
+		str = fmt.Sprintf("%s://%s/%s?%s%s", output.scheme, domain, key, output.SignatureQuery, queryStr)
+	} else {
+		str = fmt.Sprintf("%s://%s/%s", output.scheme, domain, key)
+	}
 	return str
 }
 
@@ -322,6 +342,7 @@ type CreateBucketV2Input struct {
 	GrantWriteAcp    string                `location:"header" locationName:"X-Tos-Grant-Write-Acp"`    // optional
 	StorageClass     enum.StorageClassType `location:"header" locationName:"X-Tos-Storage-Class"`      // setting the default storage type for buckets
 	AzRedundancy     enum.AzRedundancyType `location:"header" locationName:"X-Tos-Az-Redundancy"`      // setting the AZ type for buckets
+	ProjectName      string                `location:"header" locationName:"X-Tos-Project-Name"`
 }
 
 type CreateBucketOutput struct {
@@ -338,6 +359,7 @@ type HeadBucketOutput struct {
 	Region       string                `json:"Region,omitempty"`
 	StorageClass enum.StorageClassType `json:"StorageClass,omitempty"`
 	AzRedundancy enum.AzRedundancyType `json:"AzRedundancy"`
+	ProjectName  string                `json:"ProjectName"`
 }
 
 type GetBucketCORSInput struct {
@@ -350,6 +372,7 @@ type CorsRule struct {
 	AllowedHeader []string `json:"AllowedHeaders,omitempty"`
 	ExposeHeader  []string `json:"ExposeHeaders,omitempty"`
 	MaxAgeSeconds int      `json:"MaxAgeSeconds,omitempty"`
+	ResponseVary  bool     `json:"ResponseVary,omitempty"`
 }
 
 type GetBucketCORSOutput struct {
@@ -407,9 +430,12 @@ type ListedBucket struct {
 	Location         string `json:"Location,omitempty"`
 	ExtranetEndpoint string `json:"ExtranetEndpoint,omitempty"`
 	IntranetEndpoint string `json:"IntranetEndpoint,omitempty"`
+	ProjectName      string `json:"ProjectName,omitempty"`
 }
 
-type ListBucketsInput struct{}
+type ListBucketsInput struct {
+	ProjectName string `location:"header" locationName:"X-Tos-Project-Name"`
+}
 
 type PutObjectBasicInput struct {
 	Bucket             string
@@ -912,15 +938,18 @@ type GetObjectV2Input struct {
 	SSECKeyMD5    string `location:"header" locationName:"X-Tos-Server-Side-Encryption-Customer-Key-MD5"`
 	TrafficLimit  int64  `location:"header" locationName:"X-Tos-Traffic-Limit"`
 
-	ResponseCacheControl       string    `location:"query" locationName:"response-cache-control"`
-	ResponseContentDisposition string    `location:"query" locationName:"response-content-disposition"`
-	ResponseContentEncoding    string    `location:"query" locationName:"response-content-encoding"`
-	ResponseContentLanguage    string    `location:"query" locationName:"response-content-language"`
-	ResponseContentType        string    `location:"query" locationName:"response-content-type"`
-	ResponseExpires            time.Time `location:"query" locationName:"response-expires"`
-	Process                    string    `location:"query" locationName:"x-tos-process"`
-	SaveBucket                 string    `location:"query" locationName:"x-tos-save-bucket"`
-	SaveObject                 string    `location:"query" locationName:"x-tos-save-object"`
+	ResponseCacheControl       string                 `location:"query" locationName:"response-cache-control"`
+	ResponseContentDisposition string                 `location:"query" locationName:"response-content-disposition"`
+	ResponseContentEncoding    string                 `location:"query" locationName:"response-content-encoding"`
+	ResponseContentLanguage    string                 `location:"query" locationName:"response-content-language"`
+	ResponseContentType        string                 `location:"query" locationName:"response-content-type"`
+	ResponseExpires            time.Time              `location:"query" locationName:"response-expires"`
+	Process                    string                 `location:"query" locationName:"x-tos-process"`
+	SaveBucket                 string                 `location:"query" locationName:"x-tos-save-bucket"`
+	SaveObject                 string                 `location:"query" locationName:"x-tos-save-object"`
+	DocPage                    int                    `location:"query" locationName:"x-tos-doc-page"`
+	SrcType                    enum.DocPreviewSrcType `location:"query" locationName:"x-tos-doc-src-type"`
+	DstType                    enum.DocPreviewDstType `location:"query" locationName:"x-tos-doc-dst-type"`
 
 	RangeStart int64
 	RangeEnd   int64
@@ -1494,11 +1523,13 @@ type lifecycleRule struct {
 	NoCurrentVersionExpiration     *NoCurrentVersionExpiration     `json:"NoncurrentVersionExpiration,omitempty"`
 	Tag                            []Tag                           `json:"Tags,omitempty"`
 	AbortInCompleteMultipartUpload *AbortInCompleteMultipartUpload `json:"AbortIncompleteMultipartUpload,omitempty"`
+	Filter                         *LifecycleRuleFilter            `json:"Filter,omitempty"`
 }
 
 type PutBucketLifecycleInput struct {
-	Bucket string
-	Rules  []LifecycleRule `json:"Rules,omitempty"`
+	Bucket                 string
+	Rules                  []LifecycleRule `json:"Rules,omitempty"`
+	AllowSameActionOverlap bool            `location:"header" locationName:"X-Tos-Allow-Same-Action-Overlap"`
 }
 
 type GetBucketLifecycleInput struct {
@@ -1528,6 +1559,14 @@ type LifecycleRule struct {
 	NoCurrentVersionExpiration     *NoCurrentVersionExpiration     `json:"NoncurrentVersionExpiration,omitempty"`
 	Tag                            []Tag                           `json:"Tags,omitempty"`
 	AbortInCompleteMultipartUpload *AbortInCompleteMultipartUpload `json:"AbortIncompleteMultipartUpload,omitempty"`
+	Filter                         *LifecycleRuleFilter            `json:"Filter,omitempty"`
+}
+
+type LifecycleRuleFilter struct {
+	ObjectSizeGreaterThan   int             `json:"ObjectSizeGreaterThan"`
+	GreaterThanIncludeEqual enum.StatusType `json:"GreaterThanIncludeEqual"`
+	ObjectSizeLessThan      int             `json:"ObjectSizeLessThan"`
+	LessThanIncludeEqual    enum.StatusType `json:"LessThanIncludeEqual"`
 }
 
 type AbortInCompleteMultipartUpload struct {
@@ -1600,13 +1639,19 @@ type Condition struct {
 }
 
 type Redirect struct {
-	RedirectType          enum.RedirectType `json:"RedirectType,omitempty"`
-	FetchSourceOnRedirect bool              `json:"FetchSourceOnRedirect,omitempty"`
-	PassQuery             bool              `json:"PassQuery,omitempty"`
-	FollowRedirect        bool              `json:"FollowRedirect,omitempty"`
-	MirrorHeader          MirrorHeader      `json:"MirrorHeader,omitempty"`
-	PublicSource          PublicSource      `json:"PublicSource,omitempty"`
-	Transform             Transform         `json:"Transform,omitempty"`
+	RedirectType               enum.RedirectType           `json:"RedirectType,omitempty"`
+	FetchSourceOnRedirect      bool                        `json:"FetchSourceOnRedirect,omitempty"`
+	PassQuery                  bool                        `json:"PassQuery,omitempty"`
+	FollowRedirect             bool                        `json:"FollowRedirect,omitempty"`
+	MirrorHeader               MirrorHeader                `json:"MirrorHeader,omitempty"`
+	PublicSource               PublicSource                `json:"PublicSource,omitempty"`
+	Transform                  Transform                   `json:"Transform,omitempty"`
+	FetchHeaderToMetaDataRules []FetchHeaderToMetaDataRule `json:"FetchHeaderToMetaDataRules,omitempty"`
+}
+
+type FetchHeaderToMetaDataRule struct {
+	SourceHeader   string `json:"SourceHeader"`
+	MetaDataSuffix string `json:"MetaDataSuffix"`
 }
 
 type Transform struct {
@@ -1835,6 +1880,7 @@ type DataTransferStatus struct {
 	ConsumedBytes int64 // bytes read/written
 	RWOnceBytes   int64 // bytes read/written this time
 	Type          enum.DataTransferType
+	RetryCount    int // The DownloadFile and UploadFile method do not support this field
 }
 
 type putBucketNotificationInput struct {
@@ -2190,6 +2236,42 @@ type DeleteBucketCustomDomainInput struct {
 
 type DeleteBucketCustomDomainOutput struct {
 	RequestInfo
+}
+
+type GetBucketEncryptionInput struct {
+	Bucket string
+}
+
+type PutBucketEncryptionInput struct {
+	Bucket string               `json:"-"`
+	Rule   BucketEncryptionRule `json:"Rule"`
+}
+
+type BucketEncryptionRule struct {
+	ApplyServerSideEncryptionByDefault ApplyServerSideEncryptionByDefault `json:"ApplyServerSideEncryptionByDefault"`
+}
+
+type ApplyServerSideEncryptionByDefault struct {
+	SSEAlgorithm   string `json:"SSEAlgorithm"`
+	KMSMasterKeyID string `json:"KMSMasterKeyID,omitempty"`
+}
+
+// Response
+type PutBucketEncryptionOutput struct {
+	RequestInfo
+}
+
+type GetBucketEncryptionOutput struct {
+	RequestInfo
+	Rule BucketEncryptionRule
+}
+
+type DeleteBucketEncryptionInput struct {
+	Bucket string
+}
+
+type DeleteBucketEncryptionOutput struct {
+	RequestInfo `json:"-"`
 }
 
 type ResumableCopyObjectInput struct {
