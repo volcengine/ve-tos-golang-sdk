@@ -36,7 +36,7 @@ func ParseListObjectsType2Output(httpRes *http.Response) (*ListObjectsType2Outpu
 			hashCrc, err = strconv.ParseUint(object.HashCrc64ecma, 10, 64)
 			if err != nil {
 				return nil, &TosServerError{
-					TosError:    newTosErr("tos: server returned invalid HashCrc64Ecma", res.RequestUrl),
+					TosError:    newTosErr("tos: server returned invalid HashCrc64Ecma", res.RequestUrl, res.RequestInfo().EcCode, res.RequestInfo().RequestID),
 					RequestInfo: RequestInfo{RequestID: temp.RequestID},
 				}
 			}
@@ -99,7 +99,7 @@ func ParseListObjectsV2Output(httpRes *http.Response) (*ListObjectsV2Output, err
 			hashCrc, err = strconv.ParseUint(object.HashCrc64ecma, 10, 64)
 			if err != nil {
 				return nil, &TosServerError{
-					TosError:    newTosErr("tos: server returned invalid HashCrc64Ecma", res.RequestUrl),
+					TosError:    newTosErr("tos: server returned invalid HashCrc64Ecma", res.RequestUrl, res.RequestInfo().EcCode, res.RequestInfo().RequestID),
 					RequestInfo: RequestInfo{RequestID: temp.RequestID},
 				}
 			}
@@ -160,7 +160,7 @@ func ParseListObjectVersionsV2Output(httpRes *http.Response) (*ListObjectVersion
 			hashCrc, err = strconv.ParseUint(version.HashCrc64ecma, 10, 64)
 			if err != nil {
 				return nil, &TosServerError{
-					TosError:    newTosErr("tos: server returned invalid HashCrc64Ecma", res.RequestUrl),
+					TosError:    newTosErr("tos: server returned invalid HashCrc64Ecma", res.RequestUrl, res.RequestInfo().EcCode, res.RequestInfo().RequestID),
 					RequestInfo: RequestInfo{RequestID: temp.RequestID},
 				}
 			}

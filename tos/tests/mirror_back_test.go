@@ -50,6 +50,10 @@ func TestBucketMirrorBack(t *testing.T) {
 				Follower: []string{"http://www.volcengine.com/obj/tostest/"},
 			},
 		},
+		FetchHeaderToMetaDataRules: []tos.FetchHeaderToMetaDataRule{{
+			SourceHeader:   "x-source-header",
+			MetaDataSuffix: "meta-data-suffix",
+		}},
 	}
 	putRes, err := client.PutBucketMirrorBack(ctx, &tos.PutBucketMirrorBackInput{
 		Bucket: bucket,
@@ -68,6 +72,7 @@ func TestBucketMirrorBack(t *testing.T) {
 	require.Equal(t, getRes.Rules[0].Redirect, redirect)
 	require.Equal(t, getRes.Rules[0].Redirect.Transform, transform)
 	require.Equal(t, getRes.Rules[0].Condition, condition)
+	require.Equal(t, len(getRes.Rules[0].Redirect.FetchHeaderToMetaDataRules), 1)
 
 	deleteRes, err := client.DeleteBucketMirrorBack(ctx, &tos.DeleteBucketMirrorBackInput{Bucket: bucket})
 	require.Nil(t, err)

@@ -6,7 +6,6 @@ import (
 	"crypto/md5"
 	"encoding/base64"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -324,10 +323,10 @@ func (rb *requestBuilder) Request(ctx context.Context, method string,
 		work := func(retryCount int) (retrySec int64, err error) {
 			if retryCount > 0 {
 				req.Header.Set("x-sdk-retry-count", "attempt="+strconv.Itoa(retryCount)+"; max="+strconv.Itoa(len(rb.Retry.backoff)))
-			}
-			err = rb.OnRetry(req)
-			if err != nil {
-				return -1, err
+				err = rb.OnRetry(req)
+				if err != nil {
+					return -1, err
+				}
 			}
 			res, err = roundTripper(ctx, req)
 			if res != nil {
@@ -353,7 +352,7 @@ func (rb *requestBuilder) Request(ctx context.Context, method string,
 func (rb *requestBuilder) PreSignedURL(method string, ttl time.Duration) (string, error) {
 	req := rb.build(method, nil)
 	if rb.Signer == nil {
-		return "", errors.New("tos: credentials is not set when the tos.Client was created")
+		return req.URL(), nil
 	}
 
 	query := rb.Signer.SignQuery(req, ttl)
@@ -367,6 +366,7 @@ type RequestInfo struct {
 	RequestID  string
 	ID2        string
 	StatusCode int
+	EcCode     string
 	Header     http.Header
 }
 
@@ -383,6 +383,7 @@ func (r *Response) RequestInfo() RequestInfo {
 		RequestID:  r.Header.Get(HeaderRequestID),
 		ID2:        r.Header.Get(HeaderID2),
 		StatusCode: r.StatusCode,
+		EcCode:     r.Header.Get(HeaderTOSEC),
 		Header:     r.Header,
 	}
 }
@@ -401,23 +402,24 @@ func marshalOutput(res *Response, output interface{}) error {
 	reader := res.Body
 	requestID := res.RequestInfo().RequestID
 	requestURL := res.RequestUrl
+	ecCode := res.Header.Get(HeaderTOSEC)
 	data, err := ioutil.ReadAll(reader)
 	if err != nil {
 		return &TosServerError{
-			TosError:    newTosErr("tos: unmarshal response body failed.", requestURL),
+			TosError:    newTosErr("tos: unmarshal response body failed.", requestURL, ecCode, requestID),
 			RequestInfo: RequestInfo{RequestID: requestID},
 		}
 	}
 	data = bytes.TrimSpace(data)
 	if len(data) == 0 {
 		return &TosServerError{
-			TosError:    newTosErr("server returns empty result", requestURL),
+			TosError:    newTosErr("server returns empty result", requestURL, ecCode, requestID),
 			RequestInfo: RequestInfo{RequestID: requestID},
 		}
 	}
 	if err = json.Unmarshal(data, output); err != nil {
 		return &TosServerError{
-			TosError:    newTosErr(err.Error(), requestURL),
+			TosError:    newTosErr(err.Error(), requestURL, ecCode, requestID),
 			RequestInfo: RequestInfo{RequestID: requestID},
 		}
 	}

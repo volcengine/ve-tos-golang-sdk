@@ -43,6 +43,7 @@ func (cli *ClientV2) parseLifecycleInput(input *PutBucketLifecycleInput) putBuck
 			NoCurrentVersionExpiration:     lifecycle.NoCurrentVersionExpiration,
 			Tag:                            lifecycle.Tag,
 			AbortInCompleteMultipartUpload: lifecycle.AbortInCompleteMultipartUpload,
+			Filter:                         lifecycle.Filter,
 		})
 
 	}
@@ -61,6 +62,7 @@ func (cli *ClientV2) PutBucketLifecycle(ctx context.Context, input *PutBucketLif
 	}
 	res, err := cli.newBuilder(input.Bucket, "").
 		WithQuery("lifecycle", "").
+		WithParams(*input).
 		WithHeader(HeaderContentMD5, contentMD5).
 		WithRetry(OnRetryFromStart, StatusCodeClassifier{}).
 		Request(ctx, http.MethodPut, bytes.NewReader(data), cli.roundTripper(http.StatusOK))

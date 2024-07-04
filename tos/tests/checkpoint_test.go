@@ -28,6 +28,7 @@ type dataTransferListenerTest struct {
 	AlreadyConsumer  int64
 	RWTime           int64
 	DataTransferType enum.DataTransferType
+	RetryCount       int
 }
 
 func (d *dataTransferListenerTest) DataTransferStatusChange(status *tos.DataTransferStatus) {
@@ -41,10 +42,12 @@ func (d *dataTransferListenerTest) DataTransferStatusChange(status *tos.DataTran
 		d.AlreadyConsumer = status.ConsumedBytes
 		d.RWTime += 1
 		d.DataTransferType = enum.DataTransferRW
+		d.RetryCount = status.RetryCount
 	case enum.DataTransferSucceed:
 		d.SuccessTime += 1
 		d.TotalBytes = status.TotalBytes
 		d.DataTransferType = enum.DataTransferSucceed
+		d.RetryCount = status.RetryCount
 	case enum.DataTransferFailed:
 		fmt.Println("Failed")
 		d.DataTransferType = enum.DataTransferFailed

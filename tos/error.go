@@ -49,17 +49,22 @@ var (
 type TosError struct {
 	Message    string
 	RequestUrl string
+	EcCode     string
+	ReqID      string
 }
 
-func newTosErr(msg string, url string) TosError {
+func newTosErr(msg string, url string, ecCode string, requestId string) TosError {
 	return TosError{
 		Message:    msg,
 		RequestUrl: url,
+		EcCode:     ecCode,
+		ReqID:      requestId,
 	}
 }
 
 func (e *TosError) Error() string {
-	return e.Message
+	return fmt.Sprintf("tos: request error:  Message=%s, RequestID=%s, EC=%s",
+		e.Message, e.ReqID, e.EcCode)
 }
 
 // for simplify code
@@ -92,19 +97,19 @@ func newTosServerError(res *Response) error {
 	data, err := ioutil.ReadAll(io.LimitReader(res.Body, 64<<10)) // avoid too large
 	if err != nil && len(data) <= 0 {
 		return &TosServerError{
-			TosError:    newTosErr("tos: server returned an empty body", res.RequestUrl),
+			TosError:    newTosErr("tos: server returned an empty body", res.RequestUrl, res.RequestInfo().EcCode, res.RequestInfo().RequestID),
 			RequestInfo: res.RequestInfo(),
 		}
 	}
 	se := Error{StatusCode: res.StatusCode}
 	if err = json.Unmarshal(data, &se); err != nil {
 		return &TosServerError{
-			TosError:    newTosErr("tos: server returned an invalid body", res.RequestUrl),
+			TosError:    newTosErr("tos: server returned an invalid body", res.RequestUrl, res.RequestInfo().EcCode, res.RequestInfo().RequestID),
 			RequestInfo: res.RequestInfo(),
 		}
 	}
 	return &TosServerError{
-		TosError:    newTosErr(se.Message, res.RequestUrl),
+		TosError:    newTosErr(se.Message, res.RequestUrl, res.RequestInfo().EcCode, res.RequestInfo().RequestID),
 		RequestInfo: res.RequestInfo(),
 		Code:        se.Code,
 		HostID:      se.HostID,
@@ -275,7 +280,7 @@ func checkError(res *Response, readBody bool, okCode int, okCodes ...int) error 
 		unexpected = unexpected.WithRequestBody(res)
 	}
 	return &TosServerError{
-		TosError:    newTosErr(unexpected.Error(), res.RequestUrl),
+		TosError:    newTosErr(unexpected.Error(), res.RequestUrl, res.RequestInfo().EcCode, res.RequestInfo().RequestID),
 		RequestInfo: res.RequestInfo(),
 		Code:        unexpected.err.Code,
 		HostID:      unexpected.err.HostID,

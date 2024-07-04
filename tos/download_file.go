@@ -299,6 +299,7 @@ func getDownloadTasks(cli *ClientV2, ctx context.Context, headOutput *HeadObject
 				cli:         cli,
 				ctx:         ctx,
 				input:       input,
+				output:      headOutput,
 				partNumber:  part.PartNumber,
 				rangeStart:  part.RangeStart,
 				rangeEnd:    part.RangeEnd,

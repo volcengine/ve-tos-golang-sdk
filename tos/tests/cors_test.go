@@ -27,6 +27,7 @@ func TestBucketCORS(t *testing.T) {
 		AllowedHeader: []string{"Authorization"},
 		ExposeHeader:  []string{"X-TOS-HEADER-1", "X-TOS-HEADER-2"},
 		MaxAgeSeconds: maxAgeSeconds,
+		ResponseVary:  true,
 	}
 	rule2 := tos.CorsRule{
 		AllowedOrigin: []string{"https://www.volcengine.com"},
@@ -34,6 +35,7 @@ func TestBucketCORS(t *testing.T) {
 		AllowedHeader: []string{"Authorization"},
 		ExposeHeader:  []string{"X-TOS-HEADER-1", "X-TOS-HEADER-2"},
 		MaxAgeSeconds: maxAgeSeconds,
+		ResponseVary:  true,
 	}
 	putRes, err := client.PutBucketCORS(ctx, &tos.PutBucketCORSInput{
 		Bucket:    bucket,
@@ -48,6 +50,7 @@ func TestBucketCORS(t *testing.T) {
 	require.Equal(t, 2, len(getRes.CORSRules))
 	require.Equal(t, 3, len(getRes.CORSRules[0].AllowedMethod))
 	require.Equal(t, maxAgeSeconds, getRes.CORSRules[0].MaxAgeSeconds)
+	require.Equal(t, true, getRes.CORSRules[0].ResponseVary)
 
 	putRes, err = client.PutBucketCORS(ctx, &tos.PutBucketCORSInput{
 		Bucket:    bucket,

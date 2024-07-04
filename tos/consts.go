@@ -7,7 +7,7 @@ import (
 
 const (
 	// Version tos-go-sdk version
-	Version = "v2.6.9"
+	Version = "v2.7.0"
 )
 
 const TempFileSuffix = ".temp"
@@ -123,6 +123,9 @@ const (
 	HeaderStorageClass                 = "X-Tos-Storage-Class"
 	HeaderAzRedundancy                 = "X-Tos-Az-Redundancy"
 	HeaderRestore                      = "X-Tos-Restore"
+	HeaderRestoreRequestDate           = "X-Tos-Restore-Request-Date"
+	HeaderRestoreExpiryDays            = "X-Tos-Restore-Expiry-Days"
+	HeaderRestoreTier                  = "X-Tos-Restore-Tier"
 	HeaderTag                          = "X-Tos-Tag"
 	HeaderSSECustomerAlgorithm         = "X-Tos-Server-Side-Encryption-Customer-Algorithm"
 	HeaderSSECustomerKeyMD5            = "X-Tos-Server-Side-Encryption-Customer-Key-MD5"
@@ -162,4 +165,8 @@ const (
 	HeaderWebsiteRedirectLocation      = "X-Tos-Website-Redirect-Location"
 	HeaderCSType                       = "X-Tos-Cs-Type"
 	HeaderMetaPrefix                   = "X-Tos-Meta-"
+	HeaderReplicationStatus            = "X-Tos-Replication-Status"
+	HeaderProjectName                  = "X-Tos-Project-Name"
+	HeaderTOSEC                        = "X-Tos-Ec"
+	HeaderExpect                       = "Expect"
 )

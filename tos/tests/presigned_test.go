@@ -175,6 +175,28 @@ func TestPreSignedURL(t *testing.T) {
 			ETag:       res.Header.Get("ETag"),
 		})
 	}
+
+	// ListPart
+	url, err = cli.PreSignedURL(&tos.PreSignedURLInput{
+		HTTPMethod: http.MethodGet,
+		Bucket:     bucket,
+		Key:        "multipart",
+		Query:      map[string]string{"uploadId": output.UploadID},
+	})
+	require.Nil(t, err)
+
+	req, _ = http.NewRequest(http.MethodGet, url.SignedUrl, nil)
+	res, err = client.Do(req)
+	defer res.Body.Close()
+	require.Nil(t, err)
+	require.Equal(t, 200, res.StatusCode)
+	partsData, err := ioutil.ReadAll(res.Body)
+	require.Nil(t, err)
+	partOutput := &tos.ListPartsOutput{}
+	err = json.Unmarshal(partsData, partOutput)
+	require.Nil(t, err)
+	fmt.Println(*partOutput)
+
 	url, err = cli.PreSignedURL(&tos.PreSignedURLInput{
 		HTTPMethod: http.MethodPost,
 		Bucket:     bucket,
@@ -674,5 +696,4 @@ func TestPreSignWithContentSha256(t *testing.T) {
 	resp, err = http.DefaultClient.Do(req)
 	require.Nil(t, err)
 	require.Equal(t, resp.StatusCode, 403)
-
 }

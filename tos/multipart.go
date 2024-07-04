@@ -231,12 +231,12 @@ func (cli *ClientV2) UploadPartV2(ctx context.Context, input *UploadPartV2Input)
 			cf = StatusCodeClassifier{}
 		}
 	}
-
-	res, err := cli.newBuilder(input.Bucket, input.Key).
+	rb := cli.newBuilder(input.Bucket, input.Key).
 		WithParams(*input).
 		WithContentLength(input.ContentLength).
-		WithRetry(onRetry, cf).
-		Request(ctx, http.MethodPut, content, cli.roundTripperWithSlowLog(http.StatusOK))
+		WithRetry(onRetry, cf)
+	cli.setExpectHeader(rb, contentLength)
+	res, err := rb.Request(ctx, http.MethodPut, content, cli.roundTripperWithSlowLog(http.StatusOK))
 	if err != nil {
 		return nil, err
 	}
@@ -372,7 +372,7 @@ func (cli *ClientV2) CompleteMultipartUploadV2(
 		callbackRes, err := ioutil.ReadAll(res.Body)
 		if err != nil {
 			return nil, &TosServerError{
-				TosError:    newTosErr(fmt.Sprintf("tos: read callback result err:%s", err.Error()), res.RequestUrl),
+				TosError:    newTosErr(fmt.Sprintf("tos: read callback result err:%s", err.Error()), res.RequestUrl, res.RequestInfo().EcCode, res.RequestInfo().RequestID),
 				RequestInfo: res.RequestInfo(),
 			}
 		}

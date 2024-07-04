@@ -180,3 +180,35 @@ const (
 	TierExpedited TierType = "Expedited"
 	TierBulk      TierType = "Bulk"
 )
+
+type DocPreviewSrcType string
+
+const (
+	DocPreviewSrcTypeDoc  DocPreviewSrcType = "doc"
+	DocPreviewSrcTypeDocx DocPreviewSrcType = "docx"
+	DocPreviewSrcTypePpt  DocPreviewSrcType = "ppt"
+	DocPreviewSrcTypePptx DocPreviewSrcType = "pptx"
+	DocPreviewSrcTypeXls  DocPreviewSrcType = "xls"
+	DocPreviewSrcTypeXlsx DocPreviewSrcType = "xlsx"
+)
+
+type DocPreviewDstType string
+
+const (
+	DocPreviewDstTypePdf  DocPreviewDstType = "pdf"
+	DocPreviewDstTypeHtml DocPreviewDstType = "html"
+	DocPreviewDstTypePng  DocPreviewDstType = "png"
+	DocPreviewDstTypeJpeg DocPreviewDstType = "jpeg"
+)
+
+type ReplicationStatusType string
+
+const (
+	ReplicationStatusPending  ReplicationStatusType = "PENDING"
+	ReplicationStatusComplete ReplicationStatusType = "COMPLETE"
+	ReplicationStatusFailed   ReplicationStatusType = "FAILED"
+	ReplicationStatusReplica  ReplicationStatusType = "REPLICA"
+)
+const (
+	DefaultExcept100ContinueThreshold = 65536
+)

@@ -105,7 +105,7 @@ func (cli *Client) copyObject(ctx context.Context, dstBucket, dstObject string, 
 	}
 	if marshalOut.ETag == "" {
 		return nil, &TosServerError{
-			TosError:    newTosErr(marshalOut.Message, res.RequestUrl),
+			TosError:    newTosErr(marshalOut.Message, res.RequestUrl, marshalOut.EC, res.RequestInfo().RequestID),
 			RequestInfo: res.RequestInfo(),
 			Code:        marshalOut.Code,
 			HostID:      marshalOut.HostID,
@@ -154,7 +154,7 @@ func (cli *ClientV2) CopyObject(ctx context.Context, input *CopyObjectInput) (*C
 	//  Body 的 Etag 存在复制成功
 	if marshalOut.ETag == "" {
 		return nil, &TosServerError{
-			TosError:    newTosErr(marshalOut.Message, res.RequestUrl),
+			TosError:    newTosErr(marshalOut.Message, res.RequestUrl, marshalOut.EC, res.RequestInfo().RequestID),
 			RequestInfo: res.RequestInfo(),
 			Code:        marshalOut.Code,
 			HostID:      marshalOut.HostID,
@@ -228,7 +228,7 @@ func (bkt *Bucket) UploadPartCopy(ctx context.Context, input *UploadPartCopyInpu
 	}
 	if out.ETag == "" {
 		return nil, &TosServerError{
-			TosError:    newTosErr(out.Message, res.RequestUrl),
+			TosError:    newTosErr(out.Message, res.RequestUrl, out.EC, res.RequestInfo().RequestID),
 			RequestInfo: res.RequestInfo(),
 			Code:        out.Code,
 			HostID:      out.HostID,
@@ -296,7 +296,7 @@ func (cli *ClientV2) UploadPartCopyV2(
 	lastModified, _ := time.ParseInLocation(http.TimeFormat, res.Header.Get(HeaderLastModified), time.UTC)
 	if out.ETag == "" {
 		return nil, &TosServerError{
-			TosError:    newTosErr(out.Message, res.RequestUrl),
+			TosError:    newTosErr(out.Message, res.RequestUrl, out.EC, res.RequestInfo().RequestID),
 			RequestInfo: res.RequestInfo(),
 			Code:        out.Code,
 			HostID:      out.HostID,
