@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/volcengine/ve-tos-golang-sdk/v2/tos/enum"
 	"hash"
 	"io"
 	"io/ioutil"
@@ -721,12 +722,28 @@ func (bkt *Bucket) DeleteObjectTagging(ctx context.Context, input *DeleteObjectT
 func (bkt *Bucket) RestoreObject(ctx context.Context, input *RestoreObjectInput, option ...Option) (*RestoreObjectOutput, error) {
 	return bkt.baseClient.RestoreObject(ctx, input, option...)
 }
-
-// AppendObjectV2 append content at the tail of an appendable object
-func (cli *ClientV2) AppendObjectV2(ctx context.Context, input *AppendObjectV2Input) (*AppendObjectV2Output, error) {
-	if err := isValidNames(input.Bucket, input.Key, cli.isCustomDomain); err != nil {
+func (cli *ClientV2) hnsAppendObject(ctx context.Context, input *AppendObjectV2Input) (*AppendObjectV2Output, error) {
+	resp, err := cli.modifyObjectWithInitCrc64(ctx, &modifyObjectInput{
+		Bucket:               input.Bucket,
+		Key:                  input.Key,
+		Offset:               input.Offset,
+		Content:              input.Content,
+		ContentLength:        input.ContentLength,
+		DataTransferListener: input.DataTransferListener,
+		RateLimiter:          input.RateLimiter,
+		TrafficLimit:         input.TrafficLimit,
+	}, input.PreHashCrc64ecma)
+	if err != nil {
 		return nil, err
 	}
+	return &AppendObjectV2Output{
+		RequestInfo:      resp.RequestInfo,
+		NextAppendOffset: resp.NextModifyOffset,
+		HashCrc64ecma:    resp.HashCrc64ecma,
+	}, nil
+}
+
+func (cli *ClientV2) fnsAppendObject(ctx context.Context, input *AppendObjectV2Input) (*AppendObjectV2Output, error) {
 	var (
 		checker       hash.Hash64
 		content       = input.Content
@@ -771,6 +788,23 @@ func (cli *ClientV2) AppendObjectV2(ctx context.Context, input *AppendObjectV2In
 		NextAppendOffset: appendOffset,
 		HashCrc64ecma:    crc64,
 	}, nil
+}
+
+// AppendObjectV2 append content at the tail of an appendable object
+// HNS bucket append requires the object to already exist
+func (cli *ClientV2) AppendObjectV2(ctx context.Context, input *AppendObjectV2Input) (*AppendObjectV2Output, error) {
+	if err := isValidNames(input.Bucket, input.Key, cli.isCustomDomain); err != nil {
+		return nil, err
+	}
+	bucketType, err := cli.getBucketType(ctx, input.Bucket)
+	if err != nil {
+		return nil, err
+	}
+	if bucketType == enum.BucketTypeHNS {
+		return cli.hnsAppendObject(ctx, input)
+	} else {
+		return cli.fnsAppendObject(ctx, input)
+	}
 }
 
 // SetObjectMeta overwrites metadata of the object
@@ -1169,6 +1203,29 @@ func (cli *ClientV2) GetFileStatus(ctx context.Context, input *GetFileStatusInpu
 	if err := isValidBucketName(input.Bucket, cli.isCustomDomain); err != nil {
 		return nil, err
 	}
+
+	bucketType, err := cli.getBucketType(ctx, input.Bucket)
+	if err != nil {
+		return nil, err
+	}
+	if bucketType == enum.BucketTypeHNS {
+		resp, err := cli.HeadObjectV2(ctx, &HeadObjectV2Input{
+			Bucket: input.Bucket,
+			Key:    input.Key,
+		})
+		if err != nil {
+			return nil, err
+		}
+		return &GetFileStatusOutput{
+			RequestInfo:  resp.RequestInfo,
+			Key:          input.Key,
+			Size:         resp.ContentLength,
+			LastModified: resp.LastModified,
+			Crc32:        resp.Header.Get(HeaderHashCrc32C),
+			Crc64:        strconv.FormatUint(resp.HashCrc64ecma, 10),
+		}, nil
+	}
+
 	res, err := cli.newBuilder(input.Bucket, input.Key).
 		WithQuery("stat", "").
 		WithRetry(nil, StatusCodeClassifier{}).
@@ -1184,4 +1241,53 @@ func (cli *ClientV2) GetFileStatus(ctx context.Context, input *GetFileStatusInpu
 	}
 	return &output, nil
 
+}
+
+func (cli *ClientV2) modifyObjectWithInitCrc64(ctx context.Context, input *modifyObjectInput, initCRC64 uint64) (*modifyObjectOutput, error) {
+	if err := isValidNames(input.Bucket, input.Key, cli.isCustomDomain); err != nil {
+		return nil, err
+	}
+	var (
+		content       = input.Content
+		contentLength = input.ContentLength
+		checker       hash.Hash64
+	)
+	if contentLength <= 0 {
+		contentLength = tryResolveLength(content)
+	}
+	if cli.enableCRC {
+		checker = NewCRC(DefaultCrcTable(), initCRC64)
+	}
+	if content != nil {
+		content = wrapReader(content, contentLength, input.DataTransferListener, input.RateLimiter, &crcChecker{checker: checker})
+	}
+	rb := cli.newBuilder(input.Bucket, input.Key).
+		WithQuery("modify", "").
+		WithParams(*input).
+		WithContentLength(contentLength).
+		WithRetry(nil, NoRetryClassifier{})
+	cli.setExpectHeader(rb, contentLength)
+	res, err := rb.Request(ctx, http.MethodPost, content, cli.roundTripperWithSlowLog(http.StatusOK))
+	if err != nil {
+		return nil, err
+	}
+	defer res.Close()
+
+	nextOffset := res.Header.Get(HeaderNextModifyOffset)
+	nextModifyOffset, err := strconv.ParseInt(nextOffset, 10, 64)
+	if err != nil {
+		return nil, &TosServerError{
+			TosError:    newTosErr(fmt.Sprintf("tos: server return unexpected Next-Modify-Offset header %q", nextOffset), res.RequestUrl, res.RequestInfo().EcCode, res.RequestInfo().RequestID),
+			RequestInfo: res.RequestInfo(),
+		}
+	}
+	crc64, _ := strconv.ParseUint(res.Header.Get(HeaderHashCrc64ecma), 10, 64)
+	if err = checkCrc64(res, checker); err != nil {
+		return nil, err
+	}
+	return &modifyObjectOutput{
+		RequestInfo:      res.RequestInfo(),
+		NextModifyOffset: nextModifyOffset,
+		HashCrc64ecma:    crc64,
+	}, nil
 }

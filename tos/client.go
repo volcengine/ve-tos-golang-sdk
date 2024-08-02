@@ -15,6 +15,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -84,7 +85,33 @@ type Client struct {
 //	// do something
 type ClientV2 struct {
 	Client
-	baseClient *baseClient
+	baseClient      *baseClient
+	bucketTypeCache *sync.Map
+}
+
+type bucketTypeCache struct {
+	bucketType  enum.BucketType
+	expiresTime time.Time
+}
+
+func (cli *ClientV2) getBucketType(ctx context.Context, bucketName string) (enum.BucketType, error) {
+	btCache, exist := cli.bucketTypeCache.Load(bucketName)
+	if exist {
+		bt := btCache.(bucketTypeCache)
+		if time.Now().Before(bt.expiresTime) {
+			return bt.bucketType, nil
+		}
+	}
+
+	resp, err := cli.HeadBucket(ctx, &HeadBucketInput{
+		Bucket: bucketName,
+	})
+	if err != nil {
+		return "", err
+	}
+	cli.bucketTypeCache.Store(bucketName, bucketTypeCache{bucketType: resp.BucketType, expiresTime: time.Now().Add(time.Minute * 15)})
+	return resp.BucketType, nil
+
 }
 
 func (cli *ClientV2) Close() {
@@ -412,6 +439,7 @@ func NewClientV2(endpoint string, options ...ClientOption) (*ClientV2, error) {
 			enableCRC:                  true,
 			except100ContinueThreshold: enum.DefaultExcept100ContinueThreshold,
 		},
+		bucketTypeCache: &sync.Map{},
 	}
 	client.retry.SetJitter(0.25)
 	err := initClient(&client.Client, endpoint, options...)

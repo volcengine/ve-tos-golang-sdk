@@ -212,3 +212,10 @@ const (
 const (
 	DefaultExcept100ContinueThreshold = 65536
 )
+
+type BucketType string
+
+const (
+	BucketTypeFNS = BucketType("fns")
+	BucketTypeHNS = BucketType("hns")
+)

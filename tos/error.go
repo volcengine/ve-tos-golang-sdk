@@ -222,6 +222,11 @@ func (us *UnexpectedStatusCodeError) WithRequestID(requestID string) *Unexpected
 	return us
 }
 
+func (us *UnexpectedStatusCodeError) WithEC(Ec string) *UnexpectedStatusCodeError {
+	us.err.EC = Ec
+	return us
+}
+
 func (us *UnexpectedStatusCodeError) GoString() string {
 	if us.responseMsg != "" {
 		return fmt.Sprintf("tos.UnexpectedStatusCodeError{StatusCode:%d, ExpectedCodes:%v, RequestID:%s, ResponseErr:%s}",
@@ -275,7 +280,7 @@ func checkError(res *Response, readBody bool, okCode int, okCodes ...int) error 
 		// fall through
 	}
 	unexpected := NewUnexpectedStatusCodeError(res.StatusCode, okCode, okCodes...).
-		WithRequestID(res.RequestInfo().RequestID)
+		WithRequestID(res.RequestInfo().RequestID).WithEC(res.Header.Get(HeaderTOSEC))
 	if readBody && res.Body != nil {
 		unexpected = unexpected.WithRequestBody(res)
 	}

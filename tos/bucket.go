@@ -100,6 +100,7 @@ func (cli *Client) HeadBucket(ctx context.Context, bucket string) (*HeadBucketOu
 		StorageClass: enum.StorageClassType(res.Header.Get(HeaderStorageClass)),
 		AzRedundancy: enum.AzRedundancyType(res.Header.Get(HeaderAzRedundancy)),
 		ProjectName:  res.Header.Get(HeaderProjectName),
+		BucketType:   enum.BucketType(res.Header.Get(HeaderBucketType)),
 	}, nil
 }
 

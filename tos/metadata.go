@@ -48,6 +48,7 @@ type ObjectMeta struct {
 	SSECustomerAlgorithm string            `json:"SSECustomerAlgorithm,omitempty"`
 	SSECustomerKeyMD5    string            `json:"SSECustomerKeyMD5,omitempty"`
 	CSType               string            `json:"CSType,omitempty"`
+	IsDirectory          bool              `json:"IsDirectory"`
 }
 
 type ObjectMetaV2 struct {
@@ -73,6 +74,7 @@ type ObjectMetaV2 struct {
 	ServerSideEncryptionKeyID string
 	ReplicationStatus         enum.ReplicationStatusType
 	RestoreInfo               *RestoreInfo `json:"Restore,omitempty"`
+	IsDirectory               bool
 }
 
 func parseRestoreInfo(res *Response) *RestoreInfo {
@@ -143,6 +145,7 @@ func (om *ObjectMeta) fromResponse(res *Response, disableEncodingMeta bool) {
 	om.Tag = res.Header.Get(HeaderTag)
 	om.CSType = res.Header.Get(HeaderCSType)
 	om.RestoreInfo = parseRestoreInfo(res)
+	om.IsDirectory = res.Header.Get(HeaderDirectory) == "true"
 
 }
 func parseParams(params string) map[string]string {
@@ -194,6 +197,7 @@ func (om *ObjectMetaV2) fromResponseV2(res *Response, disableEncodingMeta bool) 
 	om.ServerSideEncryptionKeyID = res.Header.Get(HeaderServerSideEncryptionKmsKeyID)
 	om.ReplicationStatus = enum.ReplicationStatusType(res.Header.Get(HeaderReplicationStatus))
 	om.RestoreInfo = parseRestoreInfo(res)
+	om.IsDirectory = res.Header.Get(HeaderDirectory) == "true"
 }
 
 func userMetadata(header http.Header, disableEncodingMeta bool) map[string]string {

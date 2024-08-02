@@ -343,6 +343,7 @@ type CreateBucketV2Input struct {
 	StorageClass     enum.StorageClassType `location:"header" locationName:"X-Tos-Storage-Class"`      // setting the default storage type for buckets
 	AzRedundancy     enum.AzRedundancyType `location:"header" locationName:"X-Tos-Az-Redundancy"`      // setting the AZ type for buckets
 	ProjectName      string                `location:"header" locationName:"X-Tos-Project-Name"`
+	BucketType       enum.BucketType       `location:"header" locationName:"X-Tos-Bucket-Type"`
 }
 
 type CreateBucketOutput struct {
@@ -360,6 +361,7 @@ type HeadBucketOutput struct {
 	StorageClass enum.StorageClassType `json:"StorageClass,omitempty"`
 	AzRedundancy enum.AzRedundancyType `json:"AzRedundancy"`
 	ProjectName  string                `json:"ProjectName"`
+	BucketType   enum.BucketType       `json:"BucketType"`
 }
 
 type GetBucketCORSInput struct {
@@ -425,16 +427,18 @@ type Owner struct {
 }
 
 type ListedBucket struct {
-	CreationDate     string `json:"CreationDate,omitempty"`
-	Name             string `json:"Name,omitempty"`
-	Location         string `json:"Location,omitempty"`
-	ExtranetEndpoint string `json:"ExtranetEndpoint,omitempty"`
-	IntranetEndpoint string `json:"IntranetEndpoint,omitempty"`
-	ProjectName      string `json:"ProjectName,omitempty"`
+	CreationDate     string          `json:"CreationDate,omitempty"`
+	Name             string          `json:"Name,omitempty"`
+	Location         string          `json:"Location,omitempty"`
+	ExtranetEndpoint string          `json:"ExtranetEndpoint,omitempty"`
+	IntranetEndpoint string          `json:"IntranetEndpoint,omitempty"`
+	ProjectName      string          `json:"ProjectName,omitempty"`
+	BucketType       enum.BucketType `json:"BucketType,omitempty"`
 }
 
 type ListBucketsInput struct {
-	ProjectName string `location:"header" locationName:"X-Tos-Project-Name"`
+	ProjectName string          `location:"header" locationName:"X-Tos-Project-Name"`
+	BucketType  enum.BucketType `location:"header" locationName:"X-Tos-Bucket-Type"`
 }
 
 type PutObjectBasicInput struct {
@@ -2408,6 +2412,24 @@ type GetFileStatusOutput struct {
 	LastModified time.Time
 	Crc32        string
 	Crc64        string
+}
+
+type modifyObjectInput struct {
+	Bucket  string
+	Key     string
+	Offset  int64     `location:"query" locationName:"offset" default:"0"`
+	Content io.Reader // required
+
+	ContentLength        int64
+	DataTransferListener DataTransferListener
+	RateLimiter          RateLimiter
+	TrafficLimit         int64 `location:"header" locationName:"X-Tos-Traffic-Limit"`
+}
+
+type modifyObjectOutput struct {
+	RequestInfo
+	NextModifyOffset int64
+	HashCrc64ecma    uint64
 }
 
 type DataTransferListener interface {

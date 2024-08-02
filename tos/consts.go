@@ -7,7 +7,7 @@ import (
 
 const (
 	// Version tos-go-sdk version
-	Version = "v2.7.0"
+	Version = "v2.7.1"
 )
 
 const TempFileSuffix = ".temp"
@@ -152,8 +152,10 @@ const (
 	HeaderGrantWrite                   = "X-Tos-Grant-Write"
 	HeaderGrantWriteAcp                = "X-Tos-Grant-Write-Acp"
 	HeaderNextAppendOffset             = "X-Tos-Next-Append-Offset"
+	HeaderNextModifyOffset             = "X-Tos-Next-Modify-Offset"
 	HeaderObjectType                   = "X-Tos-Object-Type"
 	HeaderHashCrc64ecma                = "X-Tos-Hash-Crc64ecma"
+	HeaderHashCrc32C                   = "X-Tos-Hash-Crc32c"
 	HeaderMetadataDirective            = "X-Tos-Metadata-Directive"
 	HeaderCopySource                   = "X-Tos-Copy-Source"
 	HeaderCopySourceIfMatch            = "X-Tos-Copy-Source-If-Match"
@@ -167,6 +169,8 @@ const (
 	HeaderMetaPrefix                   = "X-Tos-Meta-"
 	HeaderReplicationStatus            = "X-Tos-Replication-Status"
 	HeaderProjectName                  = "X-Tos-Project-Name"
+	HeaderBucketType                   = "X-Tos-Bucket-Type"
+	HeaderDirectory                    = "X-Tos-Directory"
 	HeaderTOSEC                        = "X-Tos-Ec"
 	HeaderExpect                       = "Expect"
 )

@@ -2,6 +2,7 @@ package tos
 
 import (
 	"context"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -401,6 +402,11 @@ func (cli *ClientV2) uploadPart(ctx context.Context, checkpoint *uploadCheckpoin
 		Parts:    checkpoint.GetParts(),
 	})
 	if err != nil {
+		if serr, ok := err.(*TosServerError); ok {
+			if serr.StatusCode == http.StatusNotFound || serr.StatusCode == http.StatusNonAuthoritativeInfo {
+				_ = os.Remove(input.CheckpointFile)
+			}
+		}
 		event.postUploadEvent(event.newCompleteMultipartUploadFailedEvent(input, checkpoint.UploadID, err))
 		return nil, err
 	}
