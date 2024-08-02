@@ -3,6 +3,7 @@ package tos
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 
@@ -188,6 +189,11 @@ func (cli *ClientV2) copyPart(ctx context.Context, cp *copyObjectCheckpoint, inp
 		Parts:    cp.GetParts(),
 	})
 	if err != nil {
+		if serr, ok := err.(*TosServerError); ok {
+			if serr.StatusCode == http.StatusNotFound || serr.StatusCode == http.StatusNonAuthoritativeInfo {
+				_ = os.Remove(input.CheckpointFile)
+			}
+		}
 		event.postCopyEvent(&CopyEvent{
 			Type:           enum.CopyEventCompleteMultipartUploadFailed,
 			Err:            err,

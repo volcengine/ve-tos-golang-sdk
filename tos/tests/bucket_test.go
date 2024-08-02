@@ -126,11 +126,10 @@ func TestListBucketV2(t *testing.T) {
 		bucket = generateBucketName("list-bucket")
 		client = env.prepareClient("", tos.WithSocketTimeout(360*time.Second, 360*time.Second), tos.WithRequestTimeout(360*time.Second))
 	)
-
 	listed, err := client.ListBuckets(context.Background(), &tos.ListBucketsInput{})
 	checkSuccess(t, listed, err, 200)
 	for _, bkt := range listed.Buckets {
-		if strings.HasPrefix(bkt.Name, testPrefix) {
+		if strings.HasPrefix(bkt.Name, testPrefix) && bkt.BucketType == enum.BucketTypeFNS {
 			cleanBucket(t, client, bkt.Name)
 		}
 	}
@@ -147,7 +146,7 @@ func TestListBucketV2(t *testing.T) {
 	listed, err = client.ListBuckets(context.Background(), &tos.ListBucketsInput{})
 	var testBucket []tos.ListedBucket
 	for _, bkt := range listed.Buckets {
-		if strings.HasPrefix(bkt.Name, testPrefix) {
+		if strings.HasPrefix(bkt.Name, testPrefix) && bkt.BucketType == enum.BucketTypeFNS {
 			testBucket = append(testBucket, bkt)
 		}
 	}
