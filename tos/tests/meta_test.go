@@ -29,12 +29,13 @@ func TestSetObjectMetaV2(t *testing.T) {
 	meta["Test-床前明月光"] = "疑是地上霜"
 	meta["Test-Key"] = "Value"
 	_, err := client.SetObjectMeta(context.Background(), &tos.SetObjectMetaInput{
-		Bucket:       bucket,
-		Key:          key,
-		ContentType:  contentType,
-		Meta:         meta,
-		Expires:      time.Now().Add(24 * time.Hour),
-		CacheControl: "no-cache",
+		Bucket:        bucket,
+		Key:           key,
+		ContentType:   contentType,
+		Meta:          meta,
+		Expires:       time.Now().Add(24 * time.Hour),
+		CacheControl:  "no-cache",
+		ObjectExpires: 1,
 	})
 	head, err := client.HeadObjectV2(context.Background(), &tos.HeadObjectV2Input{Bucket: bucket, Key: key})
 	require.Nil(t, err)
@@ -45,6 +46,7 @@ func TestSetObjectMetaV2(t *testing.T) {
 		require.Equal(t, ok, true)
 		require.Equal(t, v, val)
 	}
+	require.True(t, head.Header.Get("X-Tos-Expiration") != "")
 }
 
 func TestSetObjectMetaV2Version(t *testing.T) {

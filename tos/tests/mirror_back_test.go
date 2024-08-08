@@ -20,10 +20,12 @@ func TestBucketMirrorBack(t *testing.T) {
 		cleanBucket(t, client, bucket)
 	}()
 	ctx := context.Background()
+	withQuery := true
 	condition := tos.Condition{
-		HttpCode:  http.StatusNotFound,
-		KeyPrefix: "prefix-",
-		KeySuffix: "-suffix",
+		HttpCode:   http.StatusNotFound,
+		KeyPrefix:  "prefix-",
+		KeySuffix:  "-suffix",
+		HttpMethod: []string{http.MethodGet, http.MethodHead},
 	}
 	transform := tos.Transform{
 		WithKeyPrefix: "prefix-",
@@ -42,6 +44,10 @@ func TestBucketMirrorBack(t *testing.T) {
 			PassAll: true,
 			Pass:    []string{"aa", "bb"},
 			Remove:  []string{"xx"},
+			Set: []tos.MirrorHeaderKeyValue{{
+				Key:   "kk",
+				Value: "vv",
+			}},
 		},
 		Transform: transform,
 		PublicSource: tos.PublicSource{
@@ -54,6 +60,7 @@ func TestBucketMirrorBack(t *testing.T) {
 			SourceHeader:   "x-source-header",
 			MetaDataSuffix: "meta-data-suffix",
 		}},
+		FetchSourceOnRedirectWithQuery: &withQuery,
 	}
 	putRes, err := client.PutBucketMirrorBack(ctx, &tos.PutBucketMirrorBackInput{
 		Bucket: bucket,
@@ -73,6 +80,8 @@ func TestBucketMirrorBack(t *testing.T) {
 	require.Equal(t, getRes.Rules[0].Redirect.Transform, transform)
 	require.Equal(t, getRes.Rules[0].Condition, condition)
 	require.Equal(t, len(getRes.Rules[0].Redirect.FetchHeaderToMetaDataRules), 1)
+	require.True(t, getRes.Rules[0].Redirect.FetchSourceOnRedirectWithQuery != nil)
+	require.True(t, *getRes.Rules[0].Redirect.FetchSourceOnRedirectWithQuery, withQuery)
 
 	deleteRes, err := client.DeleteBucketMirrorBack(ctx, &tos.DeleteBucketMirrorBackInput{Bucket: bucket})
 	require.Nil(t, err)
