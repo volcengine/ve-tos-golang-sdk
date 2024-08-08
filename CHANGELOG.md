@@ -1,4 +1,8 @@
 # ChangeLog of TOS SDK for Go
+## 版本号 v2.7.2 日期：2024-08-05
+- SetObjectMeta 支持设置 ObjectExpires
+- 镜像回源接口能力补充
+
 ## 版本号 v2.7.1 日期：2024-08-01
 - 新增 HNS 接口
 - 修复 Checkpoint 异常情况下复用问题

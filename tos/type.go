@@ -595,6 +595,7 @@ type SetObjectMetaInput struct {
 	ContentLanguage    string    `location:"header" locationName:"Content-Language"`
 	ContentType        string    `location:"header" locationName:"Content-Type"`
 	Expires            time.Time `location:"header" locationName:"Expires"`
+	ObjectExpires      int64     `location:"header" locationName:"X-Tos-Object-Expires"`
 
 	Meta map[string]string `location:"headers"`
 }
@@ -1637,20 +1638,42 @@ type MirrorBackRule struct {
 }
 
 type Condition struct {
-	HttpCode  int    `json:"HttpCode,omitempty"`
-	KeyPrefix string `json:"KeyPrefix,omitempty"`
-	KeySuffix string `json:"KeySuffix,omitempty"`
+	HttpCode   int      `json:"HttpCode,omitempty"`
+	KeyPrefix  string   `json:"KeyPrefix,omitempty"`
+	KeySuffix  string   `json:"KeySuffix,omitempty"`
+	AllowHost  []string `xml:"AllowHost" json:"AllowHost,omitempty"`
+	HttpMethod []string `json:"HttpMethod,omitempty"`
 }
 
 type Redirect struct {
-	RedirectType               enum.RedirectType           `json:"RedirectType,omitempty"`
-	FetchSourceOnRedirect      bool                        `json:"FetchSourceOnRedirect,omitempty"`
-	PassQuery                  bool                        `json:"PassQuery,omitempty"`
-	FollowRedirect             bool                        `json:"FollowRedirect,omitempty"`
-	MirrorHeader               MirrorHeader                `json:"MirrorHeader,omitempty"`
-	PublicSource               PublicSource                `json:"PublicSource,omitempty"`
-	Transform                  Transform                   `json:"Transform,omitempty"`
-	FetchHeaderToMetaDataRules []FetchHeaderToMetaDataRule `json:"FetchHeaderToMetaDataRules,omitempty"`
+	RedirectType                   enum.RedirectType           `json:"RedirectType,omitempty"`
+	FetchSourceOnRedirect          bool                        `json:"FetchSourceOnRedirect,omitempty"`
+	PassQuery                      bool                        `json:"PassQuery,omitempty"`
+	FollowRedirect                 bool                        `json:"FollowRedirect,omitempty"`
+	MirrorHeader                   MirrorHeader                `json:"MirrorHeader,omitempty"`
+	PublicSource                   PublicSource                `json:"PublicSource,omitempty"`
+	Transform                      Transform                   `json:"Transform,omitempty"`
+	FetchHeaderToMetaDataRules     []FetchHeaderToMetaDataRule `json:"FetchHeaderToMetaDataRules,omitempty"`
+	PrivateSource                  *PrivateSource              `json:"PrivateSource,omitempty"`
+	FetchSourceOnRedirectWithQuery *bool                       `json:"FetchSourceOnRedirectWithQuery,omitempty"`
+}
+type PrivateSource struct {
+	SourceEndpoint CommonSourceEndpoint
+}
+
+type CommonSourceEndpoint struct {
+	Primary  []EndpointCredentialProvider `json:"Primary,omitempty"`
+	Follower []EndpointCredentialProvider `json:"Follower,omitempty"`
+}
+
+type EndpointCredentialProvider struct {
+	Endpoint           string              `json:"Endpoint,omitempty"`
+	BucketName         string              `json:"BucketName,omitempty"`
+	CredentialProvider *CredentialProvider `json:"CredentialProvider,omitempty"`
+}
+
+type CredentialProvider struct {
+	Role string `json:"Role,omitempty"`
 }
 
 type FetchHeaderToMetaDataRule struct {
@@ -1732,14 +1755,20 @@ type DeleteBucketMirrorBackOutput struct {
 	RequestInfo
 }
 
+type MirrorHeaderKeyValue struct {
+	Key   string `json:"Key"`
+	Value string `json:"Value"`
+}
+
 type SourceEndpoint struct {
 	Primary  []string `json:"Primary,omitempty"`
 	Follower []string `json:"Follower,omitempty"`
 }
 type MirrorHeader struct {
-	PassAll bool     `json:"PassAll,omitempty"`
-	Pass    []string `json:"Pass,omitempty"`
-	Remove  []string `json:"Remove,omitempty"`
+	PassAll bool                   `json:"PassAll,omitempty"`
+	Pass    []string               `json:"Pass,omitempty"`
+	Remove  []string               `json:"Remove,omitempty"`
+	Set     []MirrorHeaderKeyValue `json:"Set,omitempty"`
 }
 
 type PutBucketStorageClassInput struct {
