@@ -210,9 +210,6 @@ func initDownloadCheckpoint(input *DownloadFileInput, headOutput *HeadObjectV2Ou
 	if remainder != 0 {
 		parts[partsNum-1].RangeEnd = (partsNum-1)*input.PartSize + remainder - 1
 	}
-	if len(parts) > 10000 {
-		return nil, newTosClientError("tos: part count too many", nil)
-	}
 	return &downloadCheckpoint{
 		checkpointPath:    input.CheckpointFile,
 		Bucket:            input.Bucket,
