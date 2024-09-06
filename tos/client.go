@@ -66,6 +66,7 @@ type Client struct {
 	isCustomDomain             bool
 	disableEncodingMeta        bool
 	except100ContinueThreshold int64
+	baseClient                 *baseClient
 }
 
 // ClientV2 TOS ClientV2
@@ -85,7 +86,7 @@ type Client struct {
 //	// do something
 type ClientV2 struct {
 	Client
-	baseClient      *baseClient
+
 	bucketTypeCache *sync.Map
 }
 
@@ -400,6 +401,7 @@ func NewClient(endpoint string, options ...ClientOption) (*Client, error) {
 	if err != nil {
 		return nil, err
 	}
+	client.baseClient = newBaseClient(&client)
 	return &client, nil
 }
 

@@ -2537,3 +2537,94 @@ func TestDocPreview(t *testing.T) {
 	require.Nil(t, err)
 	require.Equal(t, resp.ContentType, "image/jpeg")
 }
+
+func TestObjectExpiration(t *testing.T) {
+	var (
+		env    = newTestEnv(t)
+		bucket = generateBucketName("object-expiration")
+		ctx    = context.Background()
+		client = env.prepareClient(bucket)
+	)
+	defer cleanBucket(t, client, bucket)
+	key := "normal-" + randomString(8)
+	data := randomString(1024)
+	tagging := "key1=value1&key2="
+	_, err := client.PutObjectV2(ctx, &tos.PutObjectV2Input{
+		PutObjectBasicInput: tos.PutObjectBasicInput{Bucket: bucket, Key: key, ObjectExpires: 1, Tagging: tagging},
+		Content:             strings.NewReader(data),
+	})
+	require.Nil(t, err)
+
+	out, err := client.HeadObjectV2(ctx, &tos.HeadObjectV2Input{Bucket: bucket, Key: key})
+	require.Nil(t, err)
+	require.True(t, out.Expiration != "")
+	require.True(t, out.TaggingCount == 2)
+
+	partKey := "part-" + randomString(6)
+	initPart, err := client.CreateMultipartUploadV2(ctx, &tos.CreateMultipartUploadV2Input{Bucket: bucket, Key: partKey, ObjectExpires: 1, Tagging: tagging})
+	require.Nil(t, err)
+	_, err = client.UploadPartV2(ctx, &tos.UploadPartV2Input{
+		UploadPartBasicInput: tos.UploadPartBasicInput{Bucket: bucket, Key: partKey, UploadID: initPart.UploadID, PartNumber: 1},
+		Content:              strings.NewReader(randomString(1024 * 1024 * 5)),
+	})
+	require.Nil(t, err)
+	_, err = client.CompleteMultipartUploadV2(ctx, &tos.CompleteMultipartUploadV2Input{
+		Bucket:      bucket,
+		Key:         partKey,
+		CompleteAll: true,
+		UploadID:    initPart.UploadID,
+	})
+	require.Nil(t, err)
+
+	out, err = client.HeadObjectV2(ctx, &tos.HeadObjectV2Input{Bucket: bucket, Key: partKey})
+	require.Nil(t, err)
+	require.True(t, out.Expiration != "")
+	require.True(t, out.TaggingCount == 2)
+
+	appendKey := "append-" + randomString(8)
+	_, err = client.AppendObjectV2(context.Background(), &tos.AppendObjectV2Input{
+		Bucket:        bucket,
+		Key:           appendKey,
+		Content:       strings.NewReader(randomString(1024 * 1024)),
+		ObjectExpires: 1,
+	})
+	require.Nil(t, err)
+
+	out, err = client.HeadObjectV2(ctx, &tos.HeadObjectV2Input{Bucket: bucket, Key: appendKey})
+	require.Nil(t, err)
+	require.True(t, out.Expiration != "")
+
+	copyKey := "copy-" + randomString(8)
+	_, err = client.CopyObject(ctx, &tos.CopyObjectInput{
+		Bucket:           bucket,
+		Key:              copyKey,
+		SrcBucket:        bucket,
+		SrcKey:           key,
+		ObjectExpires:    1,
+		TaggingDirective: enum.TaggingDirectiveCopy,
+	})
+	require.Nil(t, err)
+	out, err = client.HeadObjectV2(ctx, &tos.HeadObjectV2Input{Bucket: bucket, Key: copyKey})
+	require.Nil(t, err)
+	require.True(t, out.Expiration != "")
+	require.True(t, out.TaggingCount == 2)
+
+	_, err = client.CopyObject(ctx, &tos.CopyObjectInput{
+		Bucket:           bucket,
+		Key:              copyKey,
+		SrcBucket:        bucket,
+		SrcKey:           key,
+		ObjectExpires:    1,
+		TaggingDirective: enum.TaggingDirectiveReplace,
+		Tagging:          "key1=value1",
+	})
+	require.Nil(t, err)
+	out, err = client.HeadObjectV2(ctx, &tos.HeadObjectV2Input{Bucket: bucket, Key: copyKey})
+	require.Nil(t, err)
+	require.True(t, out.Expiration != "")
+	require.True(t, out.TaggingCount == 1)
+
+	getResp, err := client.GetObjectV2(ctx, &tos.GetObjectV2Input{Bucket: bucket, Key: copyKey})
+	require.Nil(t, err)
+	require.True(t, getResp.Expiration != "")
+}

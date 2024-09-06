@@ -58,7 +58,7 @@ func (cli *ClientV2) PutObjectACL(ctx context.Context, input *PutObjectACLInput)
 	}
 
 	var content io.Reader
-	if len(input.Grants) != 0 {
+	if len(input.Grants) != 0 || input.IsDefault {
 
 		for _, grants := range input.Grants {
 			if err := isValidGrantee(grants.GranteeV2.Type); len(grants.GranteeV2.Type) != 0 && err != nil {
@@ -77,6 +77,7 @@ func (cli *ClientV2) PutObjectACL(ctx context.Context, input *PutObjectACLInput)
 			Owner:                input.Owner,
 			Grants:               input.Grants,
 			BucketOwnerEntrusted: input.BucketOwnerEntrusted,
+			IsDefault:            input.IsDefault,
 		})
 		if err != nil {
 			return nil, InvalidMarshal
@@ -151,62 +152,18 @@ func (cli *ClientV2) GetObjectACL(ctx context.Context, input *GetObjectACLInput)
 	return &out, nil
 }
 
+func (cli *Client) GetBucketACL(ctx context.Context, input *GetBucketACLInput, option ...Option) (*GetBucketACLOutput, error) {
+	return cli.baseClient.GetBucketACL(ctx, input, option...)
+}
+
+func (cli *Client) PutBucketACL(ctx context.Context, input *PutBucketACLInput, option ...Option) (*PutBucketACLOutput, error) {
+	return cli.baseClient.PutBucketACL(ctx, input, option...)
+}
+
 func (cli *ClientV2) GetBucketACL(ctx context.Context, input *GetBucketACLInput) (*GetBucketACLOutput, error) {
-	if input == nil {
-		return nil, InputIsNilClientError
-	}
-	if err := isValidBucketName(input.Bucket, cli.isCustomDomain); err != nil {
-		return nil, err
-	}
-	res, err := cli.newBuilder(input.Bucket, "").
-		WithQuery("acl", "").
-		WithRetry(nil, StatusCodeClassifier{}).
-		Request(ctx, http.MethodGet, nil, cli.roundTripper(http.StatusOK))
-	if err != nil {
-		return nil, err
-	}
-	defer res.Close()
-	output := GetBucketACLOutput{RequestInfo: res.RequestInfo()}
-	marshalRes := bucketACL{}
-	if err = marshalOutput(res, &marshalRes); err != nil {
-		return nil, err
-	}
-	output.Grants = marshalRes.GrantList
-	output.Owner = marshalRes.Owner
-	return &output, nil
+	return cli.baseClient.GetBucketACL(ctx, input)
 }
 
 func (cli *ClientV2) PutBucketACL(ctx context.Context, input *PutBucketACLInput) (*PutBucketACLOutput, error) {
-	if input == nil {
-		return nil, InputIsNilClientError
-	}
-	if err := isValidBucketName(input.Bucket, cli.isCustomDomain); err != nil {
-		return nil, err
-	}
-
-	reqBuilder := cli.newBuilder(input.Bucket, "").
-		WithQuery("acl", "").
-		WithRetry(OnRetryFromStart, StatusCodeClassifier{}).
-		WithParams(*input)
-	var reqData io.Reader
-
-	if input.Owner.ID != "" && len(input.Grants) != 0 {
-		data, contentMD5, err := marshalInput("PutBucketACLInput", bucketACL{
-			Owner:     input.Owner,
-			GrantList: input.Grants,
-		})
-		if err != nil {
-			return nil, err
-		}
-		_ = reqBuilder.WithHeader(HeaderContentMD5, contentMD5)
-		reqData = bytes.NewReader(data)
-	}
-
-	res, err := reqBuilder.Request(ctx, http.MethodPut, reqData, cli.roundTripper(http.StatusOK))
-	if err != nil {
-		return nil, err
-	}
-	defer res.Close()
-	output := PutBucketACLOutput{RequestInfo: res.RequestInfo()}
-	return &output, nil
+	return cli.baseClient.PutBucketACL(ctx, input)
 }

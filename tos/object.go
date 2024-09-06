@@ -171,6 +171,9 @@ func (bkt *Bucket) HeadObject(ctx context.Context, objectKey string, options ...
 		ContentRange: rb.Header.Get(HeaderContentRange),
 	}
 	output.ObjectMeta.fromResponse(res, bkt.client.disableEncodingMeta)
+	if symlinkTargetSize := output.Header.Get(HeaderSymlinkTargetSize); symlinkTargetSize != "" {
+		output.SymlinkTargetSize, _ = strconv.ParseInt(symlinkTargetSize, 10, 64)
+	}
 	return &output, nil
 }
 
@@ -193,6 +196,9 @@ func (cli *ClientV2) HeadObjectV2(ctx context.Context, input *HeadObjectV2Input)
 		RequestInfo: res.RequestInfo(),
 	}
 	output.ObjectMetaV2.fromResponseV2(res, cli.disableEncodingMeta)
+	if symlinkTargetSize := output.Header.Get(HeaderSymlinkTargetSize); symlinkTargetSize != "" {
+		output.SymlinkTargetSize, _ = strconv.ParseInt(symlinkTargetSize, 10, 64)
+	}
 	return &output, nil
 }
 
@@ -722,6 +728,21 @@ func (bkt *Bucket) DeleteObjectTagging(ctx context.Context, input *DeleteObjectT
 func (bkt *Bucket) RestoreObject(ctx context.Context, input *RestoreObjectInput, option ...Option) (*RestoreObjectOutput, error) {
 	return bkt.baseClient.RestoreObject(ctx, input, option...)
 }
+
+func (bkt *Bucket) PutSymlink(ctx context.Context, input *PutSymlinkInput, option ...Option) (*PutSymlinkOutput, error) {
+	if input.Bucket == "" {
+		input.Bucket = bkt.name
+	}
+	return bkt.baseClient.PutSymlink(ctx, input, option...)
+}
+
+func (bkt *Bucket) GetSymlink(ctx context.Context, input *GetSymlinkInput, option ...Option) (*GetSymlinkOutput, error) {
+	if input.Bucket == "" {
+		input.Bucket = bkt.name
+	}
+	return bkt.baseClient.GetSymlink(ctx, input, option...)
+}
+
 func (cli *ClientV2) hnsAppendObject(ctx context.Context, input *AppendObjectV2Input) (*AppendObjectV2Output, error) {
 	resp, err := cli.modifyObjectWithInitCrc64(ctx, &modifyObjectInput{
 		Bucket:               input.Bucket,
@@ -903,6 +924,7 @@ func (bkt *Bucket) ListObjects(ctx context.Context, input *ListObjectsInput, opt
 			StorageClass: content.StorageClass,
 			Type:         content.Type,
 			Meta:         parseUserMetaData(content.Meta),
+			ObjectType:   content.ObjectType,
 		})
 	}
 	output.Contents = contents
@@ -953,6 +975,7 @@ func (cli *ClientV2) ListObjectsV2(ctx context.Context, input *ListObjectsV2Inpu
 			StorageClass:  object.StorageClass,
 			HashCrc64ecma: uint64(hashCrc),
 			Meta:          parseUserMetaData(object.Meta),
+			ObjectType:    object.ObjectType,
 		})
 	}
 	output := ListObjectsV2Output{
@@ -1011,6 +1034,7 @@ func (cli *ClientV2) listObjectsType2(ctx context.Context, input *ListObjectsTyp
 			StorageClass:  object.StorageClass,
 			HashCrc64ecma: hashCrc,
 			Meta:          parseUserMetaData(object.Meta),
+			ObjectType:    object.ObjectType,
 		})
 	}
 	output := ListObjectsType2Output{
@@ -1119,6 +1143,7 @@ func (bkt *Bucket) ListObjectVersions(ctx context.Context, input *ListObjectVers
 			Type:         content.Type,
 			VersionID:    content.VersionID,
 			Meta:         parseUserMetaData(content.Meta),
+			ObjectType:   content.ObjectType,
 		})
 	}
 	output.Versions = contents
@@ -1173,6 +1198,7 @@ func (cli *ClientV2) ListObjectVersionsV2(
 			VersionID:     version.VersionID,
 			HashCrc64ecma: hashCrc,
 			Meta:          parseUserMetaData(version.Meta),
+			ObjectType:    version.ObjectType,
 		})
 	}
 	output := ListObjectVersionsV2Output{
@@ -1290,4 +1316,12 @@ func (cli *ClientV2) modifyObjectWithInitCrc64(ctx context.Context, input *modif
 		NextModifyOffset: nextModifyOffset,
 		HashCrc64ecma:    crc64,
 	}, nil
+}
+
+func (cli *ClientV2) PutSymlink(ctx context.Context, input *PutSymlinkInput) (*PutSymlinkOutput, error) {
+	return cli.baseClient.PutSymlink(ctx, input)
+}
+
+func (cli *ClientV2) GetSymlink(ctx context.Context, input *GetSymlinkInput) (*GetSymlinkOutput, error) {
+	return cli.baseClient.GetSymlink(ctx, input)
 }
