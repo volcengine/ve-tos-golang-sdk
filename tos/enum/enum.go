@@ -11,6 +11,7 @@ const (
 	ACLBucketOwnerFullControl ACLType = "bucket-owner-full-control"
 	ACLLogDeliveryWrite       ACLType = "log-delivery-write"
 	ACLBucketOwnerEntrusted   ACLType = "bucket-owner-entrusted"
+	ACLDefault                ACLType = "default"
 )
 
 type StorageClassType string
@@ -218,4 +219,11 @@ type BucketType string
 const (
 	BucketTypeFNS = BucketType("fns")
 	BucketTypeHNS = BucketType("hns")
+)
+
+type TaggingDirectiveType string
+
+const (
+	TaggingDirectiveCopy    TaggingDirectiveType = "Copy"
+	TaggingDirectiveReplace TaggingDirectiveType = "Replace"
 )

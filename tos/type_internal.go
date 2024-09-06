@@ -83,6 +83,7 @@ type accessControlList struct {
 	Owner                Owner     `json:"Owner,omitempty"`
 	Grants               []GrantV2 `json:"Grants,omitempty"`
 	BucketOwnerEntrusted bool      `json:"BucketOwnerEntrusted,omitempty"`
+	IsDefault            bool      `json:"IsDefault,omitempty"`
 }
 
 type canceler struct {

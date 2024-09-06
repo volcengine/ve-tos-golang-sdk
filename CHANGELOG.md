@@ -1,4 +1,8 @@
 # ChangeLog of TOS SDK for Go
+## 版本号 v2.7.4 日期：2024-09-05
+- 新增 PutSymlink/GetSymlink 接口
+- 已有对象接口支持 Object Tagging
+
 ## 版本号 v2.7.3 日期：2024-08-26
 - 优化 DownloadFile part 数量限制
 

@@ -152,6 +152,23 @@ func TestPutObjectV2WithACL(t *testing.T) {
 	out, err = client.GetObjectACL(ctx, &tos.GetObjectACLInput{Bucket: bucket, Key: key})
 	require.Nil(t, err)
 	require.Equal(t, out.BucketOwnerEntrusted, true)
+
+	newKey := "default-" + randomString(8)
+	_, err = client.PutObjectV2(ctx, &tos.PutObjectV2Input{
+		PutObjectBasicInput: tos.PutObjectBasicInput{Bucket: bucket, Key: newKey},
+		Content:             nil,
+	})
+	require.Nil(t, err)
+	_, err = client.PutObjectACL(ctx, &tos.PutObjectACLInput{
+		Bucket:    bucket,
+		Key:       newKey,
+		IsDefault: true,
+	})
+	require.Nil(t, err)
+
+	aclOut, err := client.GetObjectACL(ctx, &tos.GetObjectACLInput{Bucket: bucket, Key: newKey})
+	require.Nil(t, err)
+	require.Equal(t, aclOut.IsDefault, true)
 }
 
 func TestBucketACLGrantsBody(t *testing.T) {
@@ -283,4 +300,45 @@ func TestBucketACL(t *testing.T) {
 		require.Equal(t, bucketACL.Grants[0].GranteeV2.Type, wantRes[i].Type)
 	}
 
+	_, err := client.PutBucketACL(ctx, &tos.PutBucketACLInput{Bucket: bucket, BucketAclDelivered: true})
+	require.Nil(t, err)
+
+	out, err := client.GetBucketACL(ctx, &tos.GetBucketACLInput{Bucket: bucket})
+	require.Nil(t, err)
+	require.Equal(t, out.BucketAclDelivered, true)
+
+	cli, err := tos.NewClient(env.endpoint, tos.WithCredentials(tos.NewStaticCredentials(env.accessKey, env.secretKey)), tos.WithRegion(env.region))
+	require.Nil(t, err)
+	bucketAcl, err := cli.GetBucketACL(ctx, &tos.GetBucketACLInput{Bucket: bucket})
+	require.Nil(t, err)
+	require.Equal(t, bucketAcl.BucketAclDelivered, true)
+
+	_, err = cli.PutBucketACL(ctx, &tos.PutBucketACLInput{
+		Bucket:  bucket,
+		ACLType: enum.ACLPublicRead,
+	})
+	require.Nil(t, err)
+	bucketAcl, err = cli.GetBucketACL(ctx, &tos.GetBucketACLInput{Bucket: bucket})
+	require.Nil(t, err)
+	require.Equal(t, bucketAcl.BucketAclDelivered, false)
+
+}
+
+func TestBucketAcl(t *testing.T) {
+	var (
+		env    = newTestEnv(t)
+		bucket = generateBucketName("put-bucket-acl")
+		client = env.prepareClient(bucket)
+		ctx    = context.Background()
+	)
+	defer func() {
+		cleanBucket(t, client, bucket)
+	}()
+
+	_, err := client.PutBucketACL(ctx, &tos.PutBucketACLInput{Bucket: bucket, BucketAclDelivered: true})
+	require.Nil(t, err)
+
+	out, err := client.GetBucketACL(ctx, &tos.GetBucketACLInput{Bucket: bucket})
+	require.Nil(t, err)
+	require.Equal(t, out.BucketAclDelivered, true)
 }

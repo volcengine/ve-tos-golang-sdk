@@ -44,8 +44,9 @@ type ObjectAclGrant struct {
 }
 
 type ObjectAclRules struct {
-	Owner  Owner   `json:"Owner,omitempty"`
-	Grants []Grant `json:"Grants,omitempty"`
+	Owner     Owner   `json:"Owner,omitempty"`
+	Grants    []Grant `json:"Grants,omitempty"`
+	IsDefault bool    `json:"IsDefault,omitempty"`
 }
 
 type GetObjectAclOutput struct {
@@ -56,8 +57,9 @@ type GetObjectAclOutput struct {
 }
 
 type bucketACL struct {
-	Owner     Owner     `json:"Owner,omitempty"`
-	GrantList []GrantV2 `json:"Grants,omitempty"`
+	Owner              Owner     `json:"Owner,omitempty"`
+	GrantList          []GrantV2 `json:"Grants,omitempty"`
+	BucketAclDelivered bool      `json:"BucketAclDelivered"`
 }
 
 type PutBucketACLInput struct {
@@ -69,8 +71,9 @@ type PutBucketACLInput struct {
 	GrantWrite       string       `location:"header" locationName:"X-Tos-Grant-Write"`        // optional
 	GrantWriteAcp    string       `location:"header" locationName:"X-Tos-Grant-Write-Acp"`    // optional
 
-	Owner  Owner     `json:"Owner,omitempty"`
-	Grants []GrantV2 `json:"Grants,omitempty"`
+	Owner              Owner     `json:"Owner,omitempty"`
+	Grants             []GrantV2 `json:"Grants,omitempty"`
+	BucketAclDelivered bool      `json:"BucketAclDelivered,omitempty"`
 }
 
 type PutBucketACLOutput struct {
@@ -83,8 +86,9 @@ type GetBucketACLInput struct {
 
 type GetBucketACLOutput struct {
 	RequestInfo
-	Owner  Owner     `json:"Owner,omitempty"`
-	Grants []GrantV2 `json:"Grants,omitempty"`
+	Owner              Owner     `json:"Owner,omitempty"`
+	Grants             []GrantV2 `json:"Grants,omitempty"`
+	BucketAclDelivered bool      `json:"BucketAclDelivered"`
 }
 
 type GetObjectACLInput struct {
@@ -99,6 +103,7 @@ type GetObjectACLOutput struct {
 	Owner                Owner     `json:"Owner,omitempty"`
 	Grants               []GrantV2 `json:"Grants,omitempty"`
 	BucketOwnerEntrusted bool      `json:"BucketOwnerEntrusted"`
+	IsDefault            bool      `json:"IsDefault"`
 }
 
 // PutObjectAclInput AclGrant, AclRules can not set both.
@@ -124,6 +129,7 @@ type PutObjectACLInput struct {
 	Owner                Owner
 	Grants               []GrantV2
 	BucketOwnerEntrusted bool
+	IsDefault            bool
 }
 
 type PutObjectAclOutput struct {
@@ -472,6 +478,8 @@ type PutObjectBasicInput struct {
 	TrafficLimit              int64                 `location:"header" locationName:"X-Tos-Traffic-Limit"`
 	ForbidOverwrite           bool                  `location:"header" locationName:"X-Tos-Forbid-Overwrite"`
 	IfMatch                   string                `location:"header" locationName:"X-Tos-If-Match"`
+	Tagging                   string                `location:"header" locationName:"X-Tos-Tagging"`
+	ObjectExpires             int64                 `location:"header" locationName:"X-Tos-Object-Expires"`
 	Meta                      map[string]string     `location:"headers"`
 	DataTransferListener      DataTransferListener
 	RateLimiter               RateLimiter
@@ -565,6 +573,7 @@ type AppendObjectV2Input struct {
 	TrafficLimit            int64                 `location:"header" locationName:"X-Tos-Traffic-Limit"`
 	IfMatch                 string                `location:"header" locationName:"X-Tos-If-Match"`
 
+	ObjectExpires        int64             `location:"header" locationName:"X-Tos-Object-Expires"`
 	Meta                 map[string]string `location:"headers"`
 	DataTransferListener DataTransferListener
 	RateLimiter          RateLimiter
@@ -656,6 +665,7 @@ type ListedObject struct {
 	StorageClass string   `json:"StorageClass,omitempty"`
 	Type         string   `json:"Type,omitempty"`
 	Meta         Metadata `json:"UserMeta,omitempty"`
+	ObjectType   string   `json:"Type,omitempty"`
 }
 
 type listedObject struct {
@@ -667,6 +677,7 @@ type listedObject struct {
 	StorageClass string     `json:"StorageClass,omitempty"`
 	Type         string     `json:"Type,omitempty"`
 	Meta         []userMeta `json:"UserMeta,omitempty"`
+	ObjectType   string     `json:"Type,omitempty"`
 }
 
 type ListedObjectV2 struct {
@@ -678,6 +689,7 @@ type ListedObjectV2 struct {
 	StorageClass  enum.StorageClassType
 	HashCrc64ecma uint64
 	Meta          Metadata
+	ObjectType    string `json:"Type,omitempty"`
 }
 
 type userMeta struct {
@@ -694,6 +706,7 @@ type listedObjectV2 struct {
 	StorageClass  enum.StorageClassType `json:"StorageClass,omitempty"`
 	HashCrc64ecma string                `json:"HashCrc64Ecma,omitempty"`
 	Meta          []userMeta            `json:"UserMeta,omitempty"`
+	ObjectType    string                `json:"Type,omitempty"`
 }
 
 type ListedCommonPrefix struct {
@@ -796,6 +809,7 @@ type ListedObjectVersion struct {
 	Type         string   `json:"Type,omitempty"`
 	VersionID    string   `json:"VersionId,omitempty"`
 	Meta         Metadata `json:"UserMeta,omitempty"`
+	ObjectType   string   `json:"Type,omitempty"`
 }
 
 type listedObjectVersionV2 struct {
@@ -809,6 +823,7 @@ type listedObjectVersionV2 struct {
 	VersionID     string
 	HashCrc64ecma string
 	Meta          []userMeta `json:"UserMeta,omitempty"`
+	ObjectType    string     `json:"Type,omitempty"`
 }
 
 type ListedObjectVersionV2 struct {
@@ -822,6 +837,7 @@ type ListedObjectVersionV2 struct {
 	VersionID     string
 	HashCrc64ecma uint64
 	Meta          Metadata `json:"UserMeta,omitempty"`
+	ObjectType    string   `json:"Type,omitempty"`
 }
 
 type ListedDeleteMarkerEntry struct {
@@ -885,6 +901,7 @@ type listedObjectVersion struct {
 	Type         string     `json:"Type,omitempty"`
 	VersionID    string     `json:"VersionId,omitempty"`
 	Meta         []userMeta `json:"UserMeta,omitempty"`
+	ObjectType   string     `json:"Type,omitempty"`
 }
 
 type listObjectVersionsOutput struct {
@@ -1005,11 +1022,13 @@ type HeadObjectOutput struct {
 	RequestInfo  `json:"-"`
 	ContentRange string `json:"ContentRange,omitempty"`
 	ObjectMeta
+	SymlinkTargetSize int64 `location:"header" locationName:"X-Tos-Symlink-Target-Size"`
 }
 
 type HeadObjectV2Output struct {
 	RequestInfo `json:"-"`
 	ObjectMetaV2
+	SymlinkTargetSize int64 `location:"header" locationName:"X-Tos-Symlink-Target-Size"`
 }
 
 type DeleteObjectV2Input struct {
@@ -1106,6 +1125,9 @@ type CopyObjectInput struct {
 	ForbidOverwrite   bool                       `location:"header" locationName:"X-Tos-Forbid-Overwrite"`
 	IfMatch           string                     `location:"header" locationName:"X-Tos-If-Match"`
 	MetadataDirective enum.MetadataDirectiveType `location:"header" locationName:"X-Tos-Metadata-Directive"`
+	Tagging           string                     `location:"header" locationName:"X-Tos-Tagging"`
+	ObjectExpires     int64                      `location:"header" locationName:"X-Tos-Object-Expires"`
+	TaggingDirective  enum.TaggingDirectiveType  `location:"header" locationName:"X-Tos-Tagging-Directive"`
 	Meta              map[string]string          `location:"headers"`
 }
 
@@ -1212,6 +1234,8 @@ type CreateMultipartUploadV2Input struct {
 	ServerSideEncryption      string                `location:"header" locationName:"X-Tos-Server-Side-Encryption"`
 	ServerSideEncryptionKeyID string                `location:"header" locationName:"X-Tos-Server-Side-Encryption-Kms-Key-Id"`
 	ForbidOverwrite           bool                  `location:"header" locationName:"X-Tos-Forbid-Overwrite"`
+	Tagging                   string                `location:"header" locationName:"X-Tos-Tagging"`
+	ObjectExpires             int64                 `location:"header" locationName:"X-Tos-Object-Expires"`
 	Meta                      map[string]string     `location:"headers"`
 }
 
@@ -2441,6 +2465,42 @@ type GetFileStatusOutput struct {
 	LastModified time.Time
 	Crc32        string
 	Crc64        string
+}
+
+type PutSymlinkInput struct {
+	Bucket              string
+	Key                 string
+	SymlinkTargetKey    string
+	SymlinkTargetBucket string                `location:"header" locationName:"X-Tos-Symlink-Bucket"`
+	ForbidOverwrite     bool                  `location:"header" locationName:"X-Tos-Forbid-Overwrite"`
+	ACL                 enum.ACLType          `location:"header" locationName:"X-Tos-Acl"`
+	StorageClass        enum.StorageClassType `location:"header" locationName:"X-Tos-Storage-Class"`
+	Tagging             string                `location:"header" locationName:"X-Tos-Tagging"`
+	ContentType         string                `location:"header" locationName:"Content-Type"`
+	Expires             time.Time             `location:"header" locationName:"Expires"`
+	CacheControl        string                `location:"header" locationName:"Cache-Control"`
+	ContentDisposition  string                `location:"header" locationName:"Content-Disposition" encodeChinese:"true"`
+	ContentLanguage     string                `location:"header" locationName:"Content-Language"`
+	Meta                map[string]string     `location:"headers"`
+}
+
+type PutSymlinkOutput struct {
+	RequestInfo
+	VersionID string
+}
+
+type GetSymlinkInput struct {
+	Bucket    string
+	Key       string
+	VersionID string
+}
+
+type GetSymlinkOutput struct {
+	RequestInfo
+	VersionID           string
+	LastModified        time.Time
+	SymlinkTargetKey    string
+	SymlinkTargetBucket string
 }
 
 type modifyObjectInput struct {

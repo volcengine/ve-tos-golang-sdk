@@ -75,6 +75,8 @@ type ObjectMetaV2 struct {
 	ReplicationStatus         enum.ReplicationStatusType
 	RestoreInfo               *RestoreInfo `json:"Restore,omitempty"`
 	IsDirectory               bool
+	Expiration                string
+	TaggingCount              int64
 }
 
 func parseRestoreInfo(res *Response) *RestoreInfo {
@@ -198,6 +200,12 @@ func (om *ObjectMetaV2) fromResponseV2(res *Response, disableEncodingMeta bool) 
 	om.ReplicationStatus = enum.ReplicationStatusType(res.Header.Get(HeaderReplicationStatus))
 	om.RestoreInfo = parseRestoreInfo(res)
 	om.IsDirectory = res.Header.Get(HeaderDirectory) == "true"
+	om.Expiration = res.Header.Get(HeaderTosExpiration)
+
+	if taggingCountHeader := res.Header.Get(HeaderTaggingCount); taggingCountHeader != "" {
+		taggingCount, _ := strconv.ParseInt(taggingCountHeader, 10, 64)
+		om.TaggingCount = taggingCount
+	}
 }
 
 func userMetadata(header http.Header, disableEncodingMeta bool) map[string]string {
