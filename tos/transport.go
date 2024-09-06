@@ -132,8 +132,8 @@ func NewDefaultTransport(config *TransportConfig) *DefaultTransport {
 	}
 }
 
-// newDefaultTranposrtWithHTTPTransport
-func newDefaultTranposrtWithHTTPTransport(transport http.RoundTripper) *DefaultTransport {
+// newDefaultTransportWithHTTPTransport
+func newDefaultTransportWithHTTPTransport(transport http.RoundTripper) *DefaultTransport {
 	return &DefaultTransport{
 		client: http.Client{
 			CheckRedirect: func(req *http.Request, via []*http.Request) error {
