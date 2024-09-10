@@ -44,16 +44,19 @@ type ObjectAclGrant struct {
 }
 
 type ObjectAclRules struct {
-	Owner     Owner   `json:"Owner,omitempty"`
-	Grants    []Grant `json:"Grants,omitempty"`
-	IsDefault bool    `json:"IsDefault,omitempty"`
+	Owner                Owner   `json:"Owner,omitempty"`
+	Grants               []Grant `json:"Grants,omitempty"`
+	IsDefault            bool    `json:"IsDefault,omitempty"`
+	BucketOwnerEntrusted bool    `json:"BucketOwnerEntrusted,omitempty"`
 }
 
 type GetObjectAclOutput struct {
-	RequestInfo `json:"-"`
-	VersionID   string  `json:"VersionId,omitempty"`
-	Owner       Owner   `json:"Owner,omitempty"`
-	Grants      []Grant `json:"Grants,omitempty"`
+	RequestInfo          `json:"-"`
+	VersionID            string  `json:"VersionId,omitempty"`
+	Owner                Owner   `json:"Owner,omitempty"`
+	Grants               []Grant `json:"Grants,omitempty"`
+	BucketOwnerEntrusted bool    `json:"BucketOwnerEntrusted,omitempty"`
+	IsDefault            bool    `json:"IsDefault,omitempty"`
 }
 
 type bucketACL struct {
