@@ -342,3 +342,104 @@ func TestBucketAcl(t *testing.T) {
 	require.Nil(t, err)
 	require.Equal(t, out.BucketAclDelivered, true)
 }
+
+func TestObjectACLV1(t *testing.T) {
+	var (
+		env     = newTestEnv(t)
+		bucket  = generateBucketName("put-object-acl")
+		client  = env.prepareClient(bucket)
+		key     = "key123"
+		ownerID = "test-owner-id"
+	)
+	defer func() {
+		cleanBucket(t, client, bucket)
+	}()
+	putRandomObject(t, client, bucket, key, 4*1024)
+	clientV1, err := tos.NewClient(env.endpoint, tos.WithCredentials(tos.NewStaticCredentials(env.accessKey, env.secretKey)), tos.WithRegion(env.region))
+	bkt, err := clientV1.Bucket(bucket)
+	require.Nil(t, err)
+	acl, err := bkt.PutObjectAcl(context.Background(), &tos.PutObjectAclInput{
+		Key: key,
+		AclRules: &tos.ObjectAclRules{
+			Owner: tos.Owner{},
+			Grants: []tos.Grant{{
+				Grantee: tos.Grantee{
+					ID:   ownerID,
+					Type: "CanonicalUser",
+				},
+				Permission: enum.PermissionRead,
+			}},
+			BucketOwnerEntrusted: true,
+		},
+	})
+	require.Nil(t, err)
+	require.Equal(t, 200, acl.StatusCode)
+	getAcl, err := bkt.GetObjectAcl(context.Background(), key)
+	require.Nil(t, err)
+	require.Equal(t, 200, getAcl.StatusCode)
+	require.Equal(t, ownerID, getAcl.Grants[0].Grantee.ID)
+	require.Equal(t, enum.PermissionRead, getAcl.Grants[0].Permission)
+	require.Equal(t, getAcl.BucketOwnerEntrusted, true)
+	ctx := context.Background()
+	acl, err = bkt.PutObjectAcl(ctx, &tos.PutObjectAclInput{
+		Key:      key,
+		AclGrant: &tos.ObjectAclGrant{GrantRead: "id=123"},
+	})
+	require.Nil(t, err)
+
+	getAcl, err = bkt.GetObjectAcl(context.Background(), key)
+	require.Nil(t, err)
+	require.Equal(t, len(getAcl.Grants), 1)
+	require.Equal(t, getAcl.Grants[0].Grantee.ID, "123")
+	require.Equal(t, getAcl.Grants[0].Permission, enum.PermissionRead)
+
+	acl, err = bkt.PutObjectAcl(context.Background(), &tos.PutObjectAclInput{
+		Key: key,
+		AclRules: &tos.ObjectAclRules{
+			Owner: tos.Owner{},
+			Grants: []tos.Grant{{
+				Grantee: tos.Grantee{
+					ID:   ownerID,
+					Type: "CanonicalUser",
+				}, Permission: enum.PermissionRead}},
+			IsDefault:            false,
+			BucketOwnerEntrusted: true,
+		},
+	})
+	require.Nil(t, err)
+	require.Equal(t, 200, acl.StatusCode)
+	getAcl, err = bkt.GetObjectAcl(context.Background(),
+		key,
+	)
+	require.Nil(t, err)
+	require.Equal(t, 200, getAcl.StatusCode)
+	require.Equal(t, ownerID, getAcl.Grants[0].Grantee.ID)
+	require.Equal(t, enum.PermissionRead, getAcl.Grants[0].Permission)
+	require.Equal(t, getAcl.BucketOwnerEntrusted, true)
+	require.Equal(t, getAcl.IsDefault, false)
+
+	newkey := randomString(8)
+	putRandomObject(t, client, bucket, newkey, 4*1024)
+
+	acl, err = bkt.PutObjectAcl(context.Background(), &tos.PutObjectAclInput{
+		Key: newkey,
+		AclRules: &tos.ObjectAclRules{
+			Owner: tos.Owner{
+				ID:          ownerID,
+				DisplayName: "123",
+			},
+			IsDefault:            true,
+			BucketOwnerEntrusted: false,
+		},
+	})
+	require.Nil(t, err)
+	require.Equal(t, 200, acl.StatusCode)
+
+	getAcl, err = bkt.GetObjectAcl(context.Background(),
+		newkey,
+	)
+	require.Nil(t, err)
+	require.Equal(t, 200, getAcl.StatusCode)
+	require.Equal(t, getAcl.BucketOwnerEntrusted, false)
+	require.Equal(t, getAcl.IsDefault, true)
+}

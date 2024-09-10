@@ -1,4 +1,7 @@
 # ChangeLog of TOS SDK for Go
+## 版本号 v2.7.5 日期：2024-09-09
+- GetObjectAcl 新增 IsDefault 
+
 ## 版本号 v2.7.4 日期：2024-09-05
 - 新增 PutSymlink/GetSymlink 接口
 - 已有对象接口支持 Object Tagging
