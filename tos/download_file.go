@@ -368,6 +368,7 @@ func (cli *ClientV2) downloadFile(ctx context.Context,
 	success, err := tg.Wait()
 	if err != nil {
 		_ = os.Remove(input.tempFile)
+		return nil, err
 	}
 
 	if success < len(tasks) {
