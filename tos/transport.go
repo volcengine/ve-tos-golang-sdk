@@ -293,11 +293,12 @@ func (d *TimeoutDialer) DialContext(ctx context.Context, network, address string
 		})
 
 		for _, ip := range ipList {
-			conn, err := d.Dialer.DialContext(ctx, network, ip+":"+port)
+			dialAddress := net.JoinHostPort(ip, port)
+			conn, err := d.Dialer.DialContext(ctx, network, dialAddress)
 			if err == nil {
 				return NewTimeoutConn(conn, d.ReadTimeout, d.WriteTimeout), nil
 			} else {
-				d.resolver.Remove(address, ip)
+				d.resolver.Remove(host, ip)
 			}
 		}
 	}

@@ -1,4 +1,7 @@
 # ChangeLog of TOS SDK for Go
+## 版本号 v2.7.6 日期：2024-09-18
+- Dns Cache 兼容 IPV6 
+
 ## 版本号 v2.7.5 日期：2024-09-09
 - GetObjectAcl 新增 IsDefault 
 
