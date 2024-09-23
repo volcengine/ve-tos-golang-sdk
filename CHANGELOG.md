@@ -1,4 +1,7 @@
 # ChangeLog of TOS SDK for Go
+## 版本号 v2.7.7 日期：2024-09-22
+- 优化 HeadBucket
+
 ## 版本号 v2.7.6 日期：2024-09-18
 - Dns Cache 兼容 IPV6 
 
