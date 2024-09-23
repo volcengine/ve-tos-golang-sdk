@@ -83,11 +83,11 @@ func (cli *ClientV2) CreateBucketV2(ctx context.Context, input *CreateBucketV2In
 // HeadBucket get some info of a bucket
 //
 // Deprecated: use HeadBucket of ClientV2 instead
-func (cli *Client) HeadBucket(ctx context.Context, bucket string) (*HeadBucketOutput, error) {
+func (cli *Client) HeadBucket(ctx context.Context, bucket string, option ...Option) (*HeadBucketOutput, error) {
 	if err := isValidBucketName(bucket, cli.isCustomDomain); err != nil {
 		return nil, err
 	}
-	res, err := cli.newBuilder(bucket, "").
+	res, err := cli.newBuilder(bucket, "", option...).
 		WithRetry(nil, StatusCodeClassifier{}).
 		Request(ctx, http.MethodHead, nil, cli.roundTripper(http.StatusOK))
 	if err != nil {
