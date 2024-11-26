@@ -660,27 +660,29 @@ type ListObjectsInput struct {
 }
 
 type ListedObject struct {
-	Key          string   `json:"Key,omitempty"`
-	LastModified string   `json:"LastModified,omitempty"`
-	ETag         string   `json:"ETag,omitempty"`
-	Size         int64    `json:"Size,omitempty"`
-	Owner        Owner    `json:"Owner,omitempty"`
-	StorageClass string   `json:"StorageClass,omitempty"`
-	Type         string   `json:"Type,omitempty"`
-	Meta         Metadata `json:"UserMeta,omitempty"`
-	ObjectType   string   `json:"Type,omitempty"`
+	Key           string   `json:"Key,omitempty"`
+	LastModified  string   `json:"LastModified,omitempty"`
+	ETag          string   `json:"ETag,omitempty"`
+	Size          int64    `json:"Size,omitempty"`
+	Owner         Owner    `json:"Owner,omitempty"`
+	StorageClass  string   `json:"StorageClass,omitempty"`
+	Type          string   `json:"Type,omitempty"`
+	Meta          Metadata `json:"UserMeta,omitempty"`
+	HashCrc64ecma uint64   `json:"HashCrc64Ecma,omitempty"`
+	ObjectType    string   `json:"Type,omitempty"`
 }
 
 type listedObject struct {
-	Key          string     `json:"Key,omitempty"`
-	LastModified string     `json:"LastModified,omitempty"`
-	ETag         string     `json:"ETag,omitempty"`
-	Size         int64      `json:"Size,omitempty"`
-	Owner        Owner      `json:"Owner,omitempty"`
-	StorageClass string     `json:"StorageClass,omitempty"`
-	Type         string     `json:"Type,omitempty"`
-	Meta         []userMeta `json:"UserMeta,omitempty"`
-	ObjectType   string     `json:"Type,omitempty"`
+	Key           string     `json:"Key,omitempty"`
+	LastModified  string     `json:"LastModified,omitempty"`
+	ETag          string     `json:"ETag,omitempty"`
+	Size          int64      `json:"Size,omitempty"`
+	Owner         Owner      `json:"Owner,omitempty"`
+	StorageClass  string     `json:"StorageClass,omitempty"`
+	Type          string     `json:"Type,omitempty"`
+	Meta          []userMeta `json:"UserMeta,omitempty"`
+	HashCrc64ecma string     `json:"HashCrc64Ecma,omitempty"`
+	ObjectType    string     `json:"Type,omitempty"`
 }
 
 type ListedObjectV2 struct {
@@ -802,17 +804,18 @@ type ListObjectVersionsV2Input struct {
 }
 
 type ListedObjectVersion struct {
-	ETag         string   `json:"ETag,omitempty"`
-	IsLatest     bool     `json:"IsLatest,omitempty"`
-	Key          string   `json:"Key,omitempty"`
-	LastModified string   `json:"LastModified,omitempty"`
-	Owner        Owner    `json:"Owner,omitempty"`
-	Size         int64    `json:"Size,omitempty"`
-	StorageClass string   `json:"StorageClass,omitempty"`
-	Type         string   `json:"Type,omitempty"`
-	VersionID    string   `json:"VersionId,omitempty"`
-	Meta         Metadata `json:"UserMeta,omitempty"`
-	ObjectType   string   `json:"Type,omitempty"`
+	ETag          string   `json:"ETag,omitempty"`
+	IsLatest      bool     `json:"IsLatest,omitempty"`
+	Key           string   `json:"Key,omitempty"`
+	LastModified  string   `json:"LastModified,omitempty"`
+	Owner         Owner    `json:"Owner,omitempty"`
+	Size          int64    `json:"Size,omitempty"`
+	StorageClass  string   `json:"StorageClass,omitempty"`
+	Type          string   `json:"Type,omitempty"`
+	VersionID     string   `json:"VersionId,omitempty"`
+	Meta          Metadata `json:"UserMeta,omitempty"`
+	ObjectType    string   `json:"Type,omitempty"`
+	HashCrc64ecma uint64   `json:"HashCrc64Ecma,omitempty"`
 }
 
 type listedObjectVersionV2 struct {
@@ -894,17 +897,18 @@ type ListObjectVersionsV2Output struct {
 }
 
 type listedObjectVersion struct {
-	ETag         string     `json:"ETag,omitempty"`
-	IsLatest     bool       `json:"IsLatest,omitempty"`
-	Key          string     `json:"Key,omitempty"`
-	LastModified string     `json:"LastModified,omitempty"`
-	Owner        Owner      `json:"Owner,omitempty"`
-	Size         int64      `json:"Size,omitempty"`
-	StorageClass string     `json:"StorageClass,omitempty"`
-	Type         string     `json:"Type,omitempty"`
-	VersionID    string     `json:"VersionId,omitempty"`
-	Meta         []userMeta `json:"UserMeta,omitempty"`
-	ObjectType   string     `json:"Type,omitempty"`
+	ETag          string     `json:"ETag,omitempty"`
+	IsLatest      bool       `json:"IsLatest,omitempty"`
+	Key           string     `json:"Key,omitempty"`
+	LastModified  string     `json:"LastModified,omitempty"`
+	Owner         Owner      `json:"Owner,omitempty"`
+	Size          int64      `json:"Size,omitempty"`
+	StorageClass  string     `json:"StorageClass,omitempty"`
+	Type          string     `json:"Type,omitempty"`
+	VersionID     string     `json:"VersionId,omitempty"`
+	Meta          []userMeta `json:"UserMeta,omitempty"`
+	ObjectType    string     `json:"Type,omitempty"`
+	HashCrc64ecma string     `json:"HashCrc64Ecma,omitempty"`
 }
 
 type listObjectVersionsOutput struct {

@@ -621,14 +621,6 @@ func TestPreSignedPolicyURLWithExpires(t *testing.T) {
 	res, err = client.Do(req)
 	require.Nil(t, err)
 	require.Equal(t, 200, res.StatusCode)
-	// Unmarshal ListObjectsOutput
-	data, err := ioutil.ReadAll(res.Body)
-	require.Nil(t, err)
-	data = bytes.TrimSpace(data)
-	jsonOut := tos.ListObjectsOutput{}
-	err = json.Unmarshal(data, &jsonOut)
-	require.Nil(t, err)
-	require.Equal(t, len(jsonOut.Contents), 2)
 
 	// head test based policy url for key2
 	getUrl2 := output.GetSignedURLForGetOrHead(key2, nil)

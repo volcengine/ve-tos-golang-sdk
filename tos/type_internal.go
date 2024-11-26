@@ -321,7 +321,7 @@ func (u *uploadCheckpoint) UpdatePartsInfo(result interface{}) {
 }
 
 func (u *uploadCheckpoint) GetCheckPointFilePath() string {
-	return u.FilePath
+	return u.checkpointPath
 }
 
 func (u *uploadCheckpoint) Valid(uploadFileStat os.FileInfo, bucketName, key, uploadFile string) bool {

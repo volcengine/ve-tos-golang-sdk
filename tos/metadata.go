@@ -85,7 +85,7 @@ func parseRestoreInfo(res *Response) *RestoreInfo {
 		return nil
 	}
 	resp := &RestoreInfo{}
-	param := parseParams(restore)
+	param := parseRestoreParams(restore)
 	if result, ok := param["ongoing-request"]; ok && result == "true" {
 		resp.RestoreStatus.OngoingRequest = true
 	}
@@ -150,9 +150,9 @@ func (om *ObjectMeta) fromResponse(res *Response, disableEncodingMeta bool) {
 	om.IsDirectory = res.Header.Get(HeaderDirectory) == "true"
 
 }
-func parseParams(params string) map[string]string {
+func parseRestoreParams(params string) map[string]string {
 	result := make(map[string]string)
-	parts := strings.Split(params, ",") // 按逗号分割参数
+	parts := strings.SplitAfterN(params, ",", 2) // 按逗号分割参数
 
 	for _, part := range parts {
 		keyValue := strings.Split(part, "=") // 按等号分割键和值
