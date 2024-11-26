@@ -1,4 +1,9 @@
 # ChangeLog of TOS SDK for Go
+## 版本号 v2.7.8 日期：2024-11-20
+- ListObject V1 接口支持 CRC64
+- 修复 Restore ExpiryDate 时间错误
+- 修复 UploadFile 上传失败错误处理
+
 ## 版本号 v2.7.7 日期：2024-09-22
 - 优化 HeadBucket
 

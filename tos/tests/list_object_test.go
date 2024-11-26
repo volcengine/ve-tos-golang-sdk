@@ -90,6 +90,8 @@ func TestListObjWithMeta(t *testing.T) {
 			mValue, ok := obj.Meta.Get(metaKey)
 			require.True(t, ok)
 			require.Equal(t, mValue, metaValue)
+			require.True(t, obj.HashCrc64ecma > 0)
+
 		}
 	}
 
@@ -107,6 +109,7 @@ func TestListObjWithMeta(t *testing.T) {
 			mValue, ok := obj.Meta.Get(metaKey)
 			require.True(t, ok)
 			require.Equal(t, mValue, metaValue)
+			require.True(t, obj.HashCrc64ecma > 0)
 		}
 	}
 

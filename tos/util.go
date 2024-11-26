@@ -76,7 +76,9 @@ Loop:
 		case taskErr := <-t.errCh:
 			if StatusCode(taskErr) == 403 || StatusCode(taskErr) == 404 || StatusCode(taskErr) == 405 {
 				close(t.abortHandle)
-				_ = os.Remove(t.checkPoint.GetCheckPointFilePath())
+				if t.checkPoint.GetCheckPointFilePath() != "" {
+					_ = os.Remove(t.checkPoint.GetCheckPointFilePath())
+				}
 				t.postEvent.PostEvent(EventPartAborted, nil, taskErr)
 
 				return successNum, fmt.Errorf("status code not service error, err:%s. ", taskErr.Error())

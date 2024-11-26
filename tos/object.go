@@ -915,16 +915,30 @@ func (bkt *Bucket) ListObjects(ctx context.Context, input *ListObjectsInput, opt
 	}
 	contents := make([]ListedObject, 0, len(internalOutput.Contents))
 	for _, content := range internalOutput.Contents {
+
+		var hashCrc uint64
+		if len(content.HashCrc64ecma) == 0 {
+			hashCrc = 0
+		} else {
+			hashCrc, err = strconv.ParseUint(content.HashCrc64ecma, 10, 64)
+			if err != nil {
+				return nil, &TosServerError{
+					TosError:    newTosErr("tos: server returned invalid HashCrc64Ecma", res.RequestUrl, res.RequestInfo().EcCode, res.RequestInfo().RequestID),
+					RequestInfo: RequestInfo{RequestID: res.RequestInfo().RequestID},
+				}
+			}
+		}
 		contents = append(contents, ListedObject{
-			Key:          content.Key,
-			LastModified: content.LastModified,
-			ETag:         content.ETag,
-			Size:         content.Size,
-			Owner:        content.Owner,
-			StorageClass: content.StorageClass,
-			Type:         content.Type,
-			Meta:         parseUserMetaData(content.Meta),
-			ObjectType:   content.ObjectType,
+			Key:           content.Key,
+			LastModified:  content.LastModified,
+			ETag:          content.ETag,
+			Size:          content.Size,
+			Owner:         content.Owner,
+			StorageClass:  content.StorageClass,
+			Type:          content.Type,
+			Meta:          parseUserMetaData(content.Meta),
+			HashCrc64ecma: hashCrc,
+			ObjectType:    content.ObjectType,
 		})
 	}
 	output.Contents = contents
@@ -1132,18 +1146,31 @@ func (bkt *Bucket) ListObjectVersions(ctx context.Context, input *ListObjectVers
 
 	contents := make([]ListedObjectVersion, 0, len(interOutput.Versions))
 	for _, content := range interOutput.Versions {
+		var hashCrc uint64
+		if len(content.HashCrc64ecma) == 0 {
+			hashCrc = 0
+		} else {
+			hashCrc, err = strconv.ParseUint(content.HashCrc64ecma, 10, 64)
+			if err != nil {
+				return nil, &TosServerError{
+					TosError:    newTosErr("tos: server returned invalid HashCrc64Ecma", res.RequestUrl, res.RequestInfo().EcCode, res.RequestInfo().RequestID),
+					RequestInfo: RequestInfo{RequestID: res.RequestInfo().RequestID},
+				}
+			}
+		}
 		contents = append(contents, ListedObjectVersion{
-			Key:          content.Key,
-			IsLatest:     content.IsLatest,
-			LastModified: content.LastModified,
-			ETag:         content.ETag,
-			Size:         content.Size,
-			Owner:        content.Owner,
-			StorageClass: content.StorageClass,
-			Type:         content.Type,
-			VersionID:    content.VersionID,
-			Meta:         parseUserMetaData(content.Meta),
-			ObjectType:   content.ObjectType,
+			Key:           content.Key,
+			IsLatest:      content.IsLatest,
+			LastModified:  content.LastModified,
+			ETag:          content.ETag,
+			Size:          content.Size,
+			Owner:         content.Owner,
+			StorageClass:  content.StorageClass,
+			Type:          content.Type,
+			VersionID:     content.VersionID,
+			Meta:          parseUserMetaData(content.Meta),
+			ObjectType:    content.ObjectType,
+			HashCrc64ecma: hashCrc,
 		})
 	}
 	output.Versions = contents

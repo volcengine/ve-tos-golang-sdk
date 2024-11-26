@@ -2258,7 +2258,6 @@ func TestRestoreObject(t *testing.T) {
 		Content: strings.NewReader(body),
 	})
 	require.Nil(t, err)
-
 	out, err := client.RestoreObject(ctx, &tos.RestoreObjectInput{
 		Bucket:               bucket,
 		Key:                  key,
@@ -2267,15 +2266,28 @@ func TestRestoreObject(t *testing.T) {
 	})
 	require.Nil(t, err)
 	require.Equal(t, out.StatusCode, http.StatusAccepted)
-
-	headResp, err := client.HeadObjectV2(ctx, &tos.HeadObjectV2Input{Bucket: bucket, Key: key})
+	var headResp *tos.HeadObjectV2Output
+	start := time.Now()
+	headResp, err = client.HeadObjectV2(ctx, &tos.HeadObjectV2Input{Bucket: bucket, Key: key})
 	require.Nil(t, err)
 	require.Equal(t, headResp.RestoreInfo.RestoreStatus.OngoingRequest, true)
 	require.Equal(t, headResp.RestoreInfo.RestoreParam.ExpiryDays, 10)
+	require.False(t, headResp.RestoreInfo.RestoreParam.RequestDate.IsZero())
 	require.Equal(t, headResp.RestoreInfo.RestoreParam.Tier, enum.TierExpedited)
+	for {
+		require.True(t, time.Now().Sub(start) < 5*time.Minute)
+		headResp, err = client.HeadObjectV2(ctx, &tos.HeadObjectV2Input{Bucket: bucket, Key: key})
+		require.Nil(t, err)
+		if headResp.RestoreInfo.RestoreStatus.OngoingRequest {
+			time.Sleep(1 * time.Second)
+			continue
+		}
+		require.False(t, headResp.RestoreInfo.RestoreStatus.ExpiryDate.IsZero())
+		break
+	}
 
 	_, err = client.GetObjectV2(ctx, &tos.GetObjectV2Input{Bucket: bucket, Key: key})
-	require.NotNil(t, err)
+	require.Nil(t, err)
 
 }
 
