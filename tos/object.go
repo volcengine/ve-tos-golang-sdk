@@ -241,10 +241,13 @@ func (cli *ClientV2) DeleteObjectV2(ctx context.Context, input *DeleteObjectV2In
 	if err := isValidNames(input.Bucket, input.Key, cli.isCustomDomain); err != nil {
 		return nil, err
 	}
-
-	res, err := cli.newBuilder(input.Bucket, input.Key).
+	reqBuilder := cli.newBuilder(input.Bucket, input.Key).
 		WithParams(*input).
-		WithRetry(nil, StatusCodeClassifier{}).
+		WithRetry(nil, StatusCodeClassifier{})
+	if input.Recursive {
+		reqBuilder.WithQuery(QueryRecursive, strconv.FormatBool(input.Recursive))
+	}
+	res, err := reqBuilder.
 		Request(ctx, http.MethodDelete, nil, cli.roundTripper(http.StatusNoContent))
 	if err != nil {
 		return nil, err
@@ -256,7 +259,9 @@ func (cli *ClientV2) DeleteObjectV2(ctx context.Context, input *DeleteObjectV2In
 		DeleteObjectOutput{
 			RequestInfo:  res.RequestInfo(),
 			DeleteMarker: deleteMarker,
-			VersionID:    res.Header.Get(HeaderVersionID)}}, nil
+			VersionID:    res.Header.Get(HeaderVersionID),
+			TrashPath:    res.Header.Get(HeaderTrashPath),
+		}}, nil
 }
 
 // DeleteMultiObjects delete multi-objects
@@ -317,10 +322,14 @@ func (cli *ClientV2) DeleteMultiObjects(ctx context.Context, input *DeleteMultiO
 		return nil, err
 	}
 	// POST method, don't retry
-	res, err := cli.newBuilder(input.Bucket, "").
+	rb := cli.newBuilder(input.Bucket, "").
 		WithQuery("delete", "").
 		WithHeader(HeaderContentMD5, contentMD5).
-		WithRetry(OnRetryFromStart, ServerErrorClassifier{}).
+		WithRetry(OnRetryFromStart, ServerErrorClassifier{})
+	if input.Recursive {
+		rb.WithQuery(QueryRecursive, strconv.FormatBool(input.Recursive))
+	}
+	res, err := rb.
 		Request(ctx, http.MethodPost, bytes.NewReader(in), cli.roundTripper(http.StatusOK))
 	if err != nil {
 		return nil, err
@@ -1113,6 +1122,7 @@ func (bkt *Bucket) ListObjectVersions(ctx context.Context, input *ListObjectVers
 		WithQuery("prefix", input.Prefix).
 		WithQuery("delimiter", input.Delimiter).
 		WithQuery("key-marker", input.KeyMarker).
+		WithQuery("version-id-marker", input.VersionIDMarker).
 		WithQuery("max-keys", strconv.Itoa(input.MaxKeys)).
 		WithQuery("encoding-type", input.EncodingType).
 		WithQuery("fetch-meta", strconv.FormatBool(input.FetchMeta)).
@@ -1276,6 +1286,7 @@ func (cli *ClientV2) GetFileStatus(ctx context.Context, input *GetFileStatusInpu
 			LastModified: resp.LastModified,
 			Crc32:        resp.Header.Get(HeaderHashCrc32C),
 			Crc64:        strconv.FormatUint(resp.HashCrc64ecma, 10),
+			Etag:         resp.ETag,
 		}, nil
 	}
 

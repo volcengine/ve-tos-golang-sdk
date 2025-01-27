@@ -66,6 +66,47 @@ func TestBucketLifecycle(t *testing.T) {
 
 	getRes, err = client.GetBucketLifecycle(ctx, &tos.GetBucketLifecycleInput{Bucket: bucket})
 	require.NotNil(t, err)
+	nonCurrentDate := time.Date(2099, 11, 31, 0, 0, 0, 0, time.UTC)
+	noCurrentVersionExpiration := time.Date(2099, 12, 31, 0, 0, 0, 0, time.UTC)
+	rule = tos.LifecycleRule{
+		ID:     "1",
+		Prefix: "test",
+		Status: enum.LifecycleStatusEnabled,
+		Transitions: []tos.Transition{{
+			Date:         time.Date(2022, 12, 31, 0, 0, 0, 0, time.UTC),
+			StorageClass: enum.StorageClassIa,
+		}},
+		Expiration: &tos.Expiration{
+			Date: time.Date(2023, 12, 31, 0, 0, 0, 0, time.UTC),
+		},
+		NonCurrentVersionTransition: []tos.NonCurrentVersionTransition{{
+			NonCurrentDate: &nonCurrentDate,
+			StorageClass:   enum.StorageClassIa,
+		}},
+		NoCurrentVersionExpiration: &tos.NoCurrentVersionExpiration{NonCurrentDate: &noCurrentVersionExpiration},
+		Tag: []tos.Tag{{
+			Key:   "1",
+			Value: "2",
+		}},
+		Filter: &tos.LifecycleRuleFilter{
+			ObjectSizeGreaterThan:   1000,
+			GreaterThanIncludeEqual: enum.StatusEnabled,
+			ObjectSizeLessThan:      2000,
+			LessThanIncludeEqual:    enum.StatusEnabled,
+		},
+	}
+
+	putRes, err = client.PutBucketLifecycle(ctx, &tos.PutBucketLifecycleInput{
+		Bucket: bucket,
+		Rules:  []tos.LifecycleRule{rule},
+	})
+	require.Nil(t, err)
+	require.NotNil(t, putRes)
+
+	getRes, err = client.GetBucketLifecycle(ctx, &tos.GetBucketLifecycleInput{Bucket: bucket})
+	require.Nil(t, err)
+	require.True(t, len(getRes.Rules) == 1)
+	require.Equal(t, getRes.Rules[0], rule)
 
 }
 

@@ -274,6 +274,67 @@ func cleanBucket(t *testing.T, client *tos.ClientV2, bucket string) {
 	require.Equal(t, http.StatusOK, tos.StatusCode(err))
 }
 
+func cleanHNSBucket(t *testing.T, client *tos.ClientV2, bucket string) {
+	del, err := client.DeleteBucket(context.Background(), &tos.DeleteBucketInput{Bucket: bucket})
+	if err == nil {
+		require.Equal(t, http.StatusNoContent, del.StatusCode)
+		return
+	}
+	if tos.StatusCode(err) == http.StatusNotFound {
+		return
+	}
+	// the bucket is not clean
+	if tos.StatusCode(err) == http.StatusConflict {
+		// delete all multi version objects. Do this first to avoid leaving a delete marker.
+		for {
+			resp, err := client.ListObjectsV2(context.Background(), &tos.ListObjectsV2Input{
+				Bucket:           bucket,
+				ListObjectsInput: tos.ListObjectsInput{Prefix: ""},
+			})
+			require.Nil(t, err)
+			if len(resp.Contents) == 0 && len(resp.CommonPrefixes) == 0 {
+				break
+			}
+			for _, commonPrefix := range resp.CommonPrefixes {
+				_, err = client.DeleteObjectV2(context.Background(), &tos.DeleteObjectV2Input{
+					Bucket:    bucket,
+					Key:       commonPrefix.Prefix,
+					Recursive: true,
+				})
+			}
+
+			for i := len(resp.Contents) - 1; i > -1; i-- {
+				_, err = client.DeleteObjectV2(context.Background(), &tos.DeleteObjectV2Input{
+					Bucket: bucket,
+					Key:    resp.Contents[i].Key,
+				})
+			}
+		}
+
+		listMulti, err := client.ListMultipartUploadsV2(context.Background(), &tos.ListMultipartUploadsV2Input{
+			Bucket: bucket,
+		})
+		require.Nil(t, err)
+		for _, upload := range listMulti.Uploads {
+			abort, err := client.AbortMultipartUpload(context.Background(), &tos.AbortMultipartUploadInput{
+				Bucket:   bucket,
+				Key:      upload.Key,
+				UploadID: upload.UploadID,
+			})
+			require.Nil(t, err)
+			require.Equal(t, 204, abort.StatusCode)
+		}
+		require.Equal(t, http.StatusOK, listMulti.StatusCode)
+		// now, the bucket should be clean
+		del, err = client.DeleteBucket(context.Background(), &tos.DeleteBucketInput{Bucket: bucket})
+		require.Nil(t, err)
+		require.Equal(t, http.StatusNoContent, del.StatusCode)
+		return
+	}
+	// something wrong
+	require.Equal(t, http.StatusOK, tos.StatusCode(err))
+}
+
 func checkBucketMeta(t *testing.T, client *tos.ClientV2, bucket string, expect *tos.HeadBucketOutput) {
 	head, err := client.HeadBucket(context.Background(), &tos.HeadBucketInput{Bucket: bucket})
 	require.Nil(t, err)

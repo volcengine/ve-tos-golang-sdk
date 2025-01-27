@@ -715,7 +715,8 @@ type listedObjectV2 struct {
 }
 
 type ListedCommonPrefix struct {
-	Prefix string `json:"Prefix,omitempty"`
+	Prefix       string     `json:"Prefix,omitempty"`
+	LastModified *time.Time `json:"LastModified,omitempty"`
 }
 
 type listObjectsOutput struct {
@@ -1042,12 +1043,14 @@ type DeleteObjectV2Input struct {
 	Bucket    string
 	Key       string
 	VersionID string `location:"query" locationName:"versionId"`
+	Recursive bool
 }
 
 type DeleteObjectOutput struct {
 	RequestInfo  `json:"-"`
 	DeleteMarker bool   `json:"DeleteMarker,omitempty"`
 	VersionID    string `json:"VersionId,omitempty"`
+	TrashPath    string `json:"TrashPath,omitempty"`
 }
 
 type DeleteObjectV2Output struct {
@@ -1060,9 +1063,10 @@ type ObjectTobeDeleted struct {
 }
 
 type DeleteMultiObjectsInput struct {
-	Bucket  string
-	Objects []ObjectTobeDeleted `json:"Objects,omitempty"`
-	Quiet   bool                `json:"Quiet,omitempty"`
+	Bucket    string
+	Objects   []ObjectTobeDeleted `json:"Objects,omitempty"`
+	Quiet     bool                `json:"Quiet,omitempty"`
+	Recursive bool                `json:"-"`
 }
 
 type Deleted struct {
@@ -1077,6 +1081,7 @@ type DeletedV2 struct {
 	VersionID             string `json:"VersionId,omitempty"`
 	DeleteMarker          bool   `json:"DeleteMarker,omitempty"`
 	DeleteMarkerVersionID string `json:"DeleteMarkerVersionId,omitempty"`
+	TrashPath             string `json:"TrashPath,omitempty"`
 }
 
 type DeleteError struct {
@@ -1247,9 +1252,10 @@ type CreateMultipartUploadV2Input struct {
 }
 
 type RenameObjectInput struct {
-	Bucket string
-	Key    string
-	NewKey string `location:"query" locationName:"name"`
+	Bucket         string
+	Key            string
+	NewKey         string `location:"query" locationName:"name"`
+	RecursiveMkdir bool   `location:"header" locationName:"X-Tos-Recursive-Mkdir"`
 }
 
 type RenameObjectOutput struct {
@@ -1615,11 +1621,13 @@ type Tag struct {
 }
 
 type NoCurrentVersionExpiration struct {
-	NoCurrentDays int `json:"NoncurrentDays,omitempty"`
+	NoCurrentDays  int        `json:"NoncurrentDays,omitempty"`
+	NonCurrentDate *time.Time `json:"NoncurrentDate,omitempty"`
 }
 
 type NonCurrentVersionTransition struct {
 	NonCurrentDays int                   `json:"NoncurrentDays,omitempty"`
+	NonCurrentDate *time.Time            `json:"NoncurrentDate,omitempty"`
 	StorageClass   enum.StorageClassType `json:"StorageClass,omitempty"`
 }
 
@@ -2472,6 +2480,7 @@ type GetFileStatusOutput struct {
 	LastModified time.Time
 	Crc32        string
 	Crc64        string
+	Etag         string
 }
 
 type PutSymlinkInput struct {
@@ -2536,4 +2545,30 @@ type RateLimiter interface {
 	// Acquire try to get a token.
 	// If ok, caller can read want bytes, else wait timeToWait and try again.
 	Acquire(want int64) (ok bool, timeToWait time.Duration)
+}
+
+type PutQosPolicyInput struct {
+	AccountID string
+	Policy    string
+}
+
+type PutQosPolicyOutput struct {
+	RequestInfo
+}
+
+type GetQosPolicyInput struct {
+	AccountID string
+}
+
+type GetQosPolicyOutput struct {
+	RequestInfo
+	Policy string
+}
+
+type DeleteQosPolicyInput struct {
+	AccountID string
+}
+
+type DeleteQosPolicyOutput struct {
+	RequestInfo
 }

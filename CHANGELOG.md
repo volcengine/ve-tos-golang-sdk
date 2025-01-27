@@ -1,4 +1,8 @@
 # ChangeLog of TOS SDK for Go
+## 版本号 v2.7.9 日期：2025-01-27
+- 支持 QOS Policy 配置
+- 支持 HNS 桶相关参数
+
 ## 版本号 v2.7.8 日期：2024-11-20
 - ListObject V1 接口支持 CRC64
 - 修复 Restore ExpiryDate 时间错误
