@@ -7,7 +7,7 @@ import (
 
 const (
 	// Version tos-go-sdk version
-	Version = "v2.7.8"
+	Version = "v2.7.9"
 )
 
 const TempFileSuffix = ".temp"
@@ -41,6 +41,16 @@ func SupportedRegion() map[string]string {
 		"cn-shanghai":    "tos-cn-shanghai.volces.com",
 		"cn-beijing2":    "tos-cn-beijing2.volces.com",
 		"ap-southeast-1": "tos-ap-southeast-1.volces.com",
+	}
+}
+
+func SupportedControlRegion() map[string]string {
+	return map[string]string{
+		"cn-beijing":     "tos-control-cn-beijing.volces.com",
+		"cn-guangzhou":   "tos-control-cn-guangzhou.volces.com",
+		"cn-shanghai":    "tos-control-cn-shanghai.volces.com",
+		"cn-beijing2":    "tos-control-cn-beijing2.volces.com",
+		"ap-southeast-1": "tos-control-ap-southeast-1.volces.com",
 	}
 }
 
@@ -104,6 +114,7 @@ const (
 )
 const (
 	QueryPartNumber = "partNumber"
+	QueryRecursive  = "recursive"
 )
 const (
 	HeaderUserAgent                    = "User-Agent"
@@ -178,4 +189,5 @@ const (
 	HeaderSymlinkTargetBucket          = "X-Tos-Symlink-Bucket"
 	HeaderTosExpiration                = "X-Tos-Expiration"
 	HeaderTaggingCount                 = "X-Tos-Tagging-Count"
+	HeaderTrashPath                    = "X-Tos-Trash-Path"
 )

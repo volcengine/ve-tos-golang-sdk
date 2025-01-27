@@ -55,6 +55,8 @@ type Client struct {
 	host                       string
 	urlMode                    urlMode
 	userAgent                  string
+	controlEndpoint            string
+	controlScheme              string
 	credentials                Credentials // nullable
 	signer                     Signer      // nullable
 	transport                  Transport
@@ -132,6 +134,15 @@ func (cli *ClientV2) SetHTTPTransport(transport http.RoundTripper) {
 }
 
 type ClientOption func(*Client)
+
+// WithControlEndpoint set control endpoint
+func WithControlEndpoint(controlEndpoint string) ClientOption {
+	return func(client *Client) {
+		scheme, host, _ := schemeHost(controlEndpoint)
+		client.controlEndpoint = host
+		client.controlScheme = scheme
+	}
+}
 
 // WithCredentials set Credentials
 //
@@ -364,6 +375,14 @@ func initClient(client *Client, endpoint string, options ...ClientOption) error 
 			client.config.Region = region
 		}
 	}
+
+	if len(client.controlEndpoint) == 0 {
+		if controlEndpoint, ok := SupportedControlRegion()[client.config.Region]; ok {
+			client.controlEndpoint = controlEndpoint
+			client.controlScheme = "https"
+		}
+	}
+
 	if client.transport == nil {
 		transport := NewDefaultTransport(&client.config.TransportConfig)
 		transport.WithDefaultTransportLogger(client.logger)
@@ -471,6 +490,25 @@ func (cli *Client) newBuilder(bucket, object string, options ...Option) *request
 	if typ := cli.recognizer.ContentType(object); len(typ) > 0 {
 		rb.Header.Set(HeaderContentType, typ)
 	}
+	for _, option := range options {
+		option(rb)
+	}
+	rb.Retry = cli.retry
+	return rb
+}
+
+func (cli *Client) newControlBuilder(accountId string, options ...Option) *requestBuilder {
+	rb := &requestBuilder{
+		Signer:     cli.signer,
+		Scheme:     cli.controlScheme,
+		Host:       accountId + "." + cli.controlEndpoint,
+		AccountID:  accountId,
+		Query:      make(url.Values),
+		Header:     make(http.Header),
+		OnRetry:    func(req *Request) error { return nil },
+		Classifier: StatusCodeClassifier{},
+	}
+	rb.Header.Set(HeaderUserAgent, cli.userAgent)
 	for _, option := range options {
 		option(rb)
 	}

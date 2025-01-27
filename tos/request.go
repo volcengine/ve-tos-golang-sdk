@@ -96,6 +96,7 @@ type requestBuilder struct {
 	DisableEncodingMeta bool
 	RequestDate         time.Time
 	RequestHost         string
+	AccountID           string
 	// CheckETag  bool
 	// CheckCRC32 bool
 }
@@ -294,6 +295,22 @@ func (rb *requestBuilder) Build(method string, content io.Reader) *Request {
 	return req
 }
 
+func (rb *requestBuilder) BuildControl(method string, content io.Reader) *Request {
+	req := rb.build(method, content)
+	if rb.CopySource != nil {
+		versionID := req.Query.Get("versionId")
+		req.Query.Del("versionId")
+		req.Header.Add(HeaderCopySource, copySource(rb.CopySource.srcBucket, rb.CopySource.srcObjectKey, versionID))
+	}
+	if rb.Signer != nil {
+		signed := rb.Signer.SignHeader(req)
+		for key, values := range signed {
+			req.Header[key] = values
+		}
+	}
+	return req
+}
+
 type roundTripper func(ctx context.Context, req *Request) (*Response, error)
 
 func (rb *requestBuilder) SetGeneric(input GenericInput) *requestBuilder {
@@ -318,6 +335,72 @@ func (rb *requestBuilder) Request(ctx context.Context, method string,
 	retryAfterSec := int64(-1)
 
 	req = rb.Build(method, content)
+
+	if rb.Retry != nil {
+		work := func(retryCount int) (retrySec int64, err error) {
+			if retryCount > 0 {
+				req.Header.Set("x-sdk-retry-count", "attempt="+strconv.Itoa(retryCount)+"; max="+strconv.Itoa(len(rb.Retry.backoff)))
+				err = rb.OnRetry(req)
+				if err != nil {
+					return -1, err
+				}
+			}
+			res, err = roundTripper(ctx, req)
+			if res != nil {
+				if retryAfter := res.Header.Get("Retry-After"); retryAfter != "" {
+					retryAfterInt, ierr := strconv.ParseInt(retryAfter, 10, 64)
+					if ierr == nil {
+						retryAfterSec = retryAfterInt
+					}
+				}
+			}
+			return retryAfterSec, err
+		}
+		err = rb.Retry.Run(ctx, work, rb.Classifier)
+		if err != nil {
+			return nil, err
+		}
+		return res, err
+	}
+	res, err = roundTripper(ctx, req)
+	return res, err
+}
+
+func (rb *requestBuilder) RequestControl(ctx context.Context, method string,
+	content io.Reader, path string, roundTripper roundTripper) (*Response, error) {
+
+	var (
+		res *Response
+		err error
+	)
+	retryAfterSec := int64(-1)
+
+	req := &Request{
+		Scheme:      rb.Scheme,
+		Method:      method,
+		Host:        rb.Host,
+		Path:        path,
+		Content:     content,
+		Query:       rb.Query,
+		Header:      rb.Header,
+		RequestHost: rb.RequestHost,
+		RequestDate: rb.RequestDate,
+	}
+	if rb.AccountID == "" {
+		return nil, newTosClientError("Control endpoint account id is empty.", nil)
+	}
+
+	if rb.Host == "" {
+		return nil, newTosClientError("Control endpoint host is empty.", nil)
+	}
+	req.Header.Set("x-tos-account-id", rb.AccountID)
+
+	if rb.Signer != nil {
+		signed := rb.Signer.SignHeader(req)
+		for key, values := range signed {
+			req.Header[key] = values
+		}
+	}
 
 	if rb.Retry != nil {
 		work := func(retryCount int) (retrySec int64, err error) {

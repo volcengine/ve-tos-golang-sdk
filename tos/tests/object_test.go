@@ -2516,6 +2516,7 @@ func TestGetFileStatus(t *testing.T) {
 	resp, err = client.GetFileStatus(ctx, &tos.GetFileStatusInput{Bucket: bucket, Key: key})
 	require.Nil(t, err)
 	assert.Equal(t, resp.Key, key)
+	assert.True(t, resp.Etag != "")
 
 	resp, err = client.GetFileStatus(ctx, &tos.GetFileStatusInput{Bucket: bucket, Key: key, GenericInput: tos.GenericInput{
 		RequestDate: time.Now().Add(-1 * time.Hour * 24),
