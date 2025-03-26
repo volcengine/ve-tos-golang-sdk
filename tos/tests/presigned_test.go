@@ -89,50 +89,54 @@ func TestPreSignedURL(t *testing.T) {
 	res, err := client.Do(req)
 	require.Nil(t, err)
 	require.Equal(t, 200, res.StatusCode)
-	// put object
-	url, err = cli.PreSignedURL(&tos.PreSignedURLInput{
-		HTTPMethod: http.MethodPut,
-		Bucket:     bucket,
-		Key:        "put-key",
-	})
-	require.Nil(t, err)
-	req, _ = http.NewRequest(http.MethodPut, url.SignedUrl, strings.NewReader(randomString(4096)))
-	res, err = client.Do(req)
-	require.Nil(t, err)
-	require.Equal(t, 200, res.StatusCode)
-	// head object
-	url, err = cli.PreSignedURL(&tos.PreSignedURLInput{
-		HTTPMethod: http.MethodHead,
-		Bucket:     bucket,
-		Key:        "put-key",
-	})
-	require.Nil(t, err)
-	req, _ = http.NewRequest(http.MethodHead, url.SignedUrl, nil)
-	res, err = client.Do(req)
-	require.Nil(t, err)
-	require.Equal(t, 200, res.StatusCode)
-	// get object
-	url, err = cli.PreSignedURL(&tos.PreSignedURLInput{
-		HTTPMethod: http.MethodGet,
-		Bucket:     bucket,
-		Key:        "put-key",
-	})
-	require.Nil(t, err)
-	req, _ = http.NewRequest(http.MethodGet, url.SignedUrl, nil)
-	res, err = client.Do(req)
-	require.Nil(t, err)
-	require.Equal(t, 200, res.StatusCode)
-	// delete object
-	url, err = cli.PreSignedURL(&tos.PreSignedURLInput{
-		HTTPMethod: http.MethodDelete,
-		Bucket:     bucket,
-		Key:        "put-key",
-	})
-	require.Nil(t, err)
-	req, _ = http.NewRequest(http.MethodDelete, url.SignedUrl, nil)
-	res, err = client.Do(req)
-	require.Nil(t, err)
-	require.Equal(t, 204, res.StatusCode)
+
+	for _, key := range []string{"/test01/!-_.*'()", "/test02/&$@=;+    ,?", "/test03/\\t\\n\\r\\b\\f\\007", "/test04/\\uD83D\\uDE0A?/\\uD83D\\uDE2D文本", "/test05/[\\\\{^}%`~<>#|]\\\"", "./test06/./test", "../test07/../test", "/test08/.", "/test09/..", "/test10///.."} {
+		// put object
+		url, err = cli.PreSignedURL(&tos.PreSignedURLInput{
+			HTTPMethod: http.MethodPut,
+			Bucket:     bucket,
+			Key:        key,
+		})
+		require.Nil(t, err)
+		req, _ = http.NewRequest(http.MethodPut, url.SignedUrl, strings.NewReader(randomString(4096)))
+		res, err = client.Do(req)
+		require.Nil(t, err)
+		require.Equal(t, 200, res.StatusCode)
+		// head object
+		url, err = cli.PreSignedURL(&tos.PreSignedURLInput{
+			HTTPMethod: http.MethodHead,
+			Bucket:     bucket,
+			Key:        key,
+		})
+		require.Nil(t, err)
+		req, _ = http.NewRequest(http.MethodHead, url.SignedUrl, nil)
+		res, err = client.Do(req)
+		require.Nil(t, err)
+		require.Equal(t, 200, res.StatusCode)
+		// get object
+		url, err = cli.PreSignedURL(&tos.PreSignedURLInput{
+			HTTPMethod: http.MethodGet,
+			Bucket:     bucket,
+			Key:        key,
+		})
+		require.Nil(t, err)
+		req, _ = http.NewRequest(http.MethodGet, url.SignedUrl, nil)
+		res, err = client.Do(req)
+		require.Nil(t, err)
+		require.Equal(t, 200, res.StatusCode)
+		// delete object
+		url, err = cli.PreSignedURL(&tos.PreSignedURLInput{
+			HTTPMethod: http.MethodDelete,
+			Bucket:     bucket,
+			Key:        key,
+		})
+		require.Nil(t, err)
+		req, _ = http.NewRequest(http.MethodDelete, url.SignedUrl, nil)
+		res, err = client.Do(req)
+		require.Nil(t, err)
+		require.Equal(t, 204, res.StatusCode)
+	}
+
 	// create multipart upload
 	url, err = cli.PreSignedURL(&tos.PreSignedURLInput{
 		HTTPMethod: http.MethodPost,
