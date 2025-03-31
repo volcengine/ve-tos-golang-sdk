@@ -669,7 +669,8 @@ type ListedObject struct {
 	Type          string   `json:"Type,omitempty"`
 	Meta          Metadata `json:"UserMeta,omitempty"`
 	HashCrc64ecma uint64   `json:"HashCrc64Ecma,omitempty"`
-	ObjectType    string   `json:"Type,omitempty"`
+	// Deprecated: ues Type instead
+	ObjectType string `json:"-"`
 }
 
 type listedObject struct {
@@ -682,7 +683,8 @@ type listedObject struct {
 	Type          string     `json:"Type,omitempty"`
 	Meta          []userMeta `json:"UserMeta,omitempty"`
 	HashCrc64ecma string     `json:"HashCrc64Ecma,omitempty"`
-	ObjectType    string     `json:"Type,omitempty"`
+	// Deprecated: ues Type instead
+	ObjectType string `json:"-"`
 }
 
 type ListedObjectV2 struct {
@@ -805,18 +807,19 @@ type ListObjectVersionsV2Input struct {
 }
 
 type ListedObjectVersion struct {
-	ETag          string   `json:"ETag,omitempty"`
-	IsLatest      bool     `json:"IsLatest,omitempty"`
-	Key           string   `json:"Key,omitempty"`
-	LastModified  string   `json:"LastModified,omitempty"`
-	Owner         Owner    `json:"Owner,omitempty"`
-	Size          int64    `json:"Size,omitempty"`
-	StorageClass  string   `json:"StorageClass,omitempty"`
-	Type          string   `json:"Type,omitempty"`
-	VersionID     string   `json:"VersionId,omitempty"`
-	Meta          Metadata `json:"UserMeta,omitempty"`
-	ObjectType    string   `json:"Type,omitempty"`
-	HashCrc64ecma uint64   `json:"HashCrc64Ecma,omitempty"`
+	ETag         string   `json:"ETag,omitempty"`
+	IsLatest     bool     `json:"IsLatest,omitempty"`
+	Key          string   `json:"Key,omitempty"`
+	LastModified string   `json:"LastModified,omitempty"`
+	Owner        Owner    `json:"Owner,omitempty"`
+	Size         int64    `json:"Size,omitempty"`
+	StorageClass string   `json:"StorageClass,omitempty"`
+	Type         string   `json:"Type,omitempty"`
+	VersionID    string   `json:"VersionId,omitempty"`
+	Meta         Metadata `json:"UserMeta,omitempty"`
+
+	HashCrc64ecma uint64 `json:"HashCrc64Ecma,omitempty"`
+	ObjectType    string `json:"-"`
 }
 
 type listedObjectVersionV2 struct {
@@ -908,8 +911,9 @@ type listedObjectVersion struct {
 	Type          string     `json:"Type,omitempty"`
 	VersionID     string     `json:"VersionId,omitempty"`
 	Meta          []userMeta `json:"UserMeta,omitempty"`
-	ObjectType    string     `json:"Type,omitempty"`
 	HashCrc64ecma string     `json:"HashCrc64Ecma,omitempty"`
+	// Deprecated: ues Type instead
+	ObjectType string `json:"-"`
 }
 
 type listObjectVersionsOutput struct {

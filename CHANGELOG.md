@@ -1,4 +1,7 @@
 # ChangeLog of TOS SDK for Go
+## 版本号 v2.7.11 日期：2025-03-25
+- 修复 V1 版本 ListObject/ListVersion ObjectType 空值问题
+
 ## 版本号 v2.7.10 日期：2025-03-25
 - 支持深度冷归档存储类型
 

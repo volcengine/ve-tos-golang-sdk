@@ -947,7 +947,7 @@ func (bkt *Bucket) ListObjects(ctx context.Context, input *ListObjectsInput, opt
 			Type:          content.Type,
 			Meta:          parseUserMetaData(content.Meta),
 			HashCrc64ecma: hashCrc,
-			ObjectType:    content.ObjectType,
+			ObjectType:    content.Type,
 		})
 	}
 	output.Contents = contents
@@ -1179,7 +1179,7 @@ func (bkt *Bucket) ListObjectVersions(ctx context.Context, input *ListObjectVers
 			Type:          content.Type,
 			VersionID:     content.VersionID,
 			Meta:          parseUserMetaData(content.Meta),
-			ObjectType:    content.ObjectType,
+			ObjectType:    content.Type,
 			HashCrc64ecma: hashCrc,
 		})
 	}

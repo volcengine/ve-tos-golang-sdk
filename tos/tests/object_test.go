@@ -981,6 +981,55 @@ func TestAppend(t *testing.T) {
 		Key:    key,
 	})
 	checkSuccess(t, get, err, 200)
+
+	resp, err := client.ListObjectsV2(context.Background(), &tos.ListObjectsV2Input{
+		Bucket: bucket,
+		ListObjectsInput: tos.ListObjectsInput{
+			Prefix: key,
+		},
+	})
+	require.Nil(t, err)
+	require.Equal(t, 1, len(resp.Contents))
+	require.True(t, resp.Contents[0].ObjectType == "Appendable")
+
+	type2, err := client.ListObjectsType2(context.Background(), &tos.ListObjectsType2Input{
+		Bucket: bucket,
+		Prefix: key,
+	})
+	require.Nil(t, err)
+	require.Equal(t, 1, len(type2.Contents))
+	require.True(t, type2.Contents[0].ObjectType == "Appendable")
+
+	ov, err := client.ListObjectVersionsV2(context.Background(), &tos.ListObjectVersionsV2Input{
+		Bucket: bucket,
+		ListObjectVersionsInput: tos.ListObjectVersionsInput{
+			Prefix: key,
+		},
+	})
+	require.Nil(t, err)
+	require.Equal(t, 1, len(ov.Versions))
+	require.True(t, ov.Versions[0].ObjectType == "Appendable")
+
+	clientV1, err := tos.NewClient(env.endpoint, tos.WithRegion(env.region), tos.WithCredentials(tos.NewStaticCredentials(env.accessKey, env.secretKey)))
+	require.Nil(t, err)
+	bkt, err := clientV1.Bucket(bucket)
+	require.Nil(t, err)
+	l1, err := bkt.ListObjects(context.Background(), &tos.ListObjectsInput{
+		Prefix: key,
+	})
+	require.Nil(t, err)
+	require.Equal(t, 1, len(l1.Contents))
+	require.True(t, l1.Contents[0].ObjectType == "Appendable")
+	require.True(t, l1.Contents[0].Type == "Appendable")
+
+	v1, err := bkt.ListObjectVersions(context.Background(), &tos.ListObjectVersionsInput{
+		Prefix: key,
+	})
+	require.Nil(t, err)
+	require.Equal(t, 1, len(v1.Versions))
+	require.True(t, v1.Versions[0].ObjectType == "Appendable")
+	require.True(t, v1.Versions[0].Type == "Appendable")
+
 	buffer, err := ioutil.ReadAll(get.Content)
 	require.Equal(t, md5s(value1), md5s(string(buffer)))
 	for k, v := range meta {
