@@ -2,11 +2,13 @@ package tests
 
 import (
 	"context"
-	"github.com/stretchr/testify/require"
-	"github.com/volcengine/ve-tos-golang-sdk/v2/tos"
 	"net/http"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/require"
+
+	"github.com/volcengine/ve-tos-golang-sdk/v2/tos"
 )
 
 func TestParseOutput(t *testing.T) {
@@ -49,7 +51,7 @@ func TestParseOutput(t *testing.T) {
 	// build policy url
 	operatorSw := "starts-with"
 	operatorEq := "eq"
-	output, err := cli.PreSignedPolicyURL(ctx, &tos.PreSingedPolicyURLInput{
+	output, err := cli.PreSignedPolicyURL(ctx, &tos.PreSignedPolicyURLInput{
 		Bucket:  bucket,
 		Expires: 1000,
 		Conditions: []tos.PolicySignatureCondition{{

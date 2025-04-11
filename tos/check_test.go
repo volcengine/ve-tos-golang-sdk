@@ -7,10 +7,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/require"
 	"golang.org/x/text/encoding/simplifiedchinese"
 	"golang.org/x/text/transform"
-
-	"github.com/stretchr/testify/require"
 )
 
 func TestIsValidBucketName(t *testing.T) {
