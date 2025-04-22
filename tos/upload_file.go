@@ -2,6 +2,7 @@ package tos
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -389,6 +390,7 @@ func (cli *ClientV2) uploadPart(ctx context.Context, checkpoint *uploadCheckpoin
 		if err := abort(); err != nil {
 			return nil, err
 		}
+		fmt.Println("upload file failed,", taskErr.Error())
 		return nil, taskErr
 	}
 	// handle results

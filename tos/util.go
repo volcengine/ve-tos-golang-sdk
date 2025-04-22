@@ -85,6 +85,7 @@ Loop:
 			}
 			t.postEvent.PostEvent(EventPartFailed, nil, taskErr)
 			failNum++
+			return 0, taskErr
 		}
 	}
 	return successNum, nil
