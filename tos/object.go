@@ -110,8 +110,10 @@ func (cli *ClientV2) GetObjectV2(ctx context.Context, input *GetObjectV2Input) (
 	}
 	rb := cli.newBuilder(input.Bucket, input.Key).
 		WithParams(*input).WithRetry(nil, StatusCodeClassifier{})
+	isRange := false
 	if input.Range != "" {
 		rb.WithHeader(HeaderRange, input.Range)
+		isRange = true
 	} else if input.RangeEnd != 0 || input.RangeStart != 0 {
 		if input.RangeEnd < input.RangeStart {
 			return nil, errors.New("tos: invalid range")
@@ -119,6 +121,11 @@ func (cli *ClientV2) GetObjectV2(ctx context.Context, input *GetObjectV2Input) (
 		// set rb.Range will change expected code
 		rb.Range = &Range{Start: input.RangeStart, End: input.RangeEnd}
 		rb.WithHeader(HeaderRange, rb.Range.String())
+		isRange = true
+	}
+	if isRange && input.ResponseContentEncoding == "" && !cli.disableTrailerHeader {
+		rb.WithHeader(HeaderTosTrailer, "x-tos-hash-range-crc64ecma")
+		rb.WithHeader(HeaderAcceptEncoding, "tos-raw-trailer")
 	}
 	res, err := rb.Request(ctx, http.MethodGet, nil, cli.roundTripperWithSlowLog(expectedCode(rb)))
 	if err != nil {
@@ -135,11 +142,14 @@ func (cli *ClientV2) GetObjectV2(ctx context.Context, input *GetObjectV2Input) (
 	if res.StatusCode == http.StatusOK && cli.enableCRC {
 		serverCrc = basic.HashCrc64ecma
 		checker = NewCRC(DefaultCrcTable(), 0)
-
+	}
+	body := res.Body
+	if isRange && res.Header.Get(HeaderRawContentLength) != "" && res.Header.Get(HeaderContentEncoding) != "" && !cli.disableTrailerHeader {
+		body = newChunkReader(body, basic.ContentLength)
 	}
 	output := GetObjectV2Output{
 		GetObjectBasicOutput: basic,
-		Content:              wrapReader(res.Body, res.ContentLength, input.DataTransferListener, input.RateLimiter, &crcChecker{checker: checker, serverCrc: serverCrc}),
+		Content:              wrapReader(body, basic.ContentLength, input.DataTransferListener, input.RateLimiter, &crcChecker{checker: checker, serverCrc: serverCrc}),
 	}
 	return &output, nil
 }
@@ -615,6 +625,7 @@ func (cli *ClientV2) PutObjectV2(ctx context.Context, input *PutObjectV2Input) (
 	rb := cli.newBuilder(input.Bucket, input.Key).
 		WithContentLength(contentLength).
 		WithParams(*input).
+		WithEnableTrailer(input.ContentMD5 == "" && !cli.disableTrailerHeader).
 		WithRetry(onRetry, classifier)
 
 	cli.setExpectHeader(rb, contentLength)

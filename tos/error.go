@@ -310,7 +310,11 @@ func (classifier StatusCodeClassifier) Classify(err error) retryAction {
 		if e.StatusCode >= 500 || e.StatusCode == 429 {
 			return Retry
 		}
+		if e.StatusCode == 400 && e.EC == "0005-00000044" {
+			return Retry
+		}
 	}
+
 	cErr, ok := err.(*TosClientError)
 	if ok {
 		_, ok = cErr.Cause.(interface{ Timeout() bool })

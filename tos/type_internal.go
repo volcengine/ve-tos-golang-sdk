@@ -2,6 +2,7 @@ package tos
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"hash"
@@ -733,6 +734,16 @@ type readCloserWithCRC struct {
 	base      io.ReadCloser
 }
 
+func (c *readCloserWithCRC) GetValue() (string, error) {
+	sum := c.checker.Sum(nil)
+	sum64 := make([]byte, c.GetLength())
+	base64.StdEncoding.Encode(sum64, sum)
+	return string(sum64), nil
+}
+
+func (c *readCloserWithCRC) GetLength() int64 {
+	return int64(base64.StdEncoding.EncodedLen(crc64.Size))
+}
 func (r *readCloserWithCRC) Seek(offset int64, whence int) (int64, error) {
 	seeker, ok := r.base.(io.Seeker)
 	if !ok {

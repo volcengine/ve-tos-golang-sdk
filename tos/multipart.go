@@ -165,6 +165,9 @@ func (bkt *Bucket) UploadPart(ctx context.Context, input *UploadPartInput, optio
 
 // UploadPartV2 upload a part for a multipart upload operation
 func (cli *ClientV2) UploadPartV2(ctx context.Context, input *UploadPartV2Input) (*UploadPartV2Output, error) {
+	if input == nil {
+		return nil, InputInvalidClientError
+	}
 	if err := isValidNames(input.Bucket, input.Key, cli.isCustomDomain); err != nil {
 		return nil, err
 	}
@@ -177,10 +180,6 @@ func (cli *ClientV2) UploadPartV2(ctx context.Context, input *UploadPartV2Input)
 		content       = input.Content
 		contentLength = input.ContentLength
 	)
-
-	if input == nil {
-		return nil, InputInvalidClientError
-	}
 
 	if input.PartNumber == 0 {
 		return nil, InvalidPartNumber
@@ -234,6 +233,7 @@ func (cli *ClientV2) UploadPartV2(ctx context.Context, input *UploadPartV2Input)
 	rb := cli.newBuilder(input.Bucket, input.Key).
 		WithParams(*input).
 		WithContentLength(input.ContentLength).
+		WithEnableTrailer(input.ContentMD5 == "" && !cli.disableTrailerHeader).
 		WithRetry(onRetry, cf)
 	cli.setExpectHeader(rb, contentLength)
 	res, err := rb.Request(ctx, http.MethodPut, content, cli.roundTripperWithSlowLog(http.StatusOK))

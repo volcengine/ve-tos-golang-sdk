@@ -69,6 +69,7 @@ type Client struct {
 	disableEncodingMeta        bool
 	except100ContinueThreshold int64
 	baseClient                 *baseClient
+	disableTrailerHeader       bool
 }
 
 // ClientV2 TOS ClientV2
@@ -171,6 +172,14 @@ func WithEnableVerifySSL(enable bool) ClientOption {
 func WithRequestTimeout(timeout time.Duration) ClientOption {
 	return func(client *Client) {
 		client.config.TransportConfig.ResponseHeaderTimeout = timeout
+
+	}
+}
+
+// WithRequestTimeout set timeout for single http request
+func WithDisableTrailerHeader(disableTrailerHeader bool) ClientOption {
+	return func(client *Client) {
+		client.disableTrailerHeader = disableTrailerHeader
 
 	}
 }
@@ -414,6 +423,7 @@ func NewClient(endpoint string, options ...ClientOption) (*Client, error) {
 		userAgent:                  fmt.Sprintf("ve-tos-go-sdk/%s (%s/%s;%s)", Version, runtime.GOOS, runtime.GOARCH, runtime.Version()),
 		retry:                      newRetryer([]time.Duration{}),
 		except100ContinueThreshold: enum.DefaultExcept100ContinueThreshold,
+		disableTrailerHeader:       true,
 	}
 	client.retry.SetJitter(0.25)
 	err := initClient(&client, endpoint, options...)
@@ -459,6 +469,7 @@ func NewClientV2(endpoint string, options ...ClientOption) (*ClientV2, error) {
 			userAgent:                  fmt.Sprintf("ve-tos-go-sdk/%s (%s/%s;%s)", Version, runtime.GOOS, runtime.GOARCH, runtime.Version()),
 			enableCRC:                  true,
 			except100ContinueThreshold: enum.DefaultExcept100ContinueThreshold,
+			disableTrailerHeader:       true,
 		},
 		bucketTypeCache: &sync.Map{},
 	}
