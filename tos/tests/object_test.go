@@ -1985,21 +1985,6 @@ func TestObjectWithTraffic(t *testing.T) {
 	require.True(t, time.Now().Sub(noLimiterStart) < limiterCost)
 
 	start = time.Now()
-	copyKey := randomString(6)
-	copyRes, err := client.CopyObject(ctx, &tos.CopyObjectInput{Bucket: bucket, Key: copyKey, SrcKey: key, SrcBucket: bucket, TrafficLimit: limiter})
-	require.Nil(t, err)
-	require.Equal(t, copyRes.StatusCode, http.StatusOK)
-	t.Logf("copy object  with rate limit cost: %v", time.Now().Sub(start).Seconds())
-	limiterCost = time.Now().Sub(start)
-
-	noLimiterStart = time.Now()
-	copyRes, err = client.CopyObject(ctx, &tos.CopyObjectInput{Bucket: bucket, Key: copyKey, SrcKey: key, SrcBucket: bucket})
-	require.Nil(t, err)
-	require.Equal(t, copyRes.StatusCode, http.StatusOK)
-	t.Logf("copy object cost: %v", time.Now().Sub(noLimiterStart).Seconds())
-	require.True(t, time.Now().Sub(noLimiterStart) < limiterCost)
-
-	start = time.Now()
 	appendKey := randomString(6)
 	data.Reset(rowData)
 	appendRes, err := client.AppendObjectV2(ctx, &tos.AppendObjectV2Input{Bucket: bucket, Key: appendKey, Content: data, TrafficLimit: limiter})

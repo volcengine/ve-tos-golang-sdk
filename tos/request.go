@@ -41,6 +41,8 @@ type Request struct {
 	enableSlowLog bool
 	RequestDate   time.Time // 不为空时，代表本次请求 Header 中指定的 X-Tos-Date 头域（转换为 UTC 时间），包含签名时和发送时
 	RequestHost   string    // 不为空时，代表本次请求 Header 中指定的 Host 头域，仅影响签名和发送请求时的 Host 头域，实际建立仍使用 Endpoint
+	rawContent    io.Reader
+	rawContentLen *int64
 }
 
 func (req *Request) URL() string {
@@ -97,10 +99,15 @@ type requestBuilder struct {
 	RequestDate         time.Time
 	RequestHost         string
 	AccountID           string
+	enableTrailerHeader bool
 	// CheckETag  bool
 	// CheckCRC32 bool
 }
 
+func (rb *requestBuilder) WithEnableTrailer(enable bool) *requestBuilder {
+	rb.enableTrailerHeader = enable
+	return rb
+}
 func (rb *requestBuilder) WithRetry(onRetry func(req *Request) error, classifier classifier) *requestBuilder {
 	if onRetry == nil {
 		rb.OnRetry = func(req *Request) error { return nil }
@@ -267,6 +274,7 @@ func (rb *requestBuilder) build(method string, content io.Reader) *Request {
 		Header:      rb.Header,
 		RequestHost: rb.RequestHost,
 		RequestDate: rb.RequestDate,
+		rawContent:  content,
 	}
 
 	if content != nil {
@@ -276,22 +284,56 @@ func (rb *requestBuilder) build(method string, content io.Reader) *Request {
 			req.ContentLength = &length
 		}
 	}
+	req.rawContentLen = req.ContentLength
 	return req
 }
 
-func (rb *requestBuilder) Build(method string, content io.Reader) *Request {
-	req := rb.build(method, content)
-	if rb.CopySource != nil {
-		versionID := req.Query.Get("versionId")
-		req.Query.Del("versionId")
-		req.Header.Add(HeaderCopySource, copySource(rb.CopySource.srcBucket, rb.CopySource.srcObjectKey, versionID))
-	}
+func (rb *requestBuilder) buildSign(req *Request) {
 	if rb.Signer != nil {
 		signed := rb.Signer.SignHeader(req)
 		for key, values := range signed {
 			req.Header[key] = values
 		}
 	}
+}
+func (rb *requestBuilder) buildTrailers(req *Request) {
+	ioCloser := req.Content.(io.ReadCloser)
+	c := &readCloserWithCRC{checker: NewCRC(DefaultCrcTable(), 0), base: ioCloser}
+	body := io.TeeReader(req.Content, c.checker)
+	chunkReader := newTosChunkEncodingReader(*req.ContentLength, map[string]trailerValue{tosChecksumCrc64Header: c}, body)
+	body = chunkReader.body
+	if req.ContentLength != nil && *req.ContentLength != -1 {
+		length := chunkReader.getLength()
+		req.ContentLength = &length
+	}
+
+	for k, vals := range chunkReader.getHttpHeader() {
+		if k == "Content-Encoding" {
+			ce := req.Header.Values(k)
+			ce = append(vals, ce...)
+			req.Header[k] = []string{strings.Join(ce, ",")}
+		} else {
+			for _, v := range vals {
+				req.Header.Add(k, v)
+			}
+		}
+
+	}
+	req.Content = body
+}
+
+func (rb *requestBuilder) Build(method string, content io.Reader) *Request {
+	req := rb.build(method, content)
+	if rb.enableTrailerHeader {
+		rb.buildTrailers(req)
+	}
+
+	if rb.CopySource != nil {
+		versionID := req.Query.Get("versionId")
+		req.Query.Del("versionId")
+		req.Header.Add(HeaderCopySource, copySource(rb.CopySource.srcBucket, rb.CopySource.srcObjectKey, versionID))
+	}
+	rb.buildSign(req)
 	return req
 }
 
@@ -406,10 +448,15 @@ func (rb *requestBuilder) RequestControl(ctx context.Context, method string,
 		work := func(retryCount int) (retrySec int64, err error) {
 			if retryCount > 0 {
 				req.Header.Set("x-sdk-retry-count", "attempt="+strconv.Itoa(retryCount)+"; max="+strconv.Itoa(len(rb.Retry.backoff)))
+				req.Content = req.rawContent
+				req.ContentLength = req.rawContentLen
+				req.Header.Del(v4Date)
 				err = rb.OnRetry(req)
 				if err != nil {
 					return -1, err
 				}
+				rb.buildTrailers(req)
+				rb.buildSign(req)
 			}
 			res, err = roundTripper(ctx, req)
 			if res != nil {

@@ -3,9 +3,8 @@ package tos
 import (
 	"bytes"
 	"context"
-	"net/http"
-
 	"github.com/volcengine/ve-tos-golang-sdk/v2/tos/enum"
+	"net/http"
 )
 
 // Bucket create a Bucket handle
@@ -260,6 +259,28 @@ func (cli *ClientV2) GetBucketVersioning(ctx context.Context, input *GetBucketVe
 	}
 	defer res.Close()
 	output := GetBucketVersioningOutputV2{RequestInfo: res.RequestInfo()}
+	if err = marshalOutput(res, &output); err != nil {
+		return nil, err
+	}
+	return &output, nil
+}
+
+func (cli *ClientV2) GetBucketInfo(ctx context.Context, input *GetBucketInfoInput) (*GetBucketInfoOutput, error) {
+	if input == nil {
+		return nil, InputIsNilClientError
+	}
+	if err := isValidBucketName(input.Bucket, cli.isCustomDomain); err != nil {
+		return nil, err
+	}
+	res, err := cli.newBuilder(input.Bucket, "").
+		WithQuery("bucketInfo", "").
+		WithRetry(nil, StatusCodeClassifier{}).
+		Request(ctx, http.MethodGet, nil, cli.roundTripper(http.StatusOK))
+	if err != nil {
+		return nil, err
+	}
+	defer res.Close()
+	output := GetBucketInfoOutput{RequestInfo: res.RequestInfo()}
 	if err = marshalOutput(res, &output); err != nil {
 		return nil, err
 	}

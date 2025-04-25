@@ -72,6 +72,12 @@ func TestReplication(t *testing.T) {
 	require.Equal(t, getOut.Rules[0].Destination, rule1.Destination)
 	t.Log("GetBucketReplication Request ID:", getOut.RequestID)
 
+	infoResp, err := client.GetBucketInfo(ctx, &tos.GetBucketInfoInput{
+		Bucket: bucket,
+	})
+	require.Nil(t, err)
+	require.Equal(t, infoResp.Bucket.CrossRegionReplication, enum.StatusEnabled)
+
 	output, err := client.DeleteBucketReplication(ctx, &tos.DeleteBucketReplicationInput{Bucket: bucket})
 	require.Nil(t, err)
 	t.Log("DeleteBucketReplication Request ID:", output.RequestID)

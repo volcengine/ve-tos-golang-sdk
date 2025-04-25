@@ -192,7 +192,7 @@ func (om *ObjectMetaV2) fromResponseV2(res *Response, disableEncodingMeta bool) 
 		contentDisposition = res.Header.Get(HeaderContentDisposition)
 	}
 	om.ContentDisposition = contentDisposition
-	om.ContentEncoding = res.Header.Get(HeaderContentEncoding)
+	om.ContentEncoding = strings.TrimPrefix(res.Header.Get(HeaderContentEncoding), "tos-raw-trailer,")
 	om.ContentLanguage = res.Header.Get(HeaderContentLanguage)
 	om.Expires = expires
 	om.ServerSideEncryption = res.Header.Get(HeaderServerSideEncryption)
@@ -205,6 +205,12 @@ func (om *ObjectMetaV2) fromResponseV2(res *Response, disableEncodingMeta bool) 
 	if taggingCountHeader := res.Header.Get(HeaderTaggingCount); taggingCountHeader != "" {
 		taggingCount, _ := strconv.ParseInt(taggingCountHeader, 10, 64)
 		om.TaggingCount = taggingCount
+	}
+	if res.Header.Get(HeaderRawContentLength) != "" {
+		length, err := strconv.ParseInt(res.Header.Get(HeaderRawContentLength), 10, 64)
+		if err == nil {
+			om.ContentLength = length
+		}
 	}
 }
 

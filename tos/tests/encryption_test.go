@@ -31,6 +31,11 @@ func TestEncryption(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, getResp.Rule.ApplyServerSideEncryptionByDefault.SSEAlgorithm, "AES256")
 
+	infoResp, err := client.GetBucketInfo(ctx, &tos.GetBucketInfoInput{Bucket: bucket})
+	require.Nil(t, err)
+	require.NotNil(t, infoResp)
+	require.Equal(t, infoResp.Bucket.ServerSideEncryptionConfiguration.Rule.ApplyServerSideEncryptionByDefault.SSEAlgorithm, "AES256")
+
 	_, err = client.DeleteBucketEncryption(ctx, &tos.DeleteBucketEncryptionInput{Bucket: bucket})
 	require.NoError(t, err)
 

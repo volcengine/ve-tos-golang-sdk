@@ -7,7 +7,7 @@ import (
 
 const (
 	// Version tos-go-sdk version
-	Version = "v2.7.11"
+	Version = "v2.7.12"
 )
 
 const TempFileSuffix = ".temp"
@@ -183,6 +183,8 @@ const (
 	HeaderBucketType                   = "X-Tos-Bucket-Type"
 	HeaderDirectory                    = "X-Tos-Directory"
 	HeaderTOSEC                        = "X-Tos-Ec"
+	HeaderTosTrailer                   = "X-Tos-Trailer"
+	HeaderAcceptEncoding               = "Accept-Encoding"
 	HeaderExpect                       = "Expect"
 	HeaderSymlinkTargetSize            = "X-Tos-Symlink-Target-Size"
 	HeaderSymlinkTarget                = "X-Tos-Symlink-Target"
@@ -190,4 +192,5 @@ const (
 	HeaderTosExpiration                = "X-Tos-Expiration"
 	HeaderTaggingCount                 = "X-Tos-Tagging-Count"
 	HeaderTrashPath                    = "X-Tos-Trash-Path"
+	HeaderRawContentLength             = "X-Tos-Raw-Content-Length"
 )

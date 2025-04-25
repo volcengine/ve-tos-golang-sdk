@@ -2576,3 +2576,35 @@ type DeleteQosPolicyInput struct {
 type DeleteQosPolicyOutput struct {
 	RequestInfo
 }
+
+type GetBucketInfoInput struct {
+	Bucket string
+}
+type GetBucketInfoOutput struct {
+	RequestInfo
+	Bucket BucketInfo `json:"Bucket"`
+}
+
+type BucketInfo struct {
+	Name                              string                            `json:"Name"`
+	Owner                             Owner                             `json:"Owner"`
+	CreationDate                      time.Time                         `json:"CreationDate"`
+	StorageClass                      enum.StorageClassType             `json:"StorageClass"`
+	ProjectName                       string                            `json:"ProjectName"`
+	Type                              enum.BucketType                   `json:"Type"`
+	Location                          string                            `json:"Location"`
+	AzRedundancy                      enum.AzRedundancyType             `json:"AzRedundancy"`
+	ExtranetEndpoint                  string                            `json:"ExtranetEndpoint"`
+	IntranetEndpoint                  string                            `json:"IntranetEndpoint"`
+	ExtranetS3Endpoint                string                            `json:"ExtranetS3Endpoint"`
+	IntranetS3Endpoint                string                            `json:"IntranetS3Endpoint"`
+	Versioning                        string                            `json:"Versioning"`
+	CrossRegionReplication            enum.StatusType                   `json:"CrossRegionReplication"`
+	TransferAcceleration              enum.StatusType                   `json:"TransferAcceleration"`
+	AccessMonitor                     enum.StatusType                   `json:"AccessMonitor"`
+	ServerSideEncryptionConfiguration ServerSideEncryptionConfiguration `json:"ServerSideEncryptionConfiguration"`
+}
+
+type ServerSideEncryptionConfiguration struct {
+	Rule BucketEncryptionRule `json:"Rule"`
+}

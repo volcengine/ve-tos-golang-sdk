@@ -346,6 +346,11 @@ func TestEnableBucketVersion(t *testing.T) {
 	t.Log(getoutput.RequestID)
 	require.Equal(t, getoutput.Status, enum.VersioningStatusEnable)
 
+	infoResp, err := client.GetBucketInfo(ctx, &tos.GetBucketInfoInput{
+		Bucket: bucket,
+	})
+	require.Nil(t, err)
+	require.Equal(t, infoResp.Bucket.Versioning, string(enum.StatusEnabled))
 	output, err = client.PutBucketVersioning(ctx, &tos.PutBucketVersioningInput{
 		Bucket: bucket,
 		Status: enum.VersioningStatusSuspended,

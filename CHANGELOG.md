@@ -1,4 +1,8 @@
 # ChangeLog of TOS SDK for Go
+## 版本号 v2.7.12 日期：2025-04-21
+- 支持上传下载使用 Trailer Header 签名算法
+- 增加 bucket info 接口
+
 ## 版本号 v2.7.11 日期：2025-03-25
 - 修复 V1 版本 ListObject/ListVersion ObjectType 空值问题
 
