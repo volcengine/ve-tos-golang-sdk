@@ -3,11 +3,13 @@ package tests
 import (
 	"context"
 	"fmt"
-	"github.com/stretchr/testify/require"
-	"github.com/volcengine/ve-tos-golang-sdk/v2/tos"
 	"net/http"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/require"
+
+	"github.com/volcengine/ve-tos-golang-sdk/v2/tos"
 )
 
 func TestListObjWithMeta(t *testing.T) {

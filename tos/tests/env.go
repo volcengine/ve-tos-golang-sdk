@@ -7,6 +7,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
+
 	"github.com/volcengine/ve-tos-golang-sdk/v2/tos"
 )
 
