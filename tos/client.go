@@ -131,7 +131,7 @@ func (cli *ClientV2) Close() {
 }
 
 func (cli *ClientV2) SetHTTPTransport(transport http.RoundTripper) {
-	cli.transport = newDefaultTranposrtWithHTTPTransport(transport)
+	cli.transport = newDefaultTransportWithHTTPTransport(transport)
 }
 
 type ClientOption func(*Client)
@@ -279,7 +279,7 @@ func WithTransport(transport Transport) ClientOption {
 // WithHTTPTransport set Transport of http.Client
 func WithHTTPTransport(transport http.RoundTripper) ClientOption {
 	return func(client *Client) {
-		client.transport = newDefaultTranposrtWithHTTPTransport(transport)
+		client.transport = newDefaultTransportWithHTTPTransport(transport)
 	}
 }
 
