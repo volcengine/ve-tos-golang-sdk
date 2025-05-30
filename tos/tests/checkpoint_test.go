@@ -3,7 +3,9 @@ package tests
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
+	"github.com/stretchr/testify/require"
 	"hash"
 	"hash/crc64"
 	"io"
@@ -13,8 +15,6 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
-
-	"github.com/stretchr/testify/require"
 
 	"github.com/volcengine/ve-tos-golang-sdk/v2/tos"
 	"github.com/volcengine/ve-tos-golang-sdk/v2/tos/enum"
@@ -209,15 +209,29 @@ func getCrc(value []byte) uint64 {
 	return checker.Sum64()
 }
 
+type uploadPartInfo struct {
+	uploadID      *string // should not be marshaled
+	PartNumber    int     `json:"PartNumber"`
+	PartSize      int64   `json:"PartSize"`
+	Offset        uint64  `json:"Offset"`
+	ETag          string  `json:"ETag,omitempty"`
+	HashCrc64ecma uint64  `json:"HashCrc64Ecma,omitempty"`
+	IsCompleted   bool    `json:"IsCompleted"`
+}
+type uploadCheckpoint struct {
+	PartsInfo []uploadPartInfo `json:"PartsInfo,omitempty"`
+}
+
 func TestUploadFileCancelHook(t *testing.T) {
 	var (
-		env      = newTestEnv(t)
-		bucket   = generateBucketName("upload-file-cancel-hook")
-		key      = "key123"
-		value1   = randomString(22 * 1024 * 1024)
-		md5sum   = md5s(value1)
-		client   = env.prepareClient(bucket, LongTimeOutClientOption...)
-		fileName = randomString(16) + ".file"
+		env            = newTestEnv(t)
+		bucket         = generateBucketName("upload-file-cancel-hook")
+		key            = "key123"
+		value1         = randomString(32 * 1024 * 1024)
+		md5sum         = md5s(value1)
+		client         = env.prepareClient(bucket, LongTimeOutClientOption...)
+		fileName       = randomString(16) + ".file"
+		checkpointName = fileName + ".checkpoint"
 	)
 	defer func() {
 		cleanBucket(t, client, bucket)
@@ -238,9 +252,10 @@ func TestUploadFileCancelHook(t *testing.T) {
 		},
 		FilePath:         fileName,
 		PartSize:         5 * 1024 * 1024,
-		TaskNum:          4,
+		TaskNum:          2,
 		EnableCheckpoint: true,
 		CancelHook:       hook,
+		CheckpointFile:   checkpointName,
 	}
 	listener := &uploadFileListenerTest{
 		count:   0,
@@ -256,9 +271,51 @@ func TestUploadFileCancelHook(t *testing.T) {
 	require.Nil(t, err)
 	require.True(t, listener.count >= 2)
 
+	fileReader, err := os.Open(checkpointName)
+	require.Nil(t, err)
+	checkpointData, err := ioutil.ReadAll(fileReader)
+	require.Nil(t, err)
+	uc := &uploadCheckpoint{}
+	err = json.Unmarshal(checkpointData, uc)
+	require.Nil(t, err)
+	finishCount := 0
+	for _, v := range uc.PartsInfo {
+		if v.IsCompleted {
+			finishCount++
+		}
+	}
+	require.True(t, finishCount >= 2)
+
+	input.CancelHook = tos.NewCancelHook()
+	listener = &uploadFileListenerTest{
+		count:   0,
+		cancel:  input.CancelHook,
+		maxTime: 2,
+	}
+	input.UploadEventListener = listener
+	d := &dataTransferListenerTest{}
+	input.DataTransferListener = d
+	upload, err = client.UploadFile(context.Background(), input)
+	require.Nil(t, upload)
+	require.NotNil(t, err)
+	fileReader, err = os.Open(checkpointName)
+	require.Nil(t, err)
+	checkpointData, err = ioutil.ReadAll(fileReader)
+	require.Nil(t, err)
+	uc = &uploadCheckpoint{}
+	err = json.Unmarshal(checkpointData, uc)
+	require.Nil(t, err)
+	finishCount = 0
+	for _, v := range uc.PartsInfo {
+		if v.IsCompleted {
+			finishCount++
+		}
+	}
+	require.True(t, finishCount >= 4)
+
 	input.CancelHook = tos.NewCancelHook()
 	listener.maxTime = 3
-	d := &dataTransferListenerTest{}
+	d = &dataTransferListenerTest{}
 	input.DataTransferListener = d
 	upload, err = client.UploadFile(context.Background(), input)
 	require.Nil(t, err)

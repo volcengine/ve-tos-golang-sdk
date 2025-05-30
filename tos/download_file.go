@@ -24,6 +24,7 @@ func getDownloadCheckpoint(input *DownloadFileInput, init func(input *HeadObject
 
 	checkpoint = &downloadCheckpoint{}
 	loadCheckPoint(checkpointPath, checkpoint)
+	checkpoint.checkpointPath = checkpointPath
 	if checkpoint.Valid(input, output) {
 		return
 	}

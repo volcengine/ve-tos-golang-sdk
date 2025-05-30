@@ -21,6 +21,7 @@ func loadExistCopyCheckPoint(ctx context.Context, cli *ClientV2, input *Resumabl
 	checkpoint := &copyObjectCheckpoint{}
 	var err error
 	loadCheckPoint(input.CheckpointFile, checkpoint)
+	checkpoint.CheckpointPath = input.CheckpointFile
 	if checkpoint.Valid(input, headOutput) {
 		return checkpoint, true
 	} else if checkpoint.Bucket != "" && checkpoint.Key != "" && checkpoint.UploadID != "" {
