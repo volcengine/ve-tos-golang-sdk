@@ -1,4 +1,8 @@
 # ChangeLog of TOS SDK for Go
+## 版本号 v2.7.13 日期：2025-05-28
+- 修复 UploadFile 非首次续传 checkpoint path 错误
+
+
 ## 版本号 v2.7.12 日期：2025-04-21
 - 支持上传下载使用 Trailer Header 签名算法
 - 增加 bucket info 接口

@@ -110,6 +110,7 @@ func loadExistUploadCheckPoint(ctx context.Context, cli *ClientV2, input *Upload
 	checkpoint := &uploadCheckpoint{}
 	var err error
 	loadCheckPoint(input.CheckpointFile, checkpoint)
+	checkpoint.checkpointPath = input.CheckpointFile
 	if checkpoint.Valid(srcFile, input.Bucket, input.Key, input.FilePath) {
 		return checkpoint, true
 	} else if checkpoint.Bucket != "" && checkpoint.Key != "" && checkpoint.UploadID != "" {
