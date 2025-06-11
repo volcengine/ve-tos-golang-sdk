@@ -137,6 +137,12 @@ const (
 	LifecycleStatusDisabled StatusType = "Disabled"
 )
 
+const ObjectLockEnabled StatusType = StatusEnabled
+
+type RetentionMode string
+
+const RetentionModeCompliance RetentionMode = "COMPLIANCE"
+
 type RedirectType string
 
 const (
