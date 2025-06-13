@@ -207,6 +207,16 @@ type FetchObjectInputV2 struct {
 
 	// Deprecated: use content md5 instead
 	HexMD5 string
+	GenericInput
+}
+
+type fetchObjectOutputV2 struct {
+	RequestInfo
+	VersionID     string `json:"VersionId,omitempty"`
+	Etag          string `json:"Etag,omitempty"`
+	SSECAlgorithm string `json:"SSECAlgorithm,omitempty"`
+	SSECKeyMD5    string `json:"SSECKeyMD5,omitempty"`
+	Error
 }
 
 type FetchObjectOutputV2 struct {
@@ -491,6 +501,7 @@ type PutObjectBasicInput struct {
 type PutObjectV2Input struct {
 	PutObjectBasicInput
 	Content io.Reader
+	GenericInput
 }
 
 type PutObjectV2Output struct {
@@ -610,6 +621,7 @@ type SetObjectMetaInput struct {
 	ObjectExpires      int64     `location:"header" locationName:"X-Tos-Object-Expires"`
 
 	Meta map[string]string `location:"headers"`
+	GenericInput
 }
 
 type SetObjectMetaOutput struct {
@@ -993,6 +1005,7 @@ type GetObjectV2Input struct {
 	RateLimiter          RateLimiter
 	// Deprecated Not Use
 	PartNumber int
+	GenericInput
 }
 
 type GetObjectBasicOutput struct {
@@ -1028,6 +1041,7 @@ type HeadObjectV2Input struct {
 	SSECAlgorithm string `location:"header" locationName:"X-Tos-Server-Side-Encryption-Customer-Algorithm"`
 	SSECKey       string `location:"header" locationName:"X-Tos-Server-Side-Encryption-Customer-Key"`
 	SSECKeyMD5    string `location:"header" locationName:"X-Tos-Server-Side-Encryption-Customer-Key-MD5"`
+	GenericInput
 }
 
 type HeadObjectOutput struct {
@@ -1048,6 +1062,7 @@ type DeleteObjectV2Input struct {
 	Key       string
 	VersionID string `location:"query" locationName:"versionId"`
 	Recursive bool
+	GenericInput
 }
 
 type DeleteObjectOutput struct {
@@ -2467,8 +2482,10 @@ type RestoreJobParameters struct {
 }
 
 type GenericInput struct {
-	RequestDate time.Time // 不为空时，代表本次请求 Header 中指定的 X-Tos-Date 头域（转换为 UTC 时间），包含签名时和发送时
-	RequestHost string    // 不为空时，代表本次请求 Header 中指定的 Host 头域，仅影响签名和发送请求时的 Host 头域，实际建立仍使用 Endpoint
+	RequestDate   time.Time // 不为空时，代表本次请求 Header 中指定的 X-Tos-Date 头域（转换为 UTC 时间），包含签名时和发送时
+	RequestHost   string    // 不为空时，代表本次请求 Header 中指定的 Host 头域，仅影响签名和发送请求时的 Host 头域，实际建立仍使用 Endpoint
+	RequestHeader map[string]string
+	RequestQuery  map[string]string
 }
 
 type GetFileStatusInput struct {

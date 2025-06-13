@@ -1,4 +1,8 @@
 # ChangeLog of TOS SDK for Go
+## 版本号 v2.7.15 日期：2025-06-10
+- 支持 PutObject 和 GetObject 接口支持自定义 Header
+- FetchObject 优化错误处理
+
 ## 版本号 v2.7.14 日期：2025-06-10
 - 支持 PutBucketObjectLock 和 GetBucketObjectLock 接口
 

@@ -759,6 +759,9 @@ func (r *readCloserWithCRC) Seek(offset int64, whence int) (int64, error) {
 
 func (r *readCloserWithCRC) Read(p []byte) (n int, err error) {
 	n, err = r.base.Read(p)
+	if err != nil && err != io.EOF {
+		return n, err
+	}
 	if n > 0 {
 		if n, err = r.checker.Write(p[:n]); err != nil {
 			return n, err

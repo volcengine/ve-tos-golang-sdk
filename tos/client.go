@@ -698,6 +698,7 @@ func (cli *ClientV2) FetchObjectV2(ctx context.Context, input *FetchObjectInputV
 	}
 
 	res, err := cli.newBuilder(input.Bucket, input.Key).
+		SetGeneric(input.GenericInput).
 		WithQuery("fetch", "").
 		WithHeader(HeaderContentMD5, contentMD5).
 		WithParams(*input).
@@ -707,9 +708,25 @@ func (cli *ClientV2) FetchObjectV2(ctx context.Context, input *FetchObjectInputV
 		return nil, err
 	}
 	defer res.Close()
-	output := FetchObjectOutputV2{RequestInfo: res.RequestInfo()}
-	if err = marshalOutput(res, &output); err != nil {
+	marshalOut := fetchObjectOutputV2{RequestInfo: res.RequestInfo()}
+	if err = marshalOutput(res, &marshalOut); err != nil {
 		return nil, err
+	}
+
+	if marshalOut.Etag == "" {
+		return nil, &TosServerError{
+			TosError:    newTosErr(marshalOut.Message, res.RequestUrl, marshalOut.EC, res.RequestInfo().RequestID),
+			RequestInfo: res.RequestInfo(),
+			Code:        marshalOut.Code,
+			HostID:      marshalOut.HostID,
+			Resource:    marshalOut.Resource,
+			EC:          marshalOut.EC,
+		}
+	}
+
+	output := FetchObjectOutputV2{
+		RequestInfo: res.RequestInfo(),
+		Etag:        marshalOut.Etag,
 	}
 
 	output.VersionID = res.Header.Get(HeaderVersionID)

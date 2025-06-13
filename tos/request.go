@@ -29,6 +29,17 @@ const (
 	contentDispositionSep = ";"
 )
 
+var IgnoreHeader = []string{
+	HeaderContentLength,
+	"Host",
+	"Connection",
+	v4Date,
+	HeaderRange,
+	"Transfer-Encoding",
+	authorization,
+	"Date",
+}
+
 type Request struct {
 	Scheme        string
 	Method        string
@@ -131,7 +142,7 @@ func (rb *requestBuilder) WithCopySource(srcBucket, srcObjectKey string) *reques
 }
 
 func (rb *requestBuilder) WithQuery(key, value string) *requestBuilder {
-	rb.Query.Add(key, value)
+	rb.Query.Set(key, value)
 	return rb
 }
 
@@ -361,8 +372,19 @@ func (rb *requestBuilder) SetGeneric(input GenericInput) *requestBuilder {
 	}
 	if input.RequestHost != "" {
 		rb.RequestHost = input.RequestHost
-
 	}
+
+	for key, value := range input.RequestHeader {
+		if ContainsIgnoreCase(IgnoreHeader, key) {
+			continue
+		}
+		rb.Header.Set(key, value)
+	}
+
+	for key, value := range input.RequestQuery {
+		rb.Query.Set(key, value)
+	}
+
 	return rb
 }
 
@@ -536,7 +558,7 @@ func marshalOutput(res *Response, output interface{}) error {
 	data, err := ioutil.ReadAll(reader)
 	if err != nil {
 		return &TosServerError{
-			TosError:    newTosErr("tos: unmarshal response body failed.", requestURL, ecCode, requestID),
+			TosError:    newTosErr(fmt.Sprintf("tos: read body err:%s", err.Error()), requestURL, ecCode, requestID),
 			RequestInfo: RequestInfo{RequestID: requestID},
 		}
 	}
