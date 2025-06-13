@@ -109,6 +109,7 @@ func (cli *ClientV2) GetObjectV2(ctx context.Context, input *GetObjectV2Input) (
 		return nil, err
 	}
 	rb := cli.newBuilder(input.Bucket, input.Key).
+		SetGeneric(input.GenericInput).
 		WithParams(*input).WithRetry(nil, StatusCodeClassifier{})
 	isRange := false
 	if input.Range != "" {
@@ -194,6 +195,7 @@ func (cli *ClientV2) HeadObjectV2(ctx context.Context, input *HeadObjectV2Input)
 	}
 
 	rb := cli.newBuilder(input.Bucket, input.Key).
+		SetGeneric(input.GenericInput).
 		WithParams(*input).
 		WithRetry(nil, StatusCodeClassifier{})
 	res, err := rb.Request(ctx, http.MethodHead, nil, cli.roundTripper(expectedCode(rb)))
@@ -252,6 +254,7 @@ func (cli *ClientV2) DeleteObjectV2(ctx context.Context, input *DeleteObjectV2In
 		return nil, err
 	}
 	reqBuilder := cli.newBuilder(input.Bucket, input.Key).
+		SetGeneric(input.GenericInput).
 		WithParams(*input).
 		WithRetry(nil, StatusCodeClassifier{})
 	if input.Recursive {
@@ -623,6 +626,7 @@ func (cli *ClientV2) PutObjectV2(ctx context.Context, input *PutObjectV2Input) (
 	}
 
 	rb := cli.newBuilder(input.Bucket, input.Key).
+		SetGeneric(input.GenericInput).
 		WithContentLength(contentLength).
 		WithParams(*input).
 		WithEnableTrailer(input.ContentMD5 == "" && !cli.disableTrailerHeader).
@@ -887,6 +891,7 @@ func (cli *ClientV2) SetObjectMeta(ctx context.Context, input *SetObjectMetaInpu
 	}
 
 	res, err := cli.newBuilder(input.Bucket, input.Key).
+		SetGeneric(input.GenericInput).
 		WithQuery("metadata", "").
 		WithParams(*input).
 		WithRetry(nil, StatusCodeClassifier{}).
@@ -1300,11 +1305,10 @@ func (cli *ClientV2) GetFileStatus(ctx context.Context, input *GetFileStatusInpu
 			Etag:         resp.ETag,
 		}, nil
 	}
-
 	res, err := cli.newBuilder(input.Bucket, input.Key).
+		SetGeneric(input.GenericInput).
 		WithQuery("stat", "").
 		WithRetry(nil, StatusCodeClassifier{}).
-		SetGeneric(input.GenericInput).
 		Request(ctx, http.MethodGet, nil, cli.roundTripper(http.StatusOK))
 	if err != nil {
 		return nil, err

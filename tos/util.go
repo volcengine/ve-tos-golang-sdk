@@ -3,6 +3,7 @@ package tos
 import (
 	"fmt"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -164,4 +165,14 @@ func ToMillis(t time.Time) int64 {
 
 func StringPtr(input string) *string {
 	return &input
+}
+
+func ContainsIgnoreCase(arr []string, target string) bool {
+	lowerTarget := strings.ToLower(target)
+	for _, str := range arr {
+		if strings.ToLower(str) == lowerTarget {
+			return true
+		}
+	}
+	return false
 }
