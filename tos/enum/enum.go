@@ -234,3 +234,23 @@ const (
 	TaggingDirectiveCopy    TaggingDirectiveType = "Copy"
 	TaggingDirectiveReplace TaggingDirectiveType = "Replace"
 )
+
+type InventoryFrequencyType string
+
+const (
+	InventoryFrequencyTypeDaily  InventoryFrequencyType = "Daily"
+	InventoryFrequencyTypeWeekly InventoryFrequencyType = "Weekly"
+)
+
+type InventoryFormatType string
+
+const (
+	InventoryFormatCsv InventoryFormatType = "CSV"
+)
+
+type InventoryIncludedObjType string
+
+const (
+	InventoryIncludedObjTypeAll     InventoryIncludedObjType = "All"
+	InventoryIncludedObjTypeCurrent InventoryIncludedObjType = "Current"
+)

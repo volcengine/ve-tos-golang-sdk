@@ -167,6 +167,54 @@ func TestNotificationType2Func(t *testing.T) {
 	require.Equal(t, len(getOutput.Rules[0].Events), len(input.Rules[0].Events))
 	require.Equal(t, getOutput.Rules[0].RuleID, input.Rules[0].RuleID)
 	require.Equal(t, getOutput.Rules[0].Filter, input.Rules[0].Filter)
-	require.Equal(t, getOutput.Rules[0].Destination, input.Rules[0].Destination)
+	require.Equal(t, getOutput.Rules[0].Destination.VeFaaS, input.Rules[0].Destination.VeFaaS)
+	require.Equal(t, getOutput.Rules[0].Destination.RocketMQ, input.Rules[0].Destination.RocketMQ)
 
+}
+
+func TestNotificationType2Kafka(t *testing.T) {
+	var (
+		env    = newTestEnv(t)
+		bucket = generateBucketName("notification-kafka")
+		client = env.prepareClient(bucket)
+	)
+	defer func() {
+		cleanBucket(t, client, bucket)
+	}()
+	ctx := context.Background()
+
+	input := &tos.PutBucketNotificationType2Input{
+		Bucket: bucket,
+		Rules: []tos.NotificationRule{{
+			RuleID: "TestCreatePrefixSuffix",
+			Events: []string{"tos:ObjectCreated:Post", "tos:ObjectCreated:Origin"},
+			Filter: tos.NotificationFilter{TOSKey: tos.NotificationFilterKey{FilterRules: []tos.NotificationFilterRule{{
+				Name:  "prefix",
+				Value: "test-",
+			}, {
+				Name:  "suffix",
+				Value: "-ci",
+			}}}},
+			Destination: tos.NotificationDestination{Kafka: []tos.DestinationKafka{
+				{
+					Role:     fmt.Sprintf("trn:iam::%s:role/%s", env.accountId, env.mqRoleName),
+					Instance: "kafka-cnoe0ddbmxnf1etd",
+					Topic:    "SDK",
+					User:     env.accountId,
+					Region:   env.region,
+				},
+			}},
+		}}}
+
+	resp, err := client.PutBucketNotificationType2(ctx, input)
+	require.Nil(t, err)
+	require.NotNil(t, resp)
+	getOutput, err := client.GetBucketNotificationType2(ctx, &tos.GetBucketNotificationType2Input{Bucket: bucket})
+	require.Nil(t, err)
+	require.NotNil(t, getOutput)
+	require.Equal(t, len(getOutput.Rules), len(input.Rules))
+	require.Equal(t, len(getOutput.Rules[0].Events), len(input.Rules[0].Events))
+	require.Equal(t, getOutput.Rules[0].RuleID, input.Rules[0].RuleID)
+	require.Equal(t, getOutput.Rules[0].Filter, input.Rules[0].Filter)
+	require.Equal(t, getOutput.Rules[0].Destination.Kafka, input.Rules[0].Destination.Kafka)
 }

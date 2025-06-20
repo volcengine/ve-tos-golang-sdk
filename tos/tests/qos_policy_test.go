@@ -43,7 +43,7 @@ func TestQosPolicy(t *testing.T) {
 		Statement: []TestStatement{{
 			Sid: "gosdk-qospolicy-123",
 			Quota: TestQuota{
-				WritesQps:  "10",
+				WritesQps:  "100",
 				WritesRate: "10000",
 			},
 			Principal: []string{"trn:iam::*"},
@@ -69,4 +69,7 @@ func TestQosPolicy(t *testing.T) {
 	require.Equal(t, tmpQosPolicy.Statement[0].Quota.WritesQps, resQospolicy.Statement[0].Quota.WritesQps)
 	_, err = cli.DeleteQosPolicy(ctx, &tos.DeleteQosPolicyInput{AccountID: env.accountId})
 	require.Nil(t, err)
+
+	qosOut, err = cli.GetQosPolicy(ctx, &tos.GetQosPolicyInput{AccountID: env.accountId})
+	require.NotNil(t, err)
 }

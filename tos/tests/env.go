@@ -24,6 +24,7 @@ type testEnv struct {
 	mqAccessKeyID   string
 	callbackUrl     string
 	controlEndpoint string
+	kafkaEndpoint   string
 	t               *testing.T
 }
 
@@ -42,6 +43,7 @@ func newTestEnv(t *testing.T) *testEnv {
 		mqAccessKeyID:   os.Getenv("TOS_GO_SDK_MQ_ACCESSKEY_ID"),
 		callbackUrl:     os.Getenv("TOS_GO_SDK_CALLBACK_URL"),
 		controlEndpoint: os.Getenv("TOS_GO_SDK_CONTROL_ENDPOINT"),
+		kafkaEndpoint:   os.Getenv("TOS_GO_SDK_KAFKA_ENDPOINT"),
 		t:               t,
 	}
 }

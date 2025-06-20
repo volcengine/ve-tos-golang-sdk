@@ -2060,8 +2060,16 @@ type NotificationFilterRule struct {
 type NotificationDestination struct {
 	RocketMQ []DestinationRocketMQ `json:"RocketMQ"`
 	VeFaaS   []DestinationVeFaaS   `json:"VeFaaS"`
+	Kafka    []DestinationKafka    `json:"Kafka"`
 }
 
+type DestinationKafka struct {
+	Role     string `json:"Role"`
+	Instance string `json:"InstanceId"`
+	Topic    string `json:"Topic"`
+	User     string `json:"User"`
+	Region   string `json:"Region"`
+}
 type DestinationRocketMQ struct {
 	Role        string `json:"Role"`
 	InstanceID  string `json:"InstanceId"`
@@ -2624,4 +2632,86 @@ type BucketInfo struct {
 
 type ServerSideEncryptionConfiguration struct {
 	Rule BucketEncryptionRule `json:"Rule"`
+}
+
+type PutBucketInventoryInput struct {
+	Bucket                 string                        `json:"-"`
+	ID                     string                        `json:"Id"`
+	IsEnabled              bool                          `json:"IsEnabled"`
+	Filter                 *InventoryFilter              `json:"Filter,omitempty"`
+	Destination            *InventoryDestination         `json:"Destination,omitempty"`
+	Schedule               *InventorySchedule            `json:"Schedule,omitempty"`
+	IncludedObjectVersions enum.InventoryIncludedObjType `json:"IncludedObjectVersions"`
+	OptionalFields         *InventoryOptionalFields      `json:"OptionalFields,omitempty"`
+	IsUnCompressed         bool                          `json:"IsUnCompressed"`
+}
+
+type InventoryFilter struct {
+	Prefix string `json:"Prefix"`
+}
+
+type InventoryDestination struct {
+	TOSBucketDestination *TOSBucketDestination `json:"TOSBucketDestination,omitempty"`
+}
+
+type TOSBucketDestination struct {
+	Format    enum.InventoryFormatType `json:"Format"`
+	AccountID string                   `json:"AccountID"`
+	Role      string                   `json:"Role"`
+	Bucket    string                   `json:"Bucket"`
+	Prefix    string                   `json:"Prefix"`
+}
+
+type InventorySchedule struct {
+	Frequency enum.InventoryFrequencyType `json:"Frequency,omitempty"`
+}
+
+type InventoryOptionalFields struct {
+	Field []string `json:"Field,omitempty"`
+}
+
+type PutBucketInventoryOutput struct {
+	RequestInfo
+}
+
+type GetBucketInventoryInput struct {
+	Bucket string // required
+	ID     string // required
+}
+
+type GetBucketInventoryOutput struct {
+	RequestInfo
+	BucketInventoryConfiguration
+}
+
+type BucketInventoryConfiguration struct {
+	ID                     string                        `json:"Id"`
+	IsEnabled              bool                          `json:"IsEnabled"`
+	Filter                 *InventoryFilter              `json:"Filter,omitempty"`
+	Destination            *InventoryDestination         `json:"Destination,omitempty"`
+	Schedule               *InventorySchedule            `json:"Schedule,omitempty"`
+	IncludedObjectVersions enum.InventoryIncludedObjType `json:"IncludedObjectVersions"`
+	OptionalFields         *InventoryOptionalFields      `json:"OptionalFields,omitempty"`
+	IsUnCompressed         bool                          `json:"IsUnCompressed"`
+}
+
+type ListBucketInventoryInput struct {
+	Bucket            string // required
+	ContinuationToken string
+}
+
+type ListBucketInventoryOutput struct {
+	RequestInfo
+	Configurations        []BucketInventoryConfiguration `json:"InventoryConfigurations,omitempty"`
+	IsTruncated           bool                           `json:"IsTruncated,omitempty"`
+	NextContinuationToken string                         `json:"NextContinuationToken,omitempty"`
+}
+
+type DeleteBucketInventoryInput struct {
+	Bucket string // required
+	ID     string // required
+}
+
+type DeleteBucketInventoryOutput struct {
+	RequestInfo
 }
