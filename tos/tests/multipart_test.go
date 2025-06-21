@@ -306,7 +306,9 @@ func TestAbortMultipartUpload(t *testing.T) {
 		key    = "key-test-create-multipart-upload"
 		client = env.prepareClient(bucket)
 	)
-	defer func() {}()
+	defer func() {
+		cleanBucket(t, client, bucket)
+	}()
 	upload1, err := client.CreateMultipartUploadV2(context.Background(), &tos.CreateMultipartUploadV2Input{
 		Bucket: bucket,
 		Key:    key,

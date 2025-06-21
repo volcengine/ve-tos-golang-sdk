@@ -58,6 +58,9 @@ func TestSetObjectMetaV2Version(t *testing.T) {
 		contentType = "application/x-www-form-urlencoded"
 		ctx         = context.Background()
 	)
+	defer func() {
+		cleanBucket(t, client, bucket)
+	}()
 	enableMultiVersion(t, client, bucket)
 	res, err := client.PutObjectV2(ctx, &tos.PutObjectV2Input{
 		PutObjectBasicInput: tos.PutObjectBasicInput{Bucket: bucket, Key: key},

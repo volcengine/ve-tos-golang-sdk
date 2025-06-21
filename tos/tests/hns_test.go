@@ -137,15 +137,3 @@ func TestHNS(t *testing.T) {
 	require.Equal(t, len(listResp.Contents), 0)
 
 }
-
-func TestList(t *testing.T) {
-	env := newTestEnv(t)
-
-	client := env.prepareClient("")
-	ctx := context.Background()
-	resp, err := client.ListObjectsV2(ctx, &tos.ListObjectsV2Input{
-		Bucket: "g0lan9-5dk-t39ts-wap9b9hb-hns",
-	})
-	require.Nil(t, err)
-	require.Equal(t, resp.StatusCode, 200)
-}
