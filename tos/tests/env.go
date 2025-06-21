@@ -57,7 +57,7 @@ func (e testEnv) prepareClient(bucketName string, extraOptions ...tos.ClientOpti
 		tos.WithCredentials(tos.NewStaticCredentials(e.accessKey, e.secretKey)),
 		tos.WithEnableVerifySSL(false),
 		tos.WithLogger(log),
-		tos.WithMaxRetryCount(5),
+		tos.WithMaxRetryCount(10),
 		tos.WithControlEndpoint(e.controlEndpoint),
 	}
 	options = append(options, extraOptions...)

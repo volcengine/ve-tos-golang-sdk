@@ -192,6 +192,9 @@ func TestPutBucketStorageClass(t *testing.T) {
 		client = env.prepareClient(bucket)
 		ctx    = context.Background()
 	)
+	defer func() {
+		cleanBucket(t, client, bucket)
+	}()
 	headRes, err := client.HeadBucket(ctx, &tos.HeadBucketInput{Bucket: bucket})
 	require.Nil(t, err)
 	require.True(t, headRes.StorageClass != enum.StorageClassIa)

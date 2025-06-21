@@ -308,7 +308,11 @@ func (rb *requestBuilder) buildSign(req *Request) {
 	}
 }
 func (rb *requestBuilder) buildTrailers(req *Request) {
-	ioCloser := req.Content.(io.ReadCloser)
+	ioCloser, ok := req.Content.(io.ReadCloser)
+	if !ok {
+		return
+	}
+
 	c := &readCloserWithCRC{checker: NewCRC(DefaultCrcTable(), 0), base: ioCloser}
 	body := io.TeeReader(req.Content, c.checker)
 	chunkReader := newTosChunkEncodingReader(*req.ContentLength, map[string]trailerValue{tosChecksumCrc64Header: c}, body)
@@ -404,10 +408,17 @@ func (rb *requestBuilder) Request(ctx context.Context, method string,
 		work := func(retryCount int) (retrySec int64, err error) {
 			if retryCount > 0 {
 				req.Header.Set("x-sdk-retry-count", "attempt="+strconv.Itoa(retryCount)+"; max="+strconv.Itoa(len(rb.Retry.backoff)))
+				req.Content = req.rawContent
+				req.ContentLength = req.rawContentLen
+				req.Header.Del(v4Date)
 				err = rb.OnRetry(req)
 				if err != nil {
 					return -1, err
 				}
+				if rb.enableTrailerHeader {
+					rb.buildTrailers(req)
+				}
+				rb.buildSign(req)
 			}
 			res, err = roundTripper(ctx, req)
 			if res != nil {
@@ -470,14 +481,11 @@ func (rb *requestBuilder) RequestControl(ctx context.Context, method string,
 		work := func(retryCount int) (retrySec int64, err error) {
 			if retryCount > 0 {
 				req.Header.Set("x-sdk-retry-count", "attempt="+strconv.Itoa(retryCount)+"; max="+strconv.Itoa(len(rb.Retry.backoff)))
-				req.Content = req.rawContent
-				req.ContentLength = req.rawContentLen
 				req.Header.Del(v4Date)
 				err = rb.OnRetry(req)
 				if err != nil {
 					return -1, err
 				}
-				rb.buildTrailers(req)
 				rb.buildSign(req)
 			}
 			res, err = roundTripper(ctx, req)
