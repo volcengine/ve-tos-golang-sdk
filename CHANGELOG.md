@@ -1,4 +1,8 @@
 # ChangeLog of TOS SDK for Go
+## 版本号 v2.7.18 日期：2025-06-27
+- 增加 MRAP 接口
+- hns append 接口优化
+
 ## 版本号 v2.7.17 日期：2025-06-21
 - 修复 Qos 重试失败问题
 

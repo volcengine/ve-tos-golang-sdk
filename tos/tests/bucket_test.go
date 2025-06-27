@@ -334,6 +334,9 @@ func TestEnableBucketVersion(t *testing.T) {
 		client = env.prepareClient(bucket)
 		ctx    = context.Background()
 	)
+	defer func() {
+		cleanBucket(t, client, bucket)
+	}()
 	enableMultiVersion(t, client, bucket)
 	output, err := client.PutBucketVersioning(ctx, &tos.PutBucketVersioningInput{
 		Bucket: bucket,

@@ -544,6 +544,9 @@ func TestValidObjectKey(t *testing.T) {
 		bucket = generateBucketName("test-invalid-object-key")
 		client = env.prepareClient(bucket)
 	)
+	defer func() {
+		cleanBucket(t, client, bucket)
+	}()
 	testValidObjectKey(t, client, bucket, ".")
 	testValidObjectKey(t, client, bucket, "..")
 }

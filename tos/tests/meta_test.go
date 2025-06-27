@@ -104,6 +104,9 @@ func TestMeta(t *testing.T) {
 		data   = randomString(12)
 		meta   = "key"
 	)
+	defer func() {
+		cleanBucket(t, client, bucket)
+	}()
 	rawStr := "!@#$%^&*()_+-=[]{}|;':\"%2f%fg,     「」：-=+、\n./<>?中文测试编码%20%%%^&abcd /\\"
 	out, err := client.PutObjectV2(ctx, &tos.PutObjectV2Input{
 		PutObjectBasicInput: tos.PutObjectBasicInput{Bucket: bucket, Key: key, Meta: map[string]string{meta: rawStr}},
