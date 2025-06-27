@@ -26,6 +26,9 @@ func TestTosContentLengthChunk(t *testing.T) {
 		ctx    = context.Background()
 		client = env.prepareClient(bucket, tos.WithDisableTrailerHeader(false))
 	)
+	defer func() {
+		cleanBucket(t, client, bucket)
+	}()
 	contentEncoding := "gzip, br"
 	rawData := randomString(5 * 1024)
 	key := "test-ceshi-key"

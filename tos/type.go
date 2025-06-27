@@ -2715,3 +2715,62 @@ type DeleteBucketInventoryInput struct {
 type DeleteBucketInventoryOutput struct {
 	RequestInfo
 }
+
+type CreateMultiRegionAccessPointInput struct {
+	AccountID string          `json:"-"`
+	Name      string          `json:"Name"`
+	Regions   []BucketAccount `json:"Regions"`
+}
+
+type BucketAccount struct {
+	Bucket          string `json:"Bucket"`
+	BucketAccountID string `json:"BucketAccountId"`
+}
+
+type CreateMultiRegionAccessPointOutput struct {
+	RequestInfo
+}
+
+type GetMultiRegionAccessPointInput struct {
+	AccountID string // required
+	Name      string // required
+}
+
+type MultiRegionAccessPoint struct {
+	Name      string              `json:"Name"`
+	Alias     string              `json:"Alias,omitempty"`
+	Status    enum.MRAPStatusType `json:"Status"`
+	CreatedAt int64               `json:"CreatedAt"`
+	Regions   []RegionBucket      `json:"Regions"`
+}
+
+type RegionBucket struct {
+	BucketAccount
+	Region string `json:"Region"`
+}
+
+type GetMultiRegionAccessPointOutput struct {
+	RequestInfo
+	MultiRegionAccessPoint
+}
+
+type ListMultiRegionAccessPointsInput struct {
+	AccountID  string
+	NextToken  string
+	MaxResults int
+}
+
+type ListMultiRegionAccessPointsOutput struct {
+	RequestInfo
+	AccessPoints []MultiRegionAccessPoint `json:"AccessPoints"`
+	NextToken    string                   `json:"NextToken"`
+}
+
+type DeleteMultiRegionAccessPointInput struct {
+	AccountID string
+	Name      string
+}
+
+type DeleteMultiRegionAccessPointOutput struct {
+	RequestInfo
+}

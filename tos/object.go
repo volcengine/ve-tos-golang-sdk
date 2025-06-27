@@ -768,16 +768,7 @@ func (bkt *Bucket) GetSymlink(ctx context.Context, input *GetSymlinkInput, optio
 }
 
 func (cli *ClientV2) hnsAppendObject(ctx context.Context, input *AppendObjectV2Input) (*AppendObjectV2Output, error) {
-	resp, err := cli.modifyObjectWithInitCrc64(ctx, &modifyObjectInput{
-		Bucket:               input.Bucket,
-		Key:                  input.Key,
-		Offset:               input.Offset,
-		Content:              input.Content,
-		ContentLength:        input.ContentLength,
-		DataTransferListener: input.DataTransferListener,
-		RateLimiter:          input.RateLimiter,
-		TrafficLimit:         input.TrafficLimit,
-	}, input.PreHashCrc64ecma)
+	resp, err := cli.modifyObjectWithInitCrc64(ctx, input)
 	if err != nil {
 		return nil, err
 	}
@@ -1322,7 +1313,7 @@ func (cli *ClientV2) GetFileStatus(ctx context.Context, input *GetFileStatusInpu
 
 }
 
-func (cli *ClientV2) modifyObjectWithInitCrc64(ctx context.Context, input *modifyObjectInput, initCRC64 uint64) (*modifyObjectOutput, error) {
+func (cli *ClientV2) modifyObjectWithInitCrc64(ctx context.Context, input *AppendObjectV2Input) (*modifyObjectOutput, error) {
 	if err := isValidNames(input.Bucket, input.Key, cli.isCustomDomain); err != nil {
 		return nil, err
 	}
@@ -1331,18 +1322,84 @@ func (cli *ClientV2) modifyObjectWithInitCrc64(ctx context.Context, input *modif
 		contentLength = input.ContentLength
 		checker       hash.Hash64
 	)
+
 	if contentLength <= 0 {
 		contentLength = tryResolveLength(content)
 	}
+
+	if input.Offset == 0 && contentLength >= 0 {
+		headResp, err := cli.HeadObjectV2(ctx, &HeadObjectV2Input{Bucket: input.Bucket, Key: input.Key})
+		if err == nil && headResp.ContentLength > 0 {
+			return nil, newTosClientError("tos: The object offset of this modify not matched.", nil)
+		}
+		if err != nil {
+			serr, ok := err.(*TosServerError)
+			if !ok {
+				return nil, err
+			}
+			if serr.StatusCode == http.StatusNotFound && serr.RequestInfo.EcCode == "0017-00000003" {
+				putResp, err := cli.PutObjectV2(ctx, &PutObjectV2Input{
+					PutObjectBasicInput: PutObjectBasicInput{
+						Bucket:                  input.Bucket,
+						Key:                     input.Key,
+						ContentLength:           contentLength,
+						ContentMD5:              input.ContentMD5,
+						ContentSHA256:           input.ContentSHA256,
+						CacheControl:            input.CacheControl,
+						ContentDisposition:      input.ContentDisposition,
+						ContentEncoding:         input.ContentEncoding,
+						ContentLanguage:         input.ContentLanguage,
+						ContentType:             input.ContentType,
+						Expires:                 input.Expires,
+						ACL:                     input.ACL,
+						GrantFullControl:        input.GrantFullControl,
+						GrantRead:               input.GrantRead,
+						GrantReadAcp:            input.GrantReadAcp,
+						GrantWriteAcp:           input.GrantWriteAcp,
+						WebsiteRedirectLocation: input.WebsiteRedirectLocation,
+						StorageClass:            input.StorageClass,
+						TrafficLimit:            input.TrafficLimit,
+						DataTransferListener:    input.DataTransferListener,
+						RateLimiter:             input.RateLimiter,
+						Meta:                    input.Meta,
+						ForbidOverwrite:         true,
+					},
+					Content: input.Content,
+				})
+
+				if err != nil {
+					return nil, err
+				}
+
+				return &modifyObjectOutput{
+					RequestInfo:      putResp.RequestInfo,
+					NextModifyOffset: contentLength,
+					HashCrc64ecma:    putResp.HashCrc64ecma,
+				}, nil
+			}
+		}
+	}
+
+	modifyInput := &modifyObjectInput{
+		Bucket:               input.Bucket,
+		Key:                  input.Key,
+		Offset:               input.Offset,
+		Content:              content,
+		ContentLength:        contentLength,
+		DataTransferListener: input.DataTransferListener,
+		RateLimiter:          input.RateLimiter,
+		TrafficLimit:         input.TrafficLimit,
+	}
+
 	if cli.enableCRC {
-		checker = NewCRC(DefaultCrcTable(), initCRC64)
+		checker = NewCRC(DefaultCrcTable(), input.PreHashCrc64ecma)
 	}
 	if content != nil {
-		content = wrapReader(content, contentLength, input.DataTransferListener, input.RateLimiter, &crcChecker{checker: checker})
+		content = wrapReader(content, contentLength, modifyInput.DataTransferListener, modifyInput.RateLimiter, &crcChecker{checker: checker})
 	}
-	rb := cli.newBuilder(input.Bucket, input.Key).
+	rb := cli.newBuilder(modifyInput.Bucket, modifyInput.Key).
 		WithQuery("modify", "").
-		WithParams(*input).
+		WithParams(*modifyInput).
 		WithContentLength(contentLength).
 		WithRetry(nil, NoRetryClassifier{})
 	cli.setExpectHeader(rb, contentLength)

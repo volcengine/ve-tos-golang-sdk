@@ -254,3 +254,12 @@ const (
 	InventoryIncludedObjTypeAll     InventoryIncludedObjType = "All"
 	InventoryIncludedObjTypeCurrent InventoryIncludedObjType = "Current"
 )
+
+type MRAPStatusType string
+
+const (
+	MRAPStatusCREATING MRAPStatusType = "CREATING"
+	MRAPStatusREADY    MRAPStatusType = "READY"
+	MRAPStatusDELETING MRAPStatusType = "DELETING"
+	MRAPStatusFAILED   MRAPStatusType = "FAILED"
+)
