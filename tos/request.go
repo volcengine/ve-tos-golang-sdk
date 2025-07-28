@@ -411,6 +411,7 @@ func (rb *requestBuilder) Request(ctx context.Context, method string,
 				req.Content = req.rawContent
 				req.ContentLength = req.rawContentLen
 				req.Header.Del(v4Date)
+				req.Header.Del(v4SecurityToken)
 				err = rb.OnRetry(req)
 				if err != nil {
 					return -1, err

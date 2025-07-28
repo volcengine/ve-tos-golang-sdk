@@ -25,6 +25,8 @@ type testEnv struct {
 	callbackUrl     string
 	controlEndpoint string
 	kafkaEndpoint   string
+	topEndpoint     string
+	roleName        string
 	t               *testing.T
 }
 
@@ -44,6 +46,8 @@ func newTestEnv(t *testing.T) *testEnv {
 		callbackUrl:     os.Getenv("TOS_GO_SDK_CALLBACK_URL"),
 		controlEndpoint: os.Getenv("TOS_GO_SDK_CONTROL_ENDPOINT"),
 		kafkaEndpoint:   os.Getenv("TOS_GO_SDK_KAFKA_ENDPOINT"),
+		topEndpoint:     os.Getenv("TOS_GO_SDK_TOP_ENDPOINT"),
+		roleName:        os.Getenv("TOS_GO_SDK_ROLE_NAME"),
 		t:               t,
 	}
 }

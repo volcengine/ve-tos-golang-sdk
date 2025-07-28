@@ -1,4 +1,8 @@
 # ChangeLog of TOS SDK for Go
+## 版本号 v2.7.19 日期：2025-07-28
+- PutObject 接口支持 Default ACL
+- 修复 STS Token 重复场景下的签名计算
+
 ## 版本号 v2.7.18 日期：2025-06-27
 - 增加 MRAP 接口
 - hns append 接口优化

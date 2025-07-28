@@ -63,7 +63,7 @@ func isValidKey(key string, keys ...string) error {
 func isValidACL(aclType enum.ACLType) error {
 	if aclType == enum.ACLPrivate || aclType == enum.ACLPublicRead || aclType == enum.ACLPublicReadWrite ||
 		aclType == enum.ACLAuthRead || aclType == enum.ACLBucketOwnerRead ||
-		aclType == enum.ACLBucketOwnerFullControl || aclType == enum.ACLLogDeliveryWrite ||
+		aclType == enum.ACLBucketOwnerFullControl || aclType == enum.ACLLogDeliveryWrite || aclType == enum.ACLDefault ||
 		aclType == enum.ACLBucketOwnerEntrusted {
 		return nil
 	}

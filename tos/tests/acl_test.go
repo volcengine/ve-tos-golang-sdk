@@ -169,6 +169,17 @@ func TestPutObjectV2WithACL(t *testing.T) {
 	aclOut, err := client.GetObjectACL(ctx, &tos.GetObjectACLInput{Bucket: bucket, Key: newKey})
 	require.Nil(t, err)
 	require.Equal(t, aclOut.IsDefault, true)
+
+	newKey = "default-" + randomString(8)
+	_, err = client.PutObjectV2(ctx, &tos.PutObjectV2Input{
+		PutObjectBasicInput: tos.PutObjectBasicInput{Bucket: bucket, Key: newKey, ACL: enum.ACLDefault},
+		Content:             nil,
+	})
+	require.Nil(t, err)
+
+	aclOut, err = client.GetObjectACL(ctx, &tos.GetObjectACLInput{Bucket: bucket, Key: newKey})
+	require.Nil(t, err)
+	require.Equal(t, aclOut.IsDefault, true)
 }
 
 func TestBucketACLGrantsBody(t *testing.T) {

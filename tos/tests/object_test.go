@@ -2769,3 +2769,102 @@ func TestObjectExpiration(t *testing.T) {
 	require.Nil(t, err)
 	require.True(t, getResp.Expiration != "")
 }
+
+func TestObjectWithStsRetry(t *testing.T) {
+	var (
+		env    = newTestEnv(t)
+		bucket = generateBucketName("object-sts-with-retry")
+		key    = randomString(6)
+		ctx    = context.Background()
+	)
+	tsConfig := tos.DefaultTransportConfig()
+	tsConfig.ReadTimeout = time.Millisecond * 500
+	tsConfig.WriteTimeout = time.Millisecond * 500
+	client := env.prepareClient(bucket, tos.WithTransportConfig(&tsConfig), tos.WithMaxRetryCount(5))
+	defer cleanBucket(t, client, bucket)
+	resp, err := assumeRole(env.topEndpoint, env.region, env.roleName, env.accountId, env.accessKey, env.secretKey)
+	require.Nil(t, err)
+	require.NotNil(t, resp)
+	cred := tos.NewStaticCredentials(resp.Result.Credentials.AccessKeyId, resp.Result.Credentials.SecretAccessKey)
+	cred.WithSecurityToken(resp.Result.Credentials.SessionToken)
+	client, err = tos.NewClientV2(env.endpoint, tos.WithCredentials(cred), tos.WithRegion(env.region), tos.WithTransportConfig(&tsConfig), tos.WithMaxRetryCount(5))
+	require.Nil(t, err)
+	// Case 1: 测试内存流
+	rawData := "hello world"
+	dataListener := &dataTransferListenerTest{}
+	data := &retryReader{reader: strings.NewReader(rawData), t: t}
+	_, err = client.PutObjectV2(ctx, &tos.PutObjectV2Input{
+		PutObjectBasicInput: tos.PutObjectBasicInput{
+			Bucket:               bucket,
+			Key:                  key,
+			DataTransferListener: dataListener,
+		},
+		Content: data,
+	})
+	require.Nil(t, err)
+	require.Equal(t, data.count, 5)
+	require.Equal(t, dataListener.RetryCount, 5)
+
+	dataListener = &dataTransferListenerTest{}
+	getOutput, err := client.GetObjectV2(ctx, &tos.GetObjectV2Input{Bucket: bucket, Key: key, DataTransferListener: dataListener})
+	require.Nil(t, err)
+	getData, err := ioutil.ReadAll(getOutput.Content)
+	require.Nil(t, err)
+	require.Equal(t, string(getData), rawData)
+	require.Equal(t, dataListener.RetryCount, 0)
+
+	// case 2: 测试文件流重试
+	dataListener = &dataTransferListenerTest{}
+	fileName := randomString(5)
+	file, err := os.Create(fileName)
+	require.Nil(t, err)
+	defer os.Remove(fileName)
+	fileSize := 1024
+	readOffset := 1000
+	value := randomString(fileSize)
+	_, err = file.Write([]byte(value))
+	require.Nil(t, err)
+	err = file.Sync()
+	require.Nil(t, err)
+	// Seek 到 1000
+	_, err = file.Seek(int64(readOffset), io.SeekStart)
+	require.Nil(t, err)
+	data = &retryReader{reader: file, t: t}
+	_, err = client.PutObjectV2(ctx, &tos.PutObjectV2Input{
+		PutObjectBasicInput: tos.PutObjectBasicInput{
+			Bucket:               bucket,
+			Key:                  key,
+			DataTransferListener: dataListener,
+		},
+		Content: data,
+	})
+	require.Nil(t, err)
+	require.Equal(t, data.count, 5)
+	require.Equal(t, dataListener.RetryCount, 5)
+
+	dataListener = &dataTransferListenerTest{}
+	getOutput, err = client.GetObjectV2(ctx, &tos.GetObjectV2Input{Bucket: bucket, Key: key, DataTransferListener: dataListener})
+	require.Nil(t, err)
+	getData, err = ioutil.ReadAll(getOutput.Content)
+	require.Nil(t, err)
+	t.Log("getData:", string(getData), "RealValue:", value[1000:])
+	require.Equal(t, string(getData), string(value[1000:]))
+	require.Equal(t, dataListener.RetryCount, 0)
+
+	// Case3: 网络流不可重试
+	dataListener = &dataTransferListenerTest{}
+	res, err := http.Get("https://www.volcengine.com/")
+	require.Nil(t, err)
+	nrReader := &noRetryReader{reader: res.Body}
+	_, err = client.PutObjectV2(ctx, &tos.PutObjectV2Input{
+		PutObjectBasicInput: tos.PutObjectBasicInput{
+			Bucket:               bucket,
+			Key:                  key,
+			DataTransferListener: dataListener,
+		},
+		Content: nrReader,
+	})
+	require.NotNil(t, err)
+	require.Equal(t, dataListener.RetryCount, 0)
+
+}
