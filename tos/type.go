@@ -618,7 +618,9 @@ type SetObjectMetaInput struct {
 	ContentLanguage    string    `location:"header" locationName:"Content-Language"`
 	ContentType        string    `location:"header" locationName:"Content-Type"`
 	Expires            time.Time `location:"header" locationName:"Expires"`
-	ObjectExpires      int64     `location:"header" locationName:"X-Tos-Object-Expires"`
+
+	// Deprecated: use SetObjectExpires of ClientV2 instead
+	ObjectExpires int64 `location:"header" locationName:"X-Tos-Object-Expires"`
 
 	Meta map[string]string `location:"headers"`
 	GenericInput
@@ -1332,13 +1334,15 @@ type UploadPartBasicInput struct {
 	SSECAlgorithm             string `location:"header" locationName:"X-Tos-Server-Side-Encryption-Customer-Algorithm"`
 	SSECKey                   string `location:"header" locationName:"X-Tos-Server-Side-Encryption-Customer-Key"`
 	SSECKeyMD5                string `location:"header" locationName:"X-Tos-Server-Side-Encryption-Customer-Key-MD5"`
-	ServerSideEncryption      string `location:"header" locationName:"X-Tos-Server-Side-Encryption"`
 	ServerSideEncryptionKeyID string `location:"header" locationName:"X-Tos-Server-Side-Encryption-Kms-Key-Id"`
 
 	TrafficLimit int64 `location:"header" locationName:"X-Tos-Traffic-Limit"`
 
 	DataTransferListener DataTransferListener
 	RateLimiter          RateLimiter
+
+	// Deprecated
+	ServerSideEncryption string
 }
 
 type UploadPartV2Input struct {
@@ -2772,5 +2776,20 @@ type DeleteMultiRegionAccessPointInput struct {
 }
 
 type DeleteMultiRegionAccessPointOutput struct {
+	RequestInfo
+}
+
+// Request
+type SetObjectExpiresInput struct {
+	Bucket    string `json:"-"` // 目标桶名，  required
+	Key       string `json:"-"` // 目标对象名， required
+	VersionID string `location:"query" locationName:"versionId" json:"-"`
+
+	ObjectExpires int64 `json:"ObjectExpires"`
+	GenericInput  `json:"-"`
+}
+
+// Response
+type SetObjectExpiresOutput struct {
 	RequestInfo
 }

@@ -895,6 +895,29 @@ func (cli *ClientV2) SetObjectMeta(ctx context.Context, input *SetObjectMetaInpu
 	return &SetObjectMetaOutput{RequestInfo: res.RequestInfo()}, nil
 }
 
+func (cli *ClientV2) SetObjectExpires(ctx context.Context, input *SetObjectExpiresInput) (*SetObjectExpiresOutput, error) {
+	if err := isValidNames(input.Bucket, input.Key, cli.isCustomDomain); err != nil {
+		return nil, err
+	}
+	data, contentMD5, err := marshalInput("SetObjectExpires", input)
+	if err != nil {
+		return nil, err
+	}
+
+	res, err := cli.newBuilder(input.Bucket, input.Key).
+		SetGeneric(input.GenericInput).
+		WithQuery("objectExpires", "").
+		WithParams(*input).
+		WithHeader(HeaderContentMD5, contentMD5).
+		WithRetry(nil, StatusCodeClassifier{}).
+		Request(ctx, http.MethodPost, bytes.NewReader(data), cli.roundTripper(http.StatusOK))
+	if err != nil {
+		return nil, err
+	}
+	defer res.Close()
+	return &SetObjectExpiresOutput{RequestInfo: res.RequestInfo()}, nil
+}
+
 // ListObjects list objects of a bucket
 //
 // Deprecated: use ListObjectsV2 of ClientV2 instead

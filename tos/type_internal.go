@@ -607,16 +607,15 @@ func (t *uploadTask) do() (interface{}, error) {
 func (t *uploadTask) getBaseInput() interface{} {
 	return UploadPartV2Input{
 		UploadPartBasicInput: UploadPartBasicInput{
-			Bucket:               t.input.Bucket,
-			Key:                  t.input.Key,
-			UploadID:             t.UploadID,
-			PartNumber:           t.PartNumber,
-			ContentMD5:           t.ContentMD5,
-			SSECAlgorithm:        t.input.SSECAlgorithm,
-			SSECKey:              t.input.SSECKey,
-			SSECKeyMD5:           t.input.SSECKeyMD5,
-			ServerSideEncryption: t.input.ServerSideEncryption,
-			TrafficLimit:         t.input.TrafficLimit,
+			Bucket:        t.input.Bucket,
+			Key:           t.input.Key,
+			UploadID:      t.UploadID,
+			PartNumber:    t.PartNumber,
+			ContentMD5:    t.ContentMD5,
+			SSECAlgorithm: t.input.SSECAlgorithm,
+			SSECKey:       t.input.SSECKey,
+			SSECKeyMD5:    t.input.SSECKeyMD5,
+			TrafficLimit:  t.input.TrafficLimit,
 		},
 		ContentLength: t.PartSize,
 	}
