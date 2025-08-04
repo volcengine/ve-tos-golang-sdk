@@ -76,8 +76,9 @@ func TestUploadFile(t *testing.T) {
 	transferListener := &dataTransferListenerTest{}
 	upload, err := client.UploadFile(context.Background(), &tos.UploadFileInput{
 		CreateMultipartUploadV2Input: tos.CreateMultipartUploadV2Input{
-			Bucket: bucket,
-			Key:    key,
+			Bucket:               bucket,
+			Key:                  key,
+			ServerSideEncryption: "AES256",
 		},
 		FilePath:             fileName,
 		PartSize:             5 * 1024 * 1024,
