@@ -38,6 +38,7 @@ var (
 	CrcCheckFail                      = newTosClientError("crc check not equal", nil)
 	InvalidS3Endpoint                 = newTosClientError("do not support s3 endpoint, please use tos endpoint", nil)
 	NotSupportSeek                    = newTosClientError("reader not support seek", nil)
+	NotSupportSeekEnd                 = newTosClientError("reader not support seek end action", nil)
 	ProxyNotSupportHttps              = newTosClientError("proxy not support https", nil)
 	ProxyUrlInvalid                   = newTosClientError("proxy url invalid", nil)
 	NotificationConfigurationsInvalid = newTosClientError("Notification Configurations invalid", nil)

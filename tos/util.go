@@ -2,6 +2,7 @@ package tos
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"strings"
 	"time"
@@ -175,4 +176,43 @@ func ContainsIgnoreCase(arr []string, target string) bool {
 		}
 	}
 	return false
+}
+
+type wrapLimiterReader struct {
+	Base io.Reader
+	rawN int64
+	N    int64 // max bytes remaining
+}
+
+func newWrapLimiterReader(base io.Reader, n int64) *wrapLimiterReader {
+	return &wrapLimiterReader{
+		Base: base,
+		rawN: n,
+		N:    n,
+	}
+}
+func (w *wrapLimiterReader) Seek(offset int64, whence int) (int64, error) {
+	seeker, ok := w.Base.(io.Seeker)
+	if !ok {
+		return 0, NotSupportSeek
+	}
+	if whence == io.SeekEnd {
+		return 0, NotSupportSeekEnd
+	}
+	if whence == io.SeekStart {
+		w.N = w.rawN
+	}
+	return seeker.Seek(offset, whence)
+}
+
+func (w *wrapLimiterReader) Read(p []byte) (n int, err error) {
+	if w.N <= 0 {
+		return 0, io.EOF
+	}
+	if int64(len(p)) > w.N {
+		p = p[0:w.N]
+	}
+	n, err = w.Base.Read(p)
+	w.N -= int64(n)
+	return
 }
