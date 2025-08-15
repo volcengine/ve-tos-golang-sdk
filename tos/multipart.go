@@ -263,14 +263,19 @@ func (cli *ClientV2) UploadPartFromFile(ctx context.Context, input *UploadPartFr
 	if err != nil {
 		return nil, err
 	}
+	defer file.Close()
+	var reader io.Reader
+	reader = file
+	if input.PartSize > 0 {
+		reader = newWrapLimiterReader(file, input.PartSize)
+	}
 	_, err = file.Seek(int64(input.Offset), io.SeekStart)
-
 	if err != nil {
 		return nil, err
 	}
 	output, err := cli.UploadPartV2(ctx, &UploadPartV2Input{
 		UploadPartBasicInput: input.UploadPartBasicInput,
-		Content:              file,
+		Content:              reader,
 		ContentLength:        input.PartSize,
 	})
 	if err != nil {

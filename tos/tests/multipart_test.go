@@ -4,16 +4,14 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"github.com/stretchr/testify/require"
+	"github.com/volcengine/ve-tos-golang-sdk/v2/tos"
 	"io/ioutil"
 	"os"
 	"sort"
 	"strings"
 	"sync"
 	"testing"
-
-	"github.com/stretchr/testify/require"
-
-	"github.com/volcengine/ve-tos-golang-sdk/v2/tos"
 )
 
 // TestCreateMultipartUploadV2 test CreateMultipartUploadV2,UploadPartV2,ListPartsV2,UploadPartCopyV2,CompleteMultipartUploadV2
@@ -381,6 +379,7 @@ func TestUploadPartFromFile(t *testing.T) {
 	defer func(file *os.File) {
 		_ = file.Close()
 	}(file)
+
 	upload, err := client.CreateMultipartUploadV2(context.Background(), &tos.CreateMultipartUploadV2Input{
 		Bucket: bucket,
 		Key:    key,
@@ -426,6 +425,70 @@ func TestUploadPartFromFile(t *testing.T) {
 		}, {
 			PartNumber: part2.PartNumber,
 			ETag:       part2.ETag,
+		}},
+	})
+	checkSuccess(t, complete, err, 200)
+	get, err := client.GetObjectV2(context.Background(), &tos.GetObjectV2Input{
+		Bucket: bucket,
+		Key:    key,
+	})
+	checkSuccess(t, get, err, 200)
+	content, err := ioutil.ReadAll(get.Content)
+	require.Equal(t, md5Sum, md5s(string(content)))
+	require.NotEqual(t, len(complete.ETag), 0)
+	require.NotEqual(t, len(complete.Location), 0)
+	require.NotEqual(t, len(complete.Bucket), 0)
+	require.NotEqual(t, len(complete.Key), 0)
+}
+
+func TestUploadBigPartFromFile(t *testing.T) {
+	var (
+		env      = newTestEnv(t)
+		bucket   = generateBucketName("upload-part-from-file")
+		client   = env.prepareClient(bucket)
+		key      = "key123"
+		value1   = randomString(500 * 1024 * 1024)
+		md5Sum   = md5s(value1[1:2])
+		fileName = randomString(16) + ".file"
+	)
+	defer func() {
+		cleanBucket(t, client, bucket)
+	}()
+	defer cleanTestFile(t, fileName)
+	file, err := os.Create(fileName)
+	require.Nil(t, err)
+	n, err := file.Write([]byte(value1))
+	require.Nil(t, err)
+	require.Equal(t, len(value1), n)
+	defer func(file *os.File) {
+		_ = file.Close()
+	}(file)
+
+	upload, err := client.CreateMultipartUploadV2(context.Background(), &tos.CreateMultipartUploadV2Input{
+		Bucket: bucket,
+		Key:    key,
+	})
+	require.Nil(t, err)
+	part1, err := client.UploadPartFromFile(context.Background(), &tos.UploadPartFromFileInput{
+		UploadPartBasicInput: tos.UploadPartBasicInput{
+			Bucket:     bucket,
+			Key:        key,
+			UploadID:   upload.UploadID,
+			PartNumber: 1,
+		},
+		FilePath: fileName,
+		Offset:   1,
+		PartSize: 1,
+	})
+	require.Nil(t, err)
+
+	complete, err := client.CompleteMultipartUploadV2(context.Background(), &tos.CompleteMultipartUploadV2Input{
+		Bucket:   bucket,
+		Key:      key,
+		UploadID: upload.UploadID,
+		Parts: []tos.UploadedPartV2{{
+			PartNumber: part1.PartNumber,
+			ETag:       part1.ETag,
 		}},
 	})
 	checkSuccess(t, complete, err, 200)

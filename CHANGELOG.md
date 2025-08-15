@@ -1,6 +1,9 @@
 # ChangeLog of TOS SDK for Go
+## 版本号 v2.7.21 日期：2025-08-14
+- 修复 UploadPartFromFile 上传超过 PartSize 的对象大小
+
 ## 版本号 v2.7.20 日期：2025-08-04
-- 修复 UploadFile 上次 SSE-TOS 加密对象失败
+- 修复 UploadFile 上传 SSE-TOS 加密对象失败
 - 增加 SetObjectExpires 接口
 
 
