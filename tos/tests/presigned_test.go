@@ -17,9 +17,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/volcengine/ve-tos-golang-sdk/v2/tos/enum"
 
 	"github.com/volcengine/ve-tos-golang-sdk/v2/tos"
+	"github.com/volcengine/ve-tos-golang-sdk/v2/tos/enum"
 )
 
 func TestPreSignedURLWithExpires(t *testing.T) {
@@ -353,7 +353,7 @@ func TestPreSignedURLEndpoint(t *testing.T) {
 	require.Equal(t, 200, res.StatusCode)
 }
 
-func newPostRequest(bucket, key string, endpoint string, acl enum.ACLType, input *tos.PreSingedPostSignatureOutput) (*http.Request, string, error) {
+func newPostRequest(bucket, key string, endpoint string, acl enum.ACLType, input *tos.PreSignedPostSignatureOutput) (*http.Request, string, error) {
 	url := fmt.Sprintf("http://%s.%s", bucket, endpoint)
 	body := new(bytes.Buffer)
 	w := multipart.NewWriter(body)
@@ -391,7 +391,7 @@ func TestPreSignedPostSignature(t *testing.T) {
 	)
 	defer cleanBucket(t, cli, bucket)
 	// base upload
-	res, err := cli.PreSignedPostSignature(ctx, &tos.PreSingedPostSignatureInput{
+	res, err := cli.PreSignedPostSignature(ctx, &tos.PreSignedPostSignatureInput{
 		Bucket:  bucket,
 		Key:     key,
 		Expires: 3600,
@@ -417,7 +417,7 @@ func TestPreSignedPostSignature(t *testing.T) {
 
 	// with content length range
 	key = randomString(6)
-	res, err = cli.PreSignedPostSignature(ctx, &tos.PreSingedPostSignatureInput{
+	res, err = cli.PreSignedPostSignature(ctx, &tos.PreSignedPostSignatureInput{
 		Bucket:  bucket,
 		Key:     key,
 		Expires: 3600,
@@ -439,7 +439,7 @@ func TestPreSignedPostSignature(t *testing.T) {
 	assert.Equal(t, md5s(string(data)), md5)
 
 	// expires
-	res, err = cli.PreSignedPostSignature(ctx, &tos.PreSingedPostSignatureInput{
+	res, err = cli.PreSignedPostSignature(ctx, &tos.PreSignedPostSignatureInput{
 		Bucket:  bucket,
 		Key:     key,
 		Expires: 1,
@@ -454,7 +454,7 @@ func TestPreSignedPostSignature(t *testing.T) {
 
 	// exceed content range
 	key = randomString(6)
-	res, err = cli.PreSignedPostSignature(ctx, &tos.PreSingedPostSignatureInput{
+	res, err = cli.PreSignedPostSignature(ctx, &tos.PreSignedPostSignatureInput{
 		Bucket:  bucket,
 		Key:     key,
 		Expires: 3600,
@@ -487,7 +487,7 @@ func TestPreSignedPostSignatureWithCondition(t *testing.T) {
 	key := keyPrefix + randomString(6)
 
 	operator := "starts-with"
-	res, err := cli.PreSignedPostSignature(ctx, &tos.PreSingedPostSignatureInput{
+	res, err := cli.PreSignedPostSignature(ctx, &tos.PreSignedPostSignatureInput{
 		Bucket:  bucket,
 		Key:     key,
 		Expires: 3600,
@@ -568,7 +568,7 @@ func TestPreSignedPolicyURLWithExpires(t *testing.T) {
 	// build policy url
 	operatorSw := "starts-with"
 	operatorEq := "eq"
-	output, err := cli.PreSignedPolicyURL(ctx, &tos.PreSingedPolicyURLInput{
+	output, err := cli.PreSignedPolicyURL(ctx, &tos.PreSignedPolicyURLInput{
 		Bucket:  bucket,
 		Expires: 1000,
 		Conditions: []tos.PolicySignatureCondition{{

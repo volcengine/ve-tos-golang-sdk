@@ -227,7 +227,7 @@ type FetchObjectOutputV2 struct {
 	SSECKeyMD5    string `json:"SSECKeyMD5,omitempty"`
 }
 
-type PreSingedPostSignatureInput struct {
+type PreSignedPostSignatureInput struct {
 	Bucket             string
 	Key                string
 	Expires            int64
@@ -235,7 +235,7 @@ type PreSingedPostSignatureInput struct {
 	ContentLengthRange *ContentLengthRange
 }
 
-type PreSingedPostSignatureOutput struct {
+type PreSignedPostSignatureOutput struct {
 	OriginPolicy string
 	Policy       string
 	Algorithm    string
@@ -255,7 +255,7 @@ type PostSignatureCondition struct {
 	Operator *string
 }
 
-type PreSingedPolicyURLInput struct {
+type PreSignedPolicyURLInput struct {
 	Bucket              string
 	Expires             int64
 	Conditions          []PolicySignatureCondition
@@ -263,7 +263,7 @@ type PreSingedPolicyURLInput struct {
 	IsCustomDomain      bool
 }
 
-type PreSingedPolicyURLOutput struct {
+type PreSignedPolicyURLOutput struct {
 	PreSignedPolicyURLGenerator
 	SignatureQuery string
 	bucket         string
@@ -283,7 +283,7 @@ type PreSignedPolicyURLGenerator interface {
 	GetSignedURLForGetOrHead(bucket, key string, additionalQuery map[string]string) string
 }
 
-func (output *PreSingedPolicyURLOutput) GetSignedURLForList(additionalQuery map[string]string) string {
+func (output *PreSignedPolicyURLOutput) GetSignedURLForList(additionalQuery map[string]string) string {
 	query := make(url.Values)
 	for k, v := range additionalQuery {
 		query.Add(k, v)
@@ -301,7 +301,7 @@ func (output *PreSingedPolicyURLOutput) GetSignedURLForList(additionalQuery map[
 	str := fmt.Sprintf("%s://%s/?%s%s", output.scheme, domain, output.SignatureQuery, queryStr)
 	return str
 }
-func (output *PreSingedPolicyURLOutput) GetSignedURLForGetOrHead(key string, additionalQuery map[string]string) string {
+func (output *PreSignedPolicyURLOutput) GetSignedURLForGetOrHead(key string, additionalQuery map[string]string) string {
 	query := make(url.Values)
 	for k, v := range additionalQuery {
 		query.Add(k, v)

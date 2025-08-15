@@ -8,7 +8,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"github.com/volcengine/ve-tos-golang-sdk/v2/tos/enum"
 	"net"
 	"net/http"
 	"net/url"
@@ -17,6 +16,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/volcengine/ve-tos-golang-sdk/v2/tos/enum"
 )
 
 const (
@@ -609,7 +610,7 @@ func (cli *ClientV2) PreSignedURL(input *PreSignedURLInput) (*PreSignedURLOutput
 	return output, nil
 }
 
-func (cli *ClientV2) PreSignedPostSignature(ctx context.Context, input *PreSingedPostSignatureInput) (*PreSingedPostSignatureOutput, error) {
+func (cli *ClientV2) PreSignedPostSignature(ctx context.Context, input *PreSignedPostSignatureInput) (*PreSignedPostSignatureOutput, error) {
 	algorithm := signPrefix
 	postPolicy := make(map[string]interface{})
 	cred := cli.credentials.Credential()
@@ -661,7 +662,7 @@ func (cli *ClientV2) PreSignedPostSignature(ctx context.Context, input *PreSinge
 		Credential: &cred,
 	})
 	policy := base64.StdEncoding.EncodeToString(originPolicy)
-	return &PreSingedPostSignatureOutput{
+	return &PreSignedPostSignatureOutput{
 		OriginPolicy: string(originPolicy),
 		Policy:       policy,
 		Algorithm:    signPrefix,
@@ -784,7 +785,7 @@ func (cli *ClientV2) PutFetchTaskV2(ctx context.Context, input *PutFetchTaskInpu
 	return &output, nil
 }
 
-func (cli *ClientV2) PreSignedPolicyURL(ctx context.Context, input *PreSingedPolicyURLInput) (*PreSingedPolicyURLOutput, error) {
+func (cli *ClientV2) PreSignedPolicyURL(ctx context.Context, input *PreSignedPolicyURLInput) (*PreSignedPolicyURLOutput, error) {
 
 	if err := isValidBucketName(input.Bucket, input.IsCustomDomain); err != nil {
 		return nil, err
@@ -799,7 +800,7 @@ func (cli *ClientV2) PreSignedPolicyURL(ctx context.Context, input *PreSingedPol
 	}
 
 	if cli.credentials == nil {
-		return &PreSingedPolicyURLOutput{
+		return &PreSignedPolicyURLOutput{
 			bucket:         input.Bucket,
 			scheme:         resScheme,
 			host:           resHost,
@@ -894,7 +895,7 @@ func (cli *ClientV2) PreSignedPolicyURL(ctx context.Context, input *PreSingedPol
 	rawQuery := query.Encode()
 	// set scheme and host
 
-	return &PreSingedPolicyURLOutput{
+	return &PreSignedPolicyURLOutput{
 		bucket:         input.Bucket,
 		SignatureQuery: rawQuery,
 		scheme:         resScheme,
