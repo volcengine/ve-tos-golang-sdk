@@ -1,4 +1,7 @@
 # ChangeLog of TOS SDK for Go
+## 版本号 v2.7.22 日期：2025-09-19
+- 支持自定义 Proxy 
+
 ## 版本号 v2.7.21 日期：2025-08-14
 - 修复 UploadPartFromFile 上传超过 PartSize 的对象大小
 

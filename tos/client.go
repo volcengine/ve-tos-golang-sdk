@@ -8,7 +8,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"github.com/volcengine/ve-tos-golang-sdk/v2/tos/enum"
 	"net"
 	"net/http"
 	"net/url"
@@ -17,6 +16,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/volcengine/ve-tos-golang-sdk/v2/tos/enum"
 )
 
 const (
@@ -209,6 +210,12 @@ func WithExcept100ContinueThreshold(threshold int64) ClientOption {
 func WithProxy(proxy *Proxy) ClientOption {
 	return func(client *Client) {
 		client.config.TransportConfig.Proxy = proxy
+	}
+}
+
+func WithProxyFunc(proxyFunc func(*http.Request) (*url.URL, error)) ClientOption {
+	return func(client *Client) {
+		client.config.TransportConfig.ProxyFunc = proxyFunc
 	}
 }
 
