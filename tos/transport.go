@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptrace"
+	"net/url"
 	"time"
 )
 
@@ -63,6 +64,8 @@ type TransportConfig struct {
 
 	//  When HighLatencyLogThreshold is greater than 0, it indicates the activation of high-latency logging, unit: KB.
 	HighLatencyLogThreshold *int
+
+	ProxyFunc func(*http.Request) (*url.URL, error)
 }
 
 type Transport interface {
@@ -110,7 +113,9 @@ func NewDefaultTransport(config *TransportConfig) *DefaultTransport {
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: config.InsecureSkipVerify},
 	}
 
-	if config.Proxy != nil && config.Proxy.proxyHost != "" {
+	if config.ProxyFunc != nil {
+		transport.Proxy = config.ProxyFunc
+	} else if config.Proxy != nil && config.Proxy.proxyHost != "" {
 		transport.Proxy = http.ProxyURL(config.Proxy.Url())
 	}
 
