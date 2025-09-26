@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/volcengine/ve-tos-golang-sdk/v2/tos/enum"
 	"hash"
 	"io"
 	"io/ioutil"
@@ -14,6 +13,8 @@ import (
 	"path/filepath"
 	"strconv"
 	"time"
+
+	"github.com/volcengine/ve-tos-golang-sdk/v2/tos/enum"
 )
 
 type Bucket struct {
@@ -336,6 +337,7 @@ func (cli *ClientV2) DeleteMultiObjects(ctx context.Context, input *DeleteMultiO
 	}
 	// POST method, don't retry
 	rb := cli.newBuilder(input.Bucket, "").
+		SetGeneric(input.GenericInput).
 		WithQuery("delete", "").
 		WithHeader(HeaderContentMD5, contentMD5).
 		WithRetry(OnRetryFromStart, ServerErrorClassifier{})
@@ -679,6 +681,7 @@ func (cli *ClientV2) PutObjectFromFile(ctx context.Context, input *PutObjectFrom
 	putOutput, err := cli.PutObjectV2(ctx, &PutObjectV2Input{
 		PutObjectBasicInput: input.PutObjectBasicInput,
 		Content:             file,
+		GenericInput:        input.GenericInput,
 	})
 	if err != nil {
 		return nil, err
@@ -795,6 +798,7 @@ func (cli *ClientV2) fnsAppendObject(ctx context.Context, input *AppendObjectV2I
 		content = wrapReader(content, contentLength, input.DataTransferListener, input.RateLimiter, &crcChecker{checker: checker})
 	}
 	rb := cli.newBuilder(input.Bucket, input.Key).
+		SetGeneric(input.GenericInput).
 		WithQuery("append", "").
 		WithParams(*input).
 		WithContentLength(contentLength).
@@ -1351,7 +1355,7 @@ func (cli *ClientV2) modifyObjectWithInitCrc64(ctx context.Context, input *Appen
 	}
 
 	if input.Offset == 0 && contentLength >= 0 {
-		headResp, err := cli.HeadObjectV2(ctx, &HeadObjectV2Input{Bucket: input.Bucket, Key: input.Key})
+		headResp, err := cli.HeadObjectV2(ctx, &HeadObjectV2Input{Bucket: input.Bucket, Key: input.Key, GenericInput: input.GenericInput})
 		if err == nil && headResp.ContentLength > 0 {
 			return nil, newTosClientError("tos: The object offset of this modify not matched.", nil)
 		}
@@ -1387,7 +1391,8 @@ func (cli *ClientV2) modifyObjectWithInitCrc64(ctx context.Context, input *Appen
 						Meta:                    input.Meta,
 						ForbidOverwrite:         true,
 					},
-					Content: input.Content,
+					Content:      input.Content,
+					GenericInput: input.GenericInput,
 				})
 
 				if err != nil {
@@ -1421,6 +1426,7 @@ func (cli *ClientV2) modifyObjectWithInitCrc64(ctx context.Context, input *Appen
 		content = wrapReader(content, contentLength, modifyInput.DataTransferListener, modifyInput.RateLimiter, &crcChecker{checker: checker})
 	}
 	rb := cli.newBuilder(modifyInput.Bucket, modifyInput.Key).
+		SetGeneric(input.GenericInput).
 		WithQuery("modify", "").
 		WithParams(*modifyInput).
 		WithContentLength(contentLength).

@@ -514,6 +514,7 @@ func (t *downloadTask) getBaseInput() interface{} {
 		// we want to Sent parallel Listener on output, so explicitly set listener of GetObjectV2Input nil here.
 		DataTransferListener: nil,
 		RateLimiter:          nil,
+		GenericInput:         t.input.GenericInput,
 	}
 	if resp.IfMatch == "" && t.output != nil {
 		resp.IfMatch = t.output.ETag
@@ -589,6 +590,7 @@ func (t *uploadTask) do() (interface{}, error) {
 		UploadPartBasicInput: input.UploadPartBasicInput,
 		Content:              wrapped,
 		ContentLength:        input.ContentLength,
+		GenericInput:         input.GenericInput,
 	})
 	if err != nil {
 		return nil, err
@@ -618,6 +620,7 @@ func (t *uploadTask) getBaseInput() interface{} {
 			TrafficLimit:  t.input.TrafficLimit,
 		},
 		ContentLength: t.PartSize,
+		GenericInput:  t.input.GenericInput,
 	}
 }
 

@@ -27,6 +27,7 @@ type DeleteBucketPolicyOutput struct {
 
 type GetBucketPolicyV2Input struct {
 	Bucket string `json:"-"`
+	GenericInput
 }
 
 type GetBucketPolicyV2Output struct {
@@ -39,8 +40,9 @@ type putBucketPolicyV2Input struct {
 }
 
 type PutBucketPolicyV2Input struct {
-	Bucket string `json:"-"`
-	Policy string `json:"Policy,omitempty"`
+	Bucket       string `json:"-"`
+	Policy       string `json:"Policy,omitempty"`
+	GenericInput `json:"-"`
 }
 
 type PutBucketPolicyV2Output struct {
@@ -49,6 +51,7 @@ type PutBucketPolicyV2Output struct {
 
 type DeleteBucketPolicyV2Input struct {
 	Bucket string `json:"-"`
+	GenericInput
 }
 type DeleteBucketPolicyV2Output struct {
 	RequestInfo
@@ -123,6 +126,7 @@ func (cli *ClientV2) PutBucketPolicyV2(ctx context.Context, input *PutBucketPoli
 	}
 
 	res, err := cli.newBuilder(input.Bucket, "").
+		SetGeneric(input.GenericInput).
 		WithQuery("policy", "").
 		WithRetry(OnRetryFromStart, StatusCodeClassifier{}).
 		Request(ctx, http.MethodPut, bytes.NewReader([]byte(input.Policy)), cli.roundTripper(http.StatusNoContent))
@@ -142,6 +146,7 @@ func (cli *ClientV2) GetBucketPolicyV2(ctx context.Context, input *GetBucketPoli
 		return nil, err
 	}
 	res, err := cli.newBuilder(input.Bucket, "").
+		SetGeneric(input.GenericInput).
 		WithQuery("policy", "").
 		WithRetry(nil, StatusCodeClassifier{}).
 		Request(ctx, http.MethodGet, nil, cli.roundTripper(http.StatusOK))
@@ -166,6 +171,7 @@ func (cli *ClientV2) DeleteBucketPolicyV2(ctx context.Context, input *DeleteBuck
 		return nil, err
 	}
 	res, err := cli.newBuilder(input.Bucket, "").
+		SetGeneric(input.GenericInput).
 		WithQuery("policy", "").
 		WithRetry(nil, StatusCodeClassifier{}).
 		Request(ctx, http.MethodDelete, nil, cli.roundTripper(http.StatusNoContent))

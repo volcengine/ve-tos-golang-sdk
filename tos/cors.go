@@ -15,6 +15,7 @@ func (cli *ClientV2) GetBucketCORS(ctx context.Context, input *GetBucketCORSInpu
 		return nil, err
 	}
 	res, err := cli.newBuilder(input.Bucket, "").
+		SetGeneric(input.GenericInput).
 		WithQuery("cors", "").
 		WithRetry(nil, StatusCodeClassifier{}).
 		Request(ctx, http.MethodGet, nil, cli.roundTripper(http.StatusOK))
@@ -45,6 +46,7 @@ func (cli *ClientV2) PutBucketCORS(ctx context.Context, input *PutBucketCORSInpu
 	}
 
 	res, err := cli.newBuilder(input.Bucket, "").
+		SetGeneric(input.GenericInput).
 		WithQuery("cors", "").
 		WithHeader(HeaderContentMD5, contentMD5).
 		WithRetry(OnRetryFromStart, StatusCodeClassifier{}).
@@ -68,6 +70,7 @@ func (cli *ClientV2) DeleteBucketCORS(ctx context.Context, input *DeleteBucketCO
 		return nil, err
 	}
 	res, err := cli.newBuilder(input.Bucket, "").
+		SetGeneric(input.GenericInput).
 		WithQuery("cors", "").
 		WithRetry(nil, StatusCodeClassifier{}).
 		Request(ctx, http.MethodDelete, nil, cli.roundTripper(http.StatusNoContent))

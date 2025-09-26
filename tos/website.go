@@ -26,6 +26,7 @@ func (cli *ClientV2) PutBucketWebsite(ctx context.Context, input *PutBucketWebsi
 		return nil, err
 	}
 	res, err := cli.newBuilder(input.Bucket, "").
+		SetGeneric(input.GenericInput).
 		WithQuery("website", "").
 		WithHeader(HeaderContentMD5, contentMD5).
 		WithRetry(OnRetryFromStart, StatusCodeClassifier{}).
@@ -46,6 +47,7 @@ func (cli *ClientV2) GetBucketWebsite(ctx context.Context, input *GetBucketWebsi
 		return nil, err
 	}
 	res, err := cli.newBuilder(input.Bucket, "").
+		SetGeneric(input.GenericInput).
 		WithQuery("website", "").
 		WithRetry(nil, StatusCodeClassifier{}).
 		Request(ctx, http.MethodGet, nil, cli.roundTripper(http.StatusOK))
@@ -68,6 +70,7 @@ func (cli *ClientV2) DeleteBucketWebsite(ctx context.Context, input *DeleteBucke
 		return nil, err
 	}
 	res, err := cli.newBuilder(input.Bucket, "").
+		SetGeneric(input.GenericInput).
 		WithQuery("website", "").
 		WithRetry(nil, StatusCodeClassifier{}).
 		Request(ctx, http.MethodDelete, nil, cli.roundTripper(http.StatusNoContent))

@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/stretchr/testify/require"
 	"hash"
 	"hash/crc64"
 	"io"
@@ -15,6 +14,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 
 	"github.com/volcengine/ve-tos-golang-sdk/v2/tos"
 	"github.com/volcengine/ve-tos-golang-sdk/v2/tos/enum"
@@ -530,6 +531,37 @@ func TestDownloadFileWithCheckpoint(t *testing.T) {
 	buffer, err := ioutil.ReadAll(file)
 	require.Nil(t, err)
 	require.Equal(t, md5Sum, md5s(string(buffer)))
+
+	download, err = client.DownloadFile(context.Background(), &tos.DownloadFileInput{
+		HeadObjectV2Input: tos.HeadObjectV2Input{
+			Bucket: bucket,
+			Key:    key,
+			GenericInput: tos.GenericInput{
+				RequestDate: time.Now().UTC(),
+			},
+		},
+		PartSize:         5 * 1024 * 1024,
+		TaskNum:          4,
+		FilePath:         fileName + ".file", // xxx.file.file
+		EnableCheckpoint: true,
+	})
+	checkSuccess(t, download, err, 200)
+
+	download, err = client.DownloadFile(context.Background(), &tos.DownloadFileInput{
+		HeadObjectV2Input: tos.HeadObjectV2Input{
+			Bucket: bucket,
+			Key:    key,
+			GenericInput: tos.GenericInput{
+				RequestDate: time.Now().Add(-time.Hour),
+			},
+		},
+		PartSize:         5 * 1024 * 1024,
+		TaskNum:          4,
+		FilePath:         fileName + ".file", // xxx.file.file
+		EnableCheckpoint: true,
+	})
+	require.NotNil(t, err)
+
 }
 
 type DownloadCancelListenerTest struct {

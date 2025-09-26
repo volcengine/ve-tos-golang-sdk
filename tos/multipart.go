@@ -81,6 +81,7 @@ func (cli *ClientV2) CreateMultipartUploadV2(
 	}
 
 	res, err := cli.newBuilder(input.Bucket, input.Key).
+		SetGeneric(input.GenericInput).
 		WithQuery("uploads", "").
 		WithParams(*input).
 		WithRetry(nil, ServerErrorClassifier{}).
@@ -231,6 +232,7 @@ func (cli *ClientV2) UploadPartV2(ctx context.Context, input *UploadPartV2Input)
 		}
 	}
 	rb := cli.newBuilder(input.Bucket, input.Key).
+		SetGeneric(input.GenericInput).
 		WithParams(*input).
 		WithContentLength(input.ContentLength).
 		WithEnableTrailer(input.ContentMD5 == "" && !cli.disableTrailerHeader).
@@ -277,6 +279,7 @@ func (cli *ClientV2) UploadPartFromFile(ctx context.Context, input *UploadPartFr
 		UploadPartBasicInput: input.UploadPartBasicInput,
 		Content:              reader,
 		ContentLength:        input.PartSize,
+		GenericInput:         input.GenericInput,
 	})
 	if err != nil {
 		return nil, err
@@ -333,6 +336,7 @@ func (cli *ClientV2) CompleteMultipartUploadV2(
 		return nil, err
 	}
 	reqBuilder := cli.newBuilder(input.Bucket, input.Key).
+		SetGeneric(input.GenericInput).
 		WithParams(*input)
 	var err error
 	var res *Response
@@ -418,6 +422,7 @@ func (cli *ClientV2) AbortMultipartUpload(ctx context.Context, input *AbortMulti
 		return nil, err
 	}
 	res, err := cli.newBuilder(input.Bucket, input.Key).
+		SetGeneric(input.GenericInput).
 		WithParams(*input).
 		WithRetry(nil, ServerErrorClassifier{}).
 		Request(ctx, http.MethodDelete, nil, cli.roundTripper(http.StatusNoContent))
@@ -463,6 +468,7 @@ func (cli *ClientV2) ListParts(ctx context.Context, input *ListPartsInput) (*Lis
 		return nil, err
 	}
 	res, err := cli.newBuilder(input.Bucket, input.Key).
+		SetGeneric(input.GenericInput).
 		WithParams(*input).
 		WithRetry(nil, StatusCodeClassifier{}).
 		Request(ctx, http.MethodGet, nil, cli.roundTripper(http.StatusOK))
@@ -511,6 +517,7 @@ func (cli *ClientV2) ListMultipartUploadsV2(
 		return nil, err
 	}
 	res, err := cli.newBuilder(input.Bucket, "").
+		SetGeneric(input.GenericInput).
 		WithQuery("uploads", "").
 		WithParams(*input).
 		WithRetry(nil, StatusCodeClassifier{}).

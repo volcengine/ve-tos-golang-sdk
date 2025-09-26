@@ -14,6 +14,7 @@ func (cli *ClientV2) PutQosPolicy(ctx context.Context, input *PutQosPolicyInput)
 	}
 
 	res, err := cli.newControlBuilder(input.AccountID).
+		SetGeneric(input.GenericInput).
 		WithRetry(OnRetryFromStart, StatusCodeClassifier{}).
 		RequestControl(ctx, http.MethodPut, strings.NewReader(input.Policy), "/qospolicy", cli.roundTripper(http.StatusNoContent))
 	if err != nil {
@@ -30,6 +31,7 @@ func (cli *ClientV2) GetQosPolicy(ctx context.Context, input *GetQosPolicyInput)
 	}
 
 	res, err := cli.newControlBuilder(input.AccountID).
+		SetGeneric(input.GenericInput).
 		WithRetry(OnRetryFromStart, StatusCodeClassifier{}).
 		RequestControl(ctx, http.MethodGet, nil, "/qospolicy", cli.roundTripper(http.StatusOK))
 	if err != nil {
@@ -51,6 +53,7 @@ func (cli *ClientV2) DeleteQosPolicy(ctx context.Context, input *DeleteQosPolicy
 	}
 
 	res, err := cli.newControlBuilder(input.AccountID).
+		SetGeneric(input.GenericInput).
 		WithRetry(OnRetryFromStart, StatusCodeClassifier{}).
 		RequestControl(ctx, http.MethodDelete, nil, "/qospolicy", cli.roundTripper(http.StatusNoContent))
 	if err != nil {
