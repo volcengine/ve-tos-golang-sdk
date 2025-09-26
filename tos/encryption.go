@@ -14,6 +14,7 @@ func (cli *ClientV2) GetBucketEncryption(ctx context.Context, input *GetBucketEn
 		return nil, err
 	}
 	res, err := cli.newBuilder(input.Bucket, "").
+		SetGeneric(input.GenericInput).
 		WithQuery("encryption", "").
 		WithRetry(nil, StatusCodeClassifier{}).
 		Request(ctx, http.MethodGet, nil, cli.roundTripper(http.StatusOK))
@@ -43,6 +44,7 @@ func (cli *ClientV2) PutBucketEncryption(ctx context.Context, input *PutBucketEn
 	}
 
 	res, err := cli.newBuilder(input.Bucket, "").
+		SetGeneric(input.GenericInput).
 		WithQuery("encryption", "").
 		WithHeader(HeaderContentMD5, contentMD5).
 		WithRetry(OnRetryFromStart, StatusCodeClassifier{}).
@@ -65,6 +67,7 @@ func (cli *ClientV2) DeleteBucketEncryption(ctx context.Context, input *DeleteBu
 		return nil, err
 	}
 	res, err := cli.newBuilder(input.Bucket, "").
+		SetGeneric(input.GenericInput).
 		WithQuery("encryption", "").
 		WithRetry(nil, StatusCodeClassifier{}).
 		Request(ctx, http.MethodDelete, nil, cli.roundTripper(http.StatusNoContent))

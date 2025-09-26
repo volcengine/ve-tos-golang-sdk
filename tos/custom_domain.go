@@ -21,6 +21,7 @@ func (cli *ClientV2) PutBucketCustomDomain(ctx context.Context, input *PutBucket
 		return nil, err
 	}
 	res, err := cli.newBuilder(input.Bucket, "").
+		SetGeneric(input.GenericInput).
 		WithQuery("customdomain", "").
 		WithHeader(HeaderContentMD5, contentMD5).
 		WithRetry(OnRetryFromStart, StatusCodeClassifier{}).
@@ -41,6 +42,7 @@ func (cli *ClientV2) ListBucketCustomDomain(ctx context.Context, input *ListBuck
 		return nil, err
 	}
 	res, err := cli.newBuilder(input.Bucket, "").
+		SetGeneric(input.GenericInput).
 		WithQuery("customdomain", "").
 		WithRetry(nil, StatusCodeClassifier{}).
 		Request(ctx, http.MethodGet, nil, cli.roundTripper(http.StatusOK))
@@ -63,6 +65,7 @@ func (cli *ClientV2) DeleteBucketCustomDomain(ctx context.Context, input *Delete
 		return nil, err
 	}
 	res, err := cli.newBuilder(input.Bucket, "").
+		SetGeneric(input.GenericInput).
 		WithQuery("customdomain", input.Domain).
 		WithRetry(nil, StatusCodeClassifier{}).
 		Request(ctx, http.MethodDelete, nil, cli.roundTripper(http.StatusOK))

@@ -9,6 +9,7 @@ import (
 type PutBucketRenameInput struct {
 	Bucket       string `json:"-"`
 	RenameEnable bool   `json:"RenameEnable"`
+	GenericInput `json:"-"`
 }
 
 type PutBucketRenameOutput struct {
@@ -17,6 +18,7 @@ type PutBucketRenameOutput struct {
 
 type GetBucketRenameInput struct {
 	Bucket string
+	GenericInput
 }
 
 type GetBucketRenameOutput struct {
@@ -26,6 +28,7 @@ type GetBucketRenameOutput struct {
 
 type DeleteBucketRenameInput struct {
 	Bucket string
+	GenericInput
 }
 
 type DeleteBucketRenameOutput struct {
@@ -48,6 +51,7 @@ func (cli *ClientV2) PutBucketRename(ctx context.Context, input *PutBucketRename
 	}
 
 	res, err := cli.newBuilder(input.Bucket, "").
+		SetGeneric(input.GenericInput).
 		WithQuery("rename", "").
 		WithHeader(HeaderContentMD5, contentMD5).
 		WithRetry(OnRetryFromStart, StatusCodeClassifier{}).
@@ -69,6 +73,7 @@ func (cli *ClientV2) GetBucketRename(ctx context.Context, input *GetBucketRename
 	}
 
 	req := cli.newBuilder(input.Bucket, "").
+		SetGeneric(input.GenericInput).
 		WithQuery("rename", "").
 		WithRetry(nil, StatusCodeClassifier{})
 
@@ -92,6 +97,7 @@ func (cli *ClientV2) DeleteBucketRename(ctx context.Context, input *DeleteBucket
 		return nil, err
 	}
 	res, err := cli.newBuilder(input.Bucket, "").
+		SetGeneric(input.GenericInput).
 		WithQuery("rename", "").
 		WithRetry(nil, StatusCodeClassifier{}).
 		Request(ctx, http.MethodDelete, nil, cli.roundTripper(http.StatusNoContent))
@@ -114,6 +120,7 @@ func (cli *ClientV2) RenameObject(ctx context.Context, input *RenameObjectInput)
 		return nil, err
 	}
 	res, err := cli.newBuilder(input.Bucket, input.Key).
+		SetGeneric(input.GenericInput).
 		WithQuery("rename", "").
 		WithParams(*input).
 		WithRetry(nil, StatusCodeClassifier{}).

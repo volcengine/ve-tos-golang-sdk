@@ -18,6 +18,7 @@ func (cli *ClientV2) PutBucketReplication(ctx context.Context, input *PutBucketR
 		return nil, err
 	}
 	res, err := cli.newBuilder(input.Bucket, "").
+		SetGeneric(input.GenericInput).
 		WithQuery("replication", "").
 		WithHeader(HeaderContentMD5, contentMD5).
 		WithRetry(OnRetryFromStart, StatusCodeClassifier{}).
@@ -39,6 +40,7 @@ func (cli *ClientV2) GetBucketReplication(ctx context.Context, input *GetBucketR
 	}
 
 	req := cli.newBuilder(input.Bucket, "").
+		SetGeneric(input.GenericInput).
 		WithQuery("replication", "").
 		WithQuery("progress", "").
 		WithRetry(nil, StatusCodeClassifier{})
@@ -66,6 +68,7 @@ func (cli *ClientV2) DeleteBucketReplication(ctx context.Context, input *DeleteB
 		return nil, err
 	}
 	res, err := cli.newBuilder(input.Bucket, "").
+		SetGeneric(input.GenericInput).
 		WithQuery("replication", "").
 		WithRetry(nil, StatusCodeClassifier{}).
 		Request(ctx, http.MethodDelete, nil, cli.roundTripper(http.StatusNoContent))

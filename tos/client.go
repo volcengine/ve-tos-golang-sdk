@@ -775,6 +775,7 @@ func (cli *ClientV2) PutFetchTaskV2(ctx context.Context, input *PutFetchTaskInpu
 	}
 
 	res, err := cli.newBuilder(input.Bucket, "").
+		SetGeneric(input.GenericInput).
 		WithQuery("fetchTask", "").
 		WithHeader(HeaderContentMD5, contentMD5).
 		WithParams(*input).

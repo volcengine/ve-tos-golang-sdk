@@ -77,6 +77,7 @@ type PutBucketACLInput struct {
 	Owner              Owner     `json:"Owner,omitempty"`
 	Grants             []GrantV2 `json:"Grants,omitempty"`
 	BucketAclDelivered bool      `json:"BucketAclDelivered,omitempty"`
+	GenericInput       `json:"-"`
 }
 
 type PutBucketACLOutput struct {
@@ -85,6 +86,7 @@ type PutBucketACLOutput struct {
 
 type GetBucketACLInput struct {
 	Bucket string
+	GenericInput
 }
 
 type GetBucketACLOutput struct {
@@ -98,6 +100,7 @@ type GetObjectACLInput struct {
 	Bucket    string
 	Key       string
 	VersionID string `location:"query" locationName:"versionId"`
+	GenericInput
 }
 
 type GetObjectACLOutput struct {
@@ -133,6 +136,7 @@ type PutObjectACLInput struct {
 	Grants               []GrantV2
 	BucketOwnerEntrusted bool
 	IsDefault            bool
+	GenericInput
 }
 
 type PutObjectAclOutput struct {
@@ -179,6 +183,7 @@ type PutFetchTaskInputV2 struct {
 	CallbackHost     string `json:"CallbackHost,omitempty"`
 	CallbackBodyType string `json:"CallbackBodyType,omitempty"`
 	CallbackBody     string `json:"CallbackBody,omitempty"`
+	GenericInput     `json:"-"`
 }
 
 type PutFetchTaskOutputV2 struct {
@@ -385,6 +390,7 @@ type HeadBucketOutput struct {
 
 type GetBucketCORSInput struct {
 	Bucket string
+	GenericInput
 }
 
 type CorsRule struct {
@@ -402,8 +408,9 @@ type GetBucketCORSOutput struct {
 }
 
 type PutBucketCORSInput struct {
-	Bucket    string     `json:"-"`
-	CORSRules []CorsRule `json:"CORSRules,omitempty"`
+	Bucket       string     `json:"-"`
+	CORSRules    []CorsRule `json:"CORSRules,omitempty"`
+	GenericInput `json:"-"`
 }
 
 type PutBucketCORSOutput struct {
@@ -412,6 +419,7 @@ type PutBucketCORSOutput struct {
 
 type DeleteBucketCORSInput struct {
 	Bucket string
+	GenericInput
 }
 
 type DeleteBucketCORSOutput struct {
@@ -458,6 +466,7 @@ type ListedBucket struct {
 type ListBucketsInput struct {
 	ProjectName string          `location:"header" locationName:"X-Tos-Project-Name"`
 	BucketType  enum.BucketType `location:"header" locationName:"X-Tos-Bucket-Type"`
+	GenericInput
 }
 
 type PutObjectBasicInput struct {
@@ -527,6 +536,7 @@ type PutObjectOutput struct {
 type PutObjectFromFileInput struct {
 	PutObjectBasicInput
 	FilePath string
+	GenericInput
 }
 
 type PutObjectFromFileOutput struct {
@@ -592,6 +602,7 @@ type AppendObjectV2Input struct {
 	DataTransferListener DataTransferListener
 	RateLimiter          RateLimiter
 	PreHashCrc64ecma     uint64
+	GenericInput
 }
 
 type AppendObjectOutput struct {
@@ -1084,10 +1095,11 @@ type ObjectTobeDeleted struct {
 }
 
 type DeleteMultiObjectsInput struct {
-	Bucket    string
-	Objects   []ObjectTobeDeleted `json:"Objects,omitempty"`
-	Quiet     bool                `json:"Quiet,omitempty"`
-	Recursive bool                `json:"-"`
+	Bucket       string
+	Objects      []ObjectTobeDeleted `json:"Objects,omitempty"`
+	Quiet        bool                `json:"Quiet,omitempty"`
+	Recursive    bool                `json:"-"`
+	GenericInput `json:"-"`
 }
 
 type Deleted struct {
@@ -1162,6 +1174,7 @@ type CopyObjectInput struct {
 	ObjectExpires     int64                      `location:"header" locationName:"X-Tos-Object-Expires"`
 	TaggingDirective  enum.TaggingDirectiveType  `location:"header" locationName:"X-Tos-Tagging-Directive"`
 	Meta              map[string]string          `location:"headers"`
+	GenericInput
 }
 
 type copyObjectOutput struct {
@@ -1228,6 +1241,7 @@ type UploadPartCopyV2Input struct {
 	SSECKeyMD5    string `location:"header" locationName:"X-Tos-Server-Side-Encryption-Customer-Key-MD5"`
 	SSECAlgorithm string `location:"header" locationName:"X-Tos-Server-Side-Encryption-Customer-Algorithm"`
 	TrafficLimit  int64  `location:"header" locationName:"X-Tos-Traffic-Limit"`
+	GenericInput
 }
 
 type UploadPartCopyV2Output struct {
@@ -1270,6 +1284,7 @@ type CreateMultipartUploadV2Input struct {
 	Tagging                   string                `location:"header" locationName:"X-Tos-Tagging"`
 	ObjectExpires             int64                 `location:"header" locationName:"X-Tos-Object-Expires"`
 	Meta                      map[string]string     `location:"headers"`
+	GenericInput
 }
 
 type RenameObjectInput struct {
@@ -1277,6 +1292,7 @@ type RenameObjectInput struct {
 	Key            string
 	NewKey         string `location:"query" locationName:"name"`
 	RecursiveMkdir bool   `location:"header" locationName:"X-Tos-Recursive-Mkdir"`
+	GenericInput
 }
 
 type RenameObjectOutput struct {
@@ -1349,6 +1365,7 @@ type UploadPartV2Input struct {
 	UploadPartBasicInput
 	Content       io.Reader
 	ContentLength int64 `location:"header" locationName:"Content-Length"`
+	GenericInput
 }
 
 type UploadPartV2Output struct {
@@ -1371,6 +1388,7 @@ type UploadPartFromFileInput struct {
 	FilePath string
 	Offset   uint64 // 当前分段在文件中的起始位置
 	PartSize int64  // 当前分段长度，该字段等同于 Content-Length 头域
+	GenericInput
 }
 
 type UploadPartFromFileOutput struct {
@@ -1432,6 +1450,7 @@ type CompleteMultipartUploadV2Input struct {
 	CallbackVar     string `location:"header" locationName:"X-Tos-Callback-Var"`
 	ForbidOverwrite bool   `location:"header" locationName:"X-Tos-Forbid-Overwrite"`
 	Parts           []UploadedPartV2
+	GenericInput
 }
 
 type CompleteMultipartUploadV2Output struct {
@@ -1453,6 +1472,7 @@ type AbortMultipartUploadInput struct {
 	Bucket   string
 	Key      string
 	UploadID string `location:"query" locationName:"uploadId"`
+	GenericInput
 }
 
 type AbortMultipartUploadOutput struct {
@@ -1502,6 +1522,7 @@ type ListMultipartUploadsV2Input struct {
 	UploadIDMarker string `location:"query" locationName:"upload-id-marker"`
 	MaxUploads     int    `location:"query" locationName:"max-uploads"`
 	EncodingType   string `location:"query" locationName:"encoding-type"` // "" or "url"
+	GenericInput
 }
 
 type ListedUpload struct {
@@ -1556,6 +1577,7 @@ type ListPartsInput struct {
 	PartNumberMarker int    `location:"query" locationName:"part-number-marker"`
 	MaxParts         int    `location:"query" locationName:"max-parts"`
 	EncodingType     string `location:"query" locationName:"encoding-type"` // "" or "url"
+	GenericInput
 }
 
 type ListPartsOutput struct {
@@ -1595,10 +1617,12 @@ type PutBucketLifecycleInput struct {
 	Bucket                 string
 	Rules                  []LifecycleRule `json:"Rules,omitempty"`
 	AllowSameActionOverlap bool            `location:"header" locationName:"X-Tos-Allow-Same-Action-Overlap"`
+	GenericInput           `json:"-"`
 }
 
 type GetBucketLifecycleInput struct {
 	Bucket string
+	GenericInput
 }
 
 type GetBucketLifecycleOutput struct {
@@ -1608,6 +1632,7 @@ type GetBucketLifecycleOutput struct {
 
 type DeleteBucketLifecycleInput struct {
 	Bucket string
+	GenericInput
 }
 
 type DeleteBucketLifecycleOutput struct {
@@ -1691,6 +1716,7 @@ type putBucketMirrorBackInput struct {
 type PutBucketMirrorBackInput struct {
 	Bucket string
 	Rules  []MirrorBackRule
+	GenericInput
 }
 
 type MirrorBackRule struct {
@@ -1761,6 +1787,7 @@ type PublicSource struct {
 
 type GetBucketMirrorBackInput struct {
 	Bucket string
+	GenericInput
 }
 
 type GetBucketMirrorBackOutput struct {
@@ -1772,21 +1799,24 @@ type DeleteObjectTaggingInput struct {
 	Bucket    string
 	Key       string
 	VersionID string `location:"query" locationName:"versionId"`
+	GenericInput
 }
 
 type GetObjectTaggingInput struct {
 	Bucket    string
 	Key       string
 	VersionID string `location:"query" locationName:"versionId"`
+	GenericInput
 }
 type putObjectTaggingInput struct {
 	TagSet TagSet `json:"TagSet"`
 }
 type PutObjectTaggingInput struct {
-	Bucket    string
-	Key       string
-	VersionID string `location:"query" locationName:"versionId"`
-	TagSet    TagSet `json:"TagSet"`
+	Bucket       string
+	Key          string
+	VersionID    string `location:"query" locationName:"versionId"`
+	TagSet       TagSet `json:"TagSet"`
+	GenericInput `json:"-"`
 }
 
 type PutObjectTaggingOutput struct {
@@ -1811,6 +1841,7 @@ type DeleteObjectTaggingOutput struct {
 
 type DeleteBucketMirrorBackInput struct {
 	Bucket string
+	GenericInput
 }
 
 type DeleteBucketMirrorBackOutput struct {
@@ -1836,6 +1867,7 @@ type MirrorHeader struct {
 type PutBucketStorageClassInput struct {
 	Bucket       string
 	StorageClass enum.StorageClassType `location:"header" locationName:"X-Tos-Storage-Class"`
+	GenericInput
 }
 
 type PutBucketStorageClassOutput struct {
@@ -1844,6 +1876,7 @@ type PutBucketStorageClassOutput struct {
 
 type GetBucketLocationInput struct {
 	Bucket string
+	GenericInput
 }
 
 type GetBucketLocationOutput struct {
@@ -1923,6 +1956,7 @@ type UploadFileInput struct {
 	RateLimiter          RateLimiter
 	// cancelHook 支持取消断点续传任务
 	CancelHook CancelHook
+	GenericInput
 }
 
 func NewCancelHook() CancelHook {
@@ -2001,6 +2035,7 @@ type PutBucketNotificationInput struct {
 	Bucket                      string                       `json:"-"`
 	CloudFunctionConfigurations []CloudFunctionConfiguration `json:"CloudFunctionConfigurations"`
 	RocketMQConfigurations      []RocketMQConfiguration      `json:"RocketMQConfigurations"`
+	GenericInput                `json:"-"`
 }
 
 type PutBucketNotificationOutput struct {
@@ -2029,6 +2064,7 @@ type FilterRule struct {
 
 type GetBucketNotificationInput struct {
 	Bucket string
+	GenericInput
 }
 
 type GetBucketNotificationOutput struct {
@@ -2039,6 +2075,7 @@ type GetBucketNotificationOutput struct {
 
 type GetBucketNotificationType2Input struct {
 	Bucket string
+	GenericInput
 }
 
 type NotificationRule struct {
@@ -2097,9 +2134,10 @@ type putBucketNotificationType2Input struct {
 }
 
 type PutBucketNotificationType2Input struct {
-	Bucket  string
-	Rules   []NotificationRule `json:"Rules"`
-	Version string             `json:"Version"`
+	Bucket       string
+	Rules        []NotificationRule `json:"Rules"`
+	Version      string             `json:"Version"`
+	GenericInput `json:"-"`
 }
 
 type PutBucketNotificationType2Output struct {
@@ -2113,6 +2151,7 @@ type putBucketVersioningInput struct {
 type PutBucketVersioningInput struct {
 	Bucket string
 	Status enum.VersioningStatusType
+	GenericInput
 }
 
 type PutBucketVersioningOutput struct {
@@ -2121,6 +2160,7 @@ type PutBucketVersioningOutput struct {
 
 type GetBucketVersioningInput struct {
 	Bucket string
+	GenericInput
 }
 
 type GetBucketVersioningOutputV2 struct {
@@ -2141,6 +2181,7 @@ type PutBucketWebsiteInput struct {
 	IndexDocument         *IndexDocument         `json:"IndexDocument,omitempty"`
 	ErrorDocument         *ErrorDocument         `json:"ErrorDocument,omitempty"`
 	RoutingRules          *RoutingRules          `json:"RoutingRules,omitempty"`
+	GenericInput          `json:"-"`
 }
 
 type RedirectAllRequestsTo struct {
@@ -2185,6 +2226,7 @@ type PutBucketWebsiteOutput struct {
 
 type GetBucketWebsiteInput struct {
 	Bucket string
+	GenericInput
 }
 
 type GetBucketWebsiteOutput struct {
@@ -2197,6 +2239,7 @@ type GetBucketWebsiteOutput struct {
 
 type DeleteBucketWebsiteInput struct {
 	Bucket string
+	GenericInput
 }
 
 type DeleteBucketWebsiteOutput struct {
@@ -2212,6 +2255,7 @@ type PutBucketReplicationInput struct {
 	Bucket string
 	Role   string
 	Rules  []ReplicationRule
+	GenericInput
 }
 
 type ReplicationRuleWithProgress struct {
@@ -2246,6 +2290,7 @@ type PutBucketReplicationOutput struct {
 type GetBucketReplicationInput struct {
 	Bucket string
 	RuleID string
+	GenericInput
 }
 
 type GetBucketReplicationOutput struct {
@@ -2255,6 +2300,7 @@ type GetBucketReplicationOutput struct {
 }
 type DeleteBucketReplicationInput struct {
 	Bucket string
+	GenericInput
 }
 
 type DeleteBucketReplicationOutput struct {
@@ -2268,6 +2314,7 @@ type putBucketRealTimeLogInput struct {
 type PutBucketRealTimeLogInput struct {
 	Bucket        string
 	Configuration RealTimeLogConfiguration
+	GenericInput
 }
 
 type RealTimeLogConfiguration struct {
@@ -2287,6 +2334,7 @@ type PutBucketRealTimeLogOutput struct {
 
 type GetBucketRealTimeLogInput struct {
 	Bucket string
+	GenericInput
 }
 
 type GetBucketRealTimeLogOutput struct {
@@ -2296,6 +2344,7 @@ type GetBucketRealTimeLogOutput struct {
 
 type DeleteBucketRealTimeLogInput struct {
 	Bucket string
+	GenericInput
 }
 
 type DeleteBucketRealTimeLogOutput struct {
@@ -2306,8 +2355,9 @@ type putBucketCustomDomainInput struct {
 }
 
 type PutBucketCustomDomainInput struct {
-	Bucket string
-	Rule   CustomDomainRule
+	Bucket       string
+	Rule         CustomDomainRule
+	GenericInput `json:"-"`
 }
 
 type CustomDomainRule struct {
@@ -2325,6 +2375,7 @@ type PutBucketCustomDomainOutput struct {
 
 type ListBucketCustomDomainInput struct {
 	Bucket string
+	GenericInput
 }
 
 type ListBucketCustomDomainOutput struct {
@@ -2335,6 +2386,7 @@ type ListBucketCustomDomainOutput struct {
 type DeleteBucketCustomDomainInput struct {
 	Bucket string
 	Domain string
+	GenericInput
 }
 
 type DeleteBucketCustomDomainOutput struct {
@@ -2343,11 +2395,13 @@ type DeleteBucketCustomDomainOutput struct {
 
 type GetBucketEncryptionInput struct {
 	Bucket string
+	GenericInput
 }
 
 type PutBucketEncryptionInput struct {
-	Bucket string               `json:"-"`
-	Rule   BucketEncryptionRule `json:"Rule"`
+	Bucket                   string               `json:"-"`
+	Rule                     BucketEncryptionRule `json:"Rule"`
+	GetBucketEncryptionInput `json:"-"`
 }
 
 type BucketEncryptionRule struct {
@@ -2371,6 +2425,7 @@ type GetBucketEncryptionOutput struct {
 
 type DeleteBucketEncryptionInput struct {
 	Bucket string
+	GenericInput
 }
 
 type DeleteBucketEncryptionOutput struct {
@@ -2466,6 +2521,7 @@ type putBucketTaggingInput struct {
 type PutBucketTaggingInput struct {
 	Bucket string
 	TagSet TagSet
+	GenericInput
 }
 
 type PutBucketTaggingOutput struct {
@@ -2474,6 +2530,7 @@ type PutBucketTaggingOutput struct {
 
 type GetBucketTaggingInput struct {
 	Bucket string // required
+	GenericInput
 }
 
 type GetBucketTaggingOutput struct {
@@ -2483,6 +2540,7 @@ type GetBucketTaggingOutput struct {
 
 type DeleteBucketTaggingInput struct {
 	Bucket string // required
+	GenericInput
 }
 
 type DeleteBucketTaggingOutput struct {
@@ -2531,6 +2589,7 @@ type PutSymlinkInput struct {
 	ContentDisposition  string                `location:"header" locationName:"Content-Disposition" encodeChinese:"true"`
 	ContentLanguage     string                `location:"header" locationName:"Content-Language"`
 	Meta                map[string]string     `location:"headers"`
+	GenericInput
 }
 
 type PutSymlinkOutput struct {
@@ -2542,6 +2601,7 @@ type GetSymlinkInput struct {
 	Bucket    string
 	Key       string
 	VersionID string
+	GenericInput
 }
 
 type GetSymlinkOutput struct {
@@ -2583,6 +2643,7 @@ type RateLimiter interface {
 type PutQosPolicyInput struct {
 	AccountID string
 	Policy    string
+	GenericInput
 }
 
 type PutQosPolicyOutput struct {
@@ -2591,6 +2652,7 @@ type PutQosPolicyOutput struct {
 
 type GetQosPolicyInput struct {
 	AccountID string
+	GenericInput
 }
 
 type GetQosPolicyOutput struct {
@@ -2600,6 +2662,7 @@ type GetQosPolicyOutput struct {
 
 type DeleteQosPolicyInput struct {
 	AccountID string
+	GenericInput
 }
 
 type DeleteQosPolicyOutput struct {
@@ -2608,6 +2671,7 @@ type DeleteQosPolicyOutput struct {
 
 type GetBucketInfoInput struct {
 	Bucket string
+	GenericInput
 }
 type GetBucketInfoOutput struct {
 	RequestInfo
@@ -2648,6 +2712,7 @@ type PutBucketInventoryInput struct {
 	IncludedObjectVersions enum.InventoryIncludedObjType `json:"IncludedObjectVersions"`
 	OptionalFields         *InventoryOptionalFields      `json:"OptionalFields,omitempty"`
 	IsUnCompressed         bool                          `json:"IsUnCompressed"`
+	GenericInput           `json:"-"`
 }
 
 type InventoryFilter struct {
@@ -2681,6 +2746,7 @@ type PutBucketInventoryOutput struct {
 type GetBucketInventoryInput struct {
 	Bucket string // required
 	ID     string // required
+	GenericInput
 }
 
 type GetBucketInventoryOutput struct {
@@ -2702,6 +2768,7 @@ type BucketInventoryConfiguration struct {
 type ListBucketInventoryInput struct {
 	Bucket            string // required
 	ContinuationToken string
+	GenericInput
 }
 
 type ListBucketInventoryOutput struct {
@@ -2714,6 +2781,7 @@ type ListBucketInventoryOutput struct {
 type DeleteBucketInventoryInput struct {
 	Bucket string // required
 	ID     string // required
+	GenericInput
 }
 
 type DeleteBucketInventoryOutput struct {

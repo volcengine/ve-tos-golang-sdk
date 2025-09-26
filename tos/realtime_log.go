@@ -21,6 +21,7 @@ func (cli *ClientV2) PutBucketRealTimeLog(ctx context.Context, input *PutBucketR
 		return nil, err
 	}
 	res, err := cli.newBuilder(input.Bucket, "").
+		SetGeneric(input.GenericInput).
 		WithQuery("realtimeLog", "").
 		WithHeader(HeaderContentMD5, contentMD5).
 		WithRetry(OnRetryFromStart, StatusCodeClassifier{}).
@@ -41,6 +42,7 @@ func (cli *ClientV2) GetBucketRealTimeLog(ctx context.Context, input *GetBucketR
 		return nil, err
 	}
 	res, err := cli.newBuilder(input.Bucket, "").
+		SetGeneric(input.GenericInput).
 		WithQuery("realtimeLog", "").
 		WithRetry(nil, StatusCodeClassifier{}).
 		Request(ctx, http.MethodGet, nil, cli.roundTripper(http.StatusOK))
@@ -63,6 +65,7 @@ func (cli *ClientV2) DeleteBucketRealTimeLog(ctx context.Context, input *DeleteB
 		return nil, err
 	}
 	res, err := cli.newBuilder(input.Bucket, "").
+		SetGeneric(input.GenericInput).
 		WithQuery("realtimeLog", "").
 		WithRetry(nil, StatusCodeClassifier{}).
 		Request(ctx, http.MethodDelete, nil, cli.roundTripper(http.StatusNoContent))

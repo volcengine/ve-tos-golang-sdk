@@ -28,9 +28,11 @@ func loadExistCopyCheckPoint(ctx context.Context, cli *ClientV2, input *Resumabl
 		// 尝试去 abort
 		_, err = cli.AbortMultipartUpload(ctx,
 			&AbortMultipartUploadInput{
-				Bucket:   checkpoint.Bucket,
-				Key:      checkpoint.Key,
-				UploadID: checkpoint.UploadID})
+				Bucket:       checkpoint.Bucket,
+				Key:          checkpoint.Key,
+				UploadID:     checkpoint.UploadID,
+				GenericInput: input.GenericInput,
+			})
 		if err != nil && cli.logger != nil {
 			cli.logger.Debug("fail to abort upload task: %s, err:%s", checkpoint.UploadID, err.Error())
 		}
@@ -163,9 +165,11 @@ func (cli *ClientV2) copyPart(ctx context.Context, cp *copyObjectCheckpoint, inp
 	abort := func() error {
 		_, err := cli.AbortMultipartUpload(ctx,
 			&AbortMultipartUploadInput{
-				Bucket:   input.Bucket,
-				Key:      input.Key,
-				UploadID: cp.UploadID})
+				Bucket:       input.Bucket,
+				Key:          input.Key,
+				UploadID:     cp.UploadID,
+				GenericInput: input.GenericInput,
+			})
 		_ = os.Remove(input.CheckpointFile)
 		return err
 	}
@@ -250,6 +254,7 @@ func (cli *ClientV2) ResumableCopyObject(ctx context.Context, input *ResumableCo
 		IfNoneMatch:       copyInput.CopySourceIfNoneMatch,
 		IfUnmodifiedSince: copyInput.CopySourceIfUnmodifiedSince,
 		IfMatch:           copyInput.CopySourceIfMatch,
+		GenericInput:      copyInput.GenericInput,
 	})
 	if err != nil {
 		return nil, err

@@ -23,6 +23,7 @@ func (cli *ClientV2) PutBucketObjectLock(ctx context.Context, input *PutBucketOb
 	}
 
 	res, err := cli.newBuilder(input.Bucket, "").
+		SetGeneric(input.GenericInput).
 		WithQuery("object-lock", "").
 		WithHeader(HeaderContentMD5, contentMD5).
 		WithRetry(OnRetryFromStart, StatusCodeClassifier{}).
@@ -44,6 +45,7 @@ func (cli *ClientV2) GetBucketObjectLock(ctx context.Context, input *GetBucketOb
 	}
 
 	req := cli.newBuilder(input.Bucket, "").
+		SetGeneric(input.GenericInput).
 		WithQuery("object-lock", "").
 		WithRetry(nil, StatusCodeClassifier{})
 
@@ -63,6 +65,7 @@ func (cli *ClientV2) GetBucketObjectLock(ctx context.Context, input *GetBucketOb
 type PutBucketObjectLockInput struct {
 	Bucket        string
 	Configuration ObjectLockConfiguration
+	GenericInput
 }
 
 type ObjectLockConfiguration struct {
@@ -85,6 +88,7 @@ type PutBucketObjectLockOutput struct {
 }
 type GetBucketObjectLockInput struct {
 	Bucket string
+	GenericInput
 }
 type GetBucketObjectLockOutput struct {
 	RequestInfo

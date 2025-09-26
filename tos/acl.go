@@ -85,6 +85,7 @@ func (cli *ClientV2) PutObjectACL(ctx context.Context, input *PutObjectACLInput)
 		content = bytes.NewReader(data)
 	}
 	builder := cli.newBuilder(input.Bucket, input.Key).
+		SetGeneric(input.GenericInput).
 		WithQuery("acl", "").
 		WithParams(*input)
 	res, err := builder.WithRetry(OnRetryFromStart, StatusCodeClassifier{}).Request(ctx, http.MethodPut, content, cli.roundTripper(http.StatusOK))
@@ -135,6 +136,7 @@ func (cli *ClientV2) GetObjectACL(ctx context.Context, input *GetObjectACLInput)
 		return nil, err
 	}
 	res, err := cli.newBuilder(input.Bucket, input.Key).
+		SetGeneric(input.GenericInput).
 		WithQuery("acl", "").
 		WithParams(*input).
 		WithRetry(nil, StatusCodeClassifier{}).

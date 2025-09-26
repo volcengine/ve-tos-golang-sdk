@@ -3,8 +3,9 @@ package tos
 import (
 	"bytes"
 	"context"
-	"github.com/volcengine/ve-tos-golang-sdk/v2/tos/enum"
 	"net/http"
+
+	"github.com/volcengine/ve-tos-golang-sdk/v2/tos/enum"
 )
 
 // Bucket create a Bucket handle
@@ -155,6 +156,7 @@ func (cli *Client) ListBuckets(ctx context.Context, _ *ListBucketsInput) (*ListB
 // ListBuckets list the buckets that the AK can access
 func (cli *ClientV2) ListBuckets(ctx context.Context, input *ListBucketsInput) (*ListBucketsOutput, error) {
 	res, err := cli.newBuilder("", "").
+		SetGeneric(input.GenericInput).
 		WithParams(*input).
 		WithRetry(nil, StatusCodeClassifier{}).
 		Request(ctx, http.MethodGet, nil, cli.roundTripper(http.StatusOK))
@@ -181,6 +183,7 @@ func (cli *ClientV2) PutBucketStorageClass(ctx context.Context, input *PutBucket
 		return nil, err
 	}
 	res, err := cli.newBuilder(input.Bucket, "").
+		SetGeneric(input.GenericInput).
 		WithQuery("storageClass", "").
 		WithParams(*input).
 		WithRetry(nil, StatusCodeClassifier{}).
@@ -201,6 +204,7 @@ func (cli *ClientV2) GetBucketLocation(ctx context.Context, input *GetBucketLoca
 		return nil, err
 	}
 	res, err := cli.newBuilder(input.Bucket, "").
+		SetGeneric(input.GenericInput).
 		WithQuery("location", "").
 		WithRetry(nil, StatusCodeClassifier{}).
 		Request(ctx, http.MethodGet, nil, cli.roundTripper(http.StatusOK))
@@ -230,6 +234,7 @@ func (cli *ClientV2) PutBucketVersioning(ctx context.Context, input *PutBucketVe
 		return nil, err
 	}
 	res, err := cli.newBuilder(input.Bucket, "").
+		SetGeneric(input.GenericInput).
 		WithQuery("versioning", "").
 		WithHeader(HeaderContentMD5, contentMD5).
 		WithRetry(OnRetryFromStart, StatusCodeClassifier{}).
@@ -251,6 +256,7 @@ func (cli *ClientV2) GetBucketVersioning(ctx context.Context, input *GetBucketVe
 		return nil, err
 	}
 	res, err := cli.newBuilder(input.Bucket, "").
+		SetGeneric(input.GenericInput).
 		WithQuery("versioning", "").
 		WithRetry(nil, StatusCodeClassifier{}).
 		Request(ctx, http.MethodGet, nil, cli.roundTripper(http.StatusOK))
@@ -273,6 +279,7 @@ func (cli *ClientV2) GetBucketInfo(ctx context.Context, input *GetBucketInfoInpu
 		return nil, err
 	}
 	res, err := cli.newBuilder(input.Bucket, "").
+		SetGeneric(input.GenericInput).
 		WithQuery("bucketInfo", "").
 		WithRetry(nil, StatusCodeClassifier{}).
 		Request(ctx, http.MethodGet, nil, cli.roundTripper(http.StatusOK))

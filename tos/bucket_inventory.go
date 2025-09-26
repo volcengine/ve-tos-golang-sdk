@@ -14,6 +14,7 @@ func (cli *ClientV2) GetBucketInventory(ctx context.Context, input *GetBucketInv
 		return nil, err
 	}
 	res, err := cli.newBuilder(input.Bucket, "").
+		SetGeneric(input.GenericInput).
 		WithQuery("inventory", "").
 		WithQuery("id", input.ID).
 		WithRetry(nil, StatusCodeClassifier{}).
@@ -44,6 +45,7 @@ func (cli *ClientV2) PutBucketInventory(ctx context.Context, input *PutBucketInv
 	}
 
 	res, err := cli.newBuilder(input.Bucket, "").
+		SetGeneric(input.GenericInput).
 		WithQuery("inventory", "").
 		WithQuery("id", input.ID).
 		WithHeader(HeaderContentMD5, contentMD5).
@@ -67,6 +69,7 @@ func (cli *ClientV2) DeleteBucketInventory(ctx context.Context, input *DeleteBuc
 		return nil, err
 	}
 	res, err := cli.newBuilder(input.Bucket, "").
+		SetGeneric(input.GenericInput).
 		WithQuery("inventory", "").
 		WithQuery("id", input.ID).
 		WithRetry(nil, StatusCodeClassifier{}).
@@ -88,6 +91,7 @@ func (cli *ClientV2) ListBucketInventory(ctx context.Context, input *ListBucketI
 		return nil, err
 	}
 	res, err := cli.newBuilder(input.Bucket, "").
+		SetGeneric(input.GenericInput).
 		WithQuery("inventory", "").
 		WithQuery("continuation-token", input.ContinuationToken).
 		WithRetry(nil, StatusCodeClassifier{}).

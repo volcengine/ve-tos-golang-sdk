@@ -117,9 +117,11 @@ func loadExistUploadCheckPoint(ctx context.Context, cli *ClientV2, input *Upload
 		// 尝试去 abort
 		_, err = cli.AbortMultipartUpload(ctx,
 			&AbortMultipartUploadInput{
-				Bucket:   checkpoint.Bucket,
-				Key:      checkpoint.Key,
-				UploadID: checkpoint.UploadID})
+				Bucket:       checkpoint.Bucket,
+				Key:          checkpoint.Key,
+				UploadID:     checkpoint.UploadID,
+				GenericInput: input.GenericInput,
+			})
 		if err != nil && cli.logger != nil {
 			cli.logger.Debug("fail to abort upload task: %s, err:%s", checkpoint.UploadID, err.Error())
 		}
@@ -369,9 +371,11 @@ func (cli *ClientV2) uploadPart(ctx context.Context, checkpoint *uploadCheckpoin
 	abort := func() error {
 		_, err := cli.AbortMultipartUpload(ctx,
 			&AbortMultipartUploadInput{
-				Bucket:   input.Bucket,
-				Key:      input.Key,
-				UploadID: checkpoint.UploadID})
+				Bucket:       input.Bucket,
+				Key:          input.Key,
+				UploadID:     checkpoint.UploadID,
+				GenericInput: input.GenericInput,
+			})
 		_ = os.Remove(input.CheckpointFile)
 		return err
 	}
@@ -397,10 +401,11 @@ func (cli *ClientV2) uploadPart(ctx context.Context, checkpoint *uploadCheckpoin
 		return nil, newTosClientError("tos: some upload tasks failed.", nil)
 	}
 	complete, err := cli.CompleteMultipartUploadV2(ctx, &CompleteMultipartUploadV2Input{
-		Bucket:   input.Bucket,
-		Key:      input.Key,
-		UploadID: checkpoint.UploadID,
-		Parts:    checkpoint.GetParts(),
+		Bucket:       input.Bucket,
+		Key:          input.Key,
+		UploadID:     checkpoint.UploadID,
+		Parts:        checkpoint.GetParts(),
+		GenericInput: input.GenericInput,
 	})
 	if err != nil {
 		if serr, ok := err.(*TosServerError); ok {

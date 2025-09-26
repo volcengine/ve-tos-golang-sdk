@@ -20,6 +20,7 @@ func (cli *ClientV2) PutBucketTagging(ctx context.Context, input *PutBucketTaggi
 		return nil, err
 	}
 	res, err := cli.newBuilder(input.Bucket, "").
+		SetGeneric(input.GenericInput).
 		WithQuery("tagging", "").
 		WithParams(*input).
 		WithHeader(HeaderContentMD5, contentMD5).
@@ -41,6 +42,7 @@ func (cli *ClientV2) GetBucketTagging(ctx context.Context, input *GetBucketTaggi
 		return nil, err
 	}
 	res, err := cli.newBuilder(input.Bucket, "").
+		SetGeneric(input.GenericInput).
 		WithQuery("tagging", "").
 		WithParams(*input).
 		WithRetry(nil, StatusCodeClassifier{}).
@@ -64,6 +66,7 @@ func (cli *ClientV2) DeleteBucketTagging(ctx context.Context, input *DeleteBucke
 		return nil, err
 	}
 	res, err := cli.newBuilder(input.Bucket, "").
+		SetGeneric(input.GenericInput).
 		WithQuery("tagging", "").
 		WithParams(*input).
 		WithRetry(nil, StatusCodeClassifier{}).

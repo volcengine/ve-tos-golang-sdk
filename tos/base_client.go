@@ -31,6 +31,7 @@ func (cli *baseClient) PutObjectTagging(ctx context.Context, input *PutObjectTag
 		return nil, err
 	}
 	res, err := cli.newBuilder(input.Bucket, input.Key, option...).
+		SetGeneric(input.GenericInput).
 		WithQuery("tagging", "").
 		WithParams(*input).
 		WithHeader(HeaderContentMD5, contentMD5).
@@ -53,6 +54,7 @@ func (cli *baseClient) GetObjectTagging(ctx context.Context, input *GetObjectTag
 		return nil, err
 	}
 	res, err := cli.newBuilder(input.Bucket, input.Key, option...).
+		SetGeneric(input.GenericInput).
 		WithQuery("tagging", "").
 		WithParams(*input).
 		WithRetry(nil, StatusCodeClassifier{}).
@@ -77,6 +79,7 @@ func (cli *baseClient) DeleteObjectTagging(ctx context.Context, input *DeleteObj
 		return nil, err
 	}
 	res, err := cli.newBuilder(input.Bucket, input.Key, option...).
+		SetGeneric(input.GenericInput).
 		WithQuery("tagging", "").
 		WithParams(*input).
 		WithRetry(nil, StatusCodeClassifier{}).
@@ -134,6 +137,7 @@ func (cli *baseClient) PutSymlink(ctx context.Context, input *PutSymlinkInput, o
 		return nil, err
 	}
 	res, err := cli.newBuilder(input.Bucket, input.Key, option...).
+		SetGeneric(input.GenericInput).
 		WithQuery("symlink", "").
 		WithHeader(HeaderSymlinkTarget, url.QueryEscape(input.SymlinkTargetKey)).
 		WithParams(*input).
@@ -156,6 +160,7 @@ func (cli *baseClient) GetSymlink(ctx context.Context, input *GetSymlinkInput, o
 		return nil, err
 	}
 	res, err := cli.newBuilder(input.Bucket, input.Key, option...).
+		SetGeneric(input.GenericInput).
 		WithQuery("symlink", "").
 		WithParams(*input).
 		WithRetry(nil, StatusCodeClassifier{}).
@@ -181,6 +186,7 @@ func (cli *baseClient) GetBucketACL(ctx context.Context, input *GetBucketACLInpu
 		return nil, err
 	}
 	res, err := cli.newBuilder(input.Bucket, "").
+		SetGeneric(input.GenericInput).
 		WithQuery("acl", "").
 		WithRetry(nil, StatusCodeClassifier{}).
 		Request(ctx, http.MethodGet, nil, cli.roundTripper(http.StatusOK))
@@ -209,6 +215,7 @@ func (cli *baseClient) PutBucketACL(ctx context.Context, input *PutBucketACLInpu
 
 	reqBuilder := cli.newBuilder(input.Bucket, "").
 		WithQuery("acl", "").
+		SetGeneric(input.GenericInput).
 		WithRetry(OnRetryFromStart, StatusCodeClassifier{}).
 		WithParams(*input)
 	var reqData io.Reader

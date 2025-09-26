@@ -139,6 +139,7 @@ func (cli *ClientV2) CopyObject(ctx context.Context, input *CopyObjectInput) (*C
 	}
 
 	res, err := cli.newBuilder(input.Bucket, input.Key).
+		SetGeneric(input.GenericInput).
 		WithParams(*input).
 		WithCopySource(input.SrcBucket, input.SrcKey).
 		WithRetry(nil, ServerErrorClassifier{}).
@@ -273,6 +274,7 @@ func (cli *ClientV2) UploadPartCopyV2(
 	}
 
 	req := cli.newBuilder(input.Bucket, input.Key).
+		SetGeneric(input.GenericInput).
 		WithParams(*input)
 
 	if input.CopySourceRange != "" {

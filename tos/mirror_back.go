@@ -20,6 +20,7 @@ func (cli *ClientV2) PutBucketMirrorBack(ctx context.Context, input *PutBucketMi
 		return nil, err
 	}
 	res, err := cli.newBuilder(input.Bucket, "").
+		SetGeneric(input.GenericInput).
 		WithQuery("mirror", "").
 		WithHeader(HeaderContentMD5, contentMD5).
 		WithRetry(OnRetryFromStart, StatusCodeClassifier{}).
@@ -40,6 +41,7 @@ func (cli *ClientV2) GetBucketMirrorBack(ctx context.Context, input *GetBucketMi
 		return nil, err
 	}
 	res, err := cli.newBuilder(input.Bucket, "").
+		SetGeneric(input.GenericInput).
 		WithQuery("mirror", "").
 		WithRetry(nil, StatusCodeClassifier{}).
 		Request(ctx, http.MethodGet, nil, cli.roundTripper(http.StatusOK))
@@ -62,6 +64,7 @@ func (cli *ClientV2) DeleteBucketMirrorBack(ctx context.Context, input *DeleteBu
 		return nil, err
 	}
 	res, err := cli.newBuilder(input.Bucket, "").
+		SetGeneric(input.GenericInput).
 		WithQuery("mirror", "").
 		WithRetry(nil, StatusCodeClassifier{}).
 		Request(ctx, http.MethodDelete, nil, cli.roundTripper(http.StatusNoContent))
