@@ -1,4 +1,7 @@
 # ChangeLog of TOS SDK for Go
+## 版本号 v2.7.24 日期：2025-10-04
+- 优化自定义签名时间和 header 特性
+
 ## 版本号 v2.7.23 日期：2025-09-26
 - 支持 GenericInput 设置自定义签名时间和 header
 
