@@ -229,11 +229,11 @@ func (sv *SignV4) doSign(method, path, contentSha256 string, header, query KVs, 
 func (sv *SignV4) SignHeader(req *Request) http.Header {
 	signed := make(http.Header, 4)
 	now := sv.now()
+	if !req.RequestDate.IsZero() {
+		now = req.RequestDate
+	}
 	date := now.Format(iso8601Layout)
 	contentSha256 := req.Header.Get(v4ContentSHA256)
-	if !req.RequestDate.IsZero() {
-		date = req.RequestDate.Format(iso8601Layout)
-	}
 
 	host := req.Host
 	if req.RequestHost != "" {
