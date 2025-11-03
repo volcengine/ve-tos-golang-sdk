@@ -3,9 +3,11 @@ package tests
 import (
 	"context"
 	"encoding/json"
-	"github.com/stretchr/testify/require"
-	"github.com/volcengine/ve-tos-golang-sdk/v2/tos"
 	"testing"
+
+	"github.com/stretchr/testify/require"
+
+	"github.com/volcengine/ve-tos-golang-sdk/v2/tos"
 )
 
 type TestQuota struct {
