@@ -2861,3 +2861,90 @@ type SetObjectExpiresInput struct {
 type SetObjectExpiresOutput struct {
 	RequestInfo
 }
+
+// Request v2.10.0
+type SimpleQueryInput struct {
+	GenericInput `json:"-"`
+	AccountID    string              `json:"-"`
+	DatasetName  string              `json:"DatasetName"`
+	Sort         string              `json:"Sort"`
+	Order        enum.QueryOrderType `json:"Order"` // 枚举
+	MaxResults   int                 `json:"MaxResults"`
+	NextToken    string              `json:"NextToken"`
+	WithFields   []string            `json:"WithFields"`
+
+	Query        *QueryRequest        `json:"Query"`
+	Aggregations []AggregationRequest `json:"Aggregations"`
+}
+
+type QueryRequest struct {
+	Operation  enum.QueryOperationType `json:"Operation"` // 枚举
+	Field      string                  `json:"Field"`
+	Value      string                  `json:"Value"`
+	SubQueries []QueryRequest          `json:"SubQueries"`
+}
+
+type AggregationRequest struct {
+	Field     string                        `json:"Field"`
+	Operation enum.AggregationOperationType `json:"Operation"` // 枚举
+}
+
+// Response
+type SimpleQueryOutput struct {
+	RequestInfo  `json:"-"`
+	Aggregations []AggregationResponse `json:"Aggregations"`
+	Files        []FileResponse        `json:"Files"`
+	NextToken    string                `json:"NextToken"`
+}
+
+type AggregationResponse struct {
+	Field     string
+	Operation enum.AggregationOperationType
+	Value     float64
+	Groups    []GroupResponse
+}
+
+type GroupResponse struct {
+	Value string
+	Count int64
+}
+
+type FileResponse struct {
+	TOSBucketName                         string
+	FileName                              string
+	ETag                                  string
+	TOSStorageClass                       enum.StorageClassType
+	TOSCRC64                              string
+	ServerSideEncryption                  string
+	ServerSideEncryptionCustomerAlgorithm string
+	FileModifiedTime                      time.Time
+	Size                                  int64
+	Score                                 float32
+	TOSTaggingCount                       int64
+	TOSTagging                            map[string]string
+	TOSUserMeta                           map[string]string
+	TOSVersionID                          string
+	TOSObjectType                         string
+	ContentType                           string
+	TOSReplicationStatus                  enum.ReplicationStatusType
+	TOSIsDeleteMarker                     bool
+	AccountID                             string
+	CreateTime                            time.Time
+}
+
+type SemanticQueryInput struct {
+	GenericInput       `json:"-"`
+	AccountID          string                 `json:"-"`
+	DatasetName        string                 `json:"DatasetName"`
+	SemanticQueryInput string                 `json:"SemanticQueryInput"`
+	SemanticQueryType  enum.SemanticQueryType `json:"SemanticQueryType"`
+	MaxResults         int                    `json:"MaxResults"`
+	WithFields         []string               `json:"WithFields"`
+	Query              *QueryRequest          `json:"Query"`
+}
+
+// Response
+type SemanticQueryOutput struct {
+	RequestInfo
+	Files []FileResponse `json:"Files"`
+}

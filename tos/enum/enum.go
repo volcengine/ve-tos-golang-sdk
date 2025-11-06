@@ -263,3 +263,45 @@ const (
 	MRAPStatusDELETING MRAPStatusType = "DELETING"
 	MRAPStatusFAILED   MRAPStatusType = "FAILED"
 )
+
+type QueryOrderType string
+
+const (
+	QueryOrderDesc QueryOrderType = "desc"
+	QueryOrderAsc  QueryOrderType = "asc"
+)
+
+type QueryOperationType string
+
+const (
+	QueryOperationNot         QueryOperationType = "not"
+	QueryOperationOr          QueryOperationType = "or"
+	QueryOperationAnd         QueryOperationType = "and"
+	QueryOperationLt          QueryOperationType = "lt"
+	QueryOperationLte         QueryOperationType = "lte"
+	QueryOperationGt          QueryOperationType = "gt"
+	QueryOperationGte         QueryOperationType = "gte"
+	QueryOperationEq          QueryOperationType = "eq"
+	QueryOperationExist       QueryOperationType = "exist"
+	QueryOperationPrefix      QueryOperationType = "prefix"
+	QueryOperationMatchPhrase QueryOperationType = "match-phrase"
+)
+
+type AggregationOperationType string
+
+const (
+	AggregationOperationMin      AggregationOperationType = "min"
+	AggregationOperationMax      AggregationOperationType = "max"
+	AggregationOperationAverage  AggregationOperationType = "average"
+	AggregationOperationSum      AggregationOperationType = "sum"
+	AggregationOperationCount    AggregationOperationType = "count"
+	AggregationOperationDistinct AggregationOperationType = "distinct"
+	AggregationOperationGroup    AggregationOperationType = "group"
+)
+
+type SemanticQueryType string
+
+const (
+	SemanticQueryTypeText  SemanticQueryType = "text"
+	SemanticQueryTypeImage SemanticQueryType = "image"
+)
