@@ -1,4 +1,11 @@
 # ChangeLog of TOS SDK for Go
+## 版本号 v2.7.26 日期：2025-11-13
+- 新增 SRAP 相关接口
+- 新增 Accelerator 相关接口
+
+## 版本号 v2.7.25 日期：2025-11-06
+- 支持 SimpleQuery 和 SemanticQuery
+
 ## 版本号 v2.7.24 日期：2025-10-04
 - 优化自定义签名时间和 header 特性
 

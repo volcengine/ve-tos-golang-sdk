@@ -2861,3 +2861,214 @@ type SetObjectExpiresInput struct {
 type SetObjectExpiresOutput struct {
 	RequestInfo
 }
+
+// Request v2.10.0
+type SimpleQueryInput struct {
+	GenericInput `json:"-"`
+	AccountID    string              `json:"-"`
+	DatasetName  string              `json:"DatasetName"`
+	Sort         string              `json:"Sort"`
+	Order        enum.QueryOrderType `json:"Order"` // 枚举
+	MaxResults   int                 `json:"MaxResults"`
+	NextToken    string              `json:"NextToken"`
+	WithFields   []string            `json:"WithFields"`
+
+	Query        *QueryRequest        `json:"Query"`
+	Aggregations []AggregationRequest `json:"Aggregations"`
+}
+
+type QueryRequest struct {
+	Operation  enum.QueryOperationType `json:"Operation"` // 枚举
+	Field      string                  `json:"Field"`
+	Value      string                  `json:"Value"`
+	SubQueries []QueryRequest          `json:"SubQueries"`
+}
+
+type AggregationRequest struct {
+	Field     string                        `json:"Field"`
+	Operation enum.AggregationOperationType `json:"Operation"` // 枚举
+}
+
+// Response
+type SimpleQueryOutput struct {
+	RequestInfo  `json:"-"`
+	Aggregations []AggregationResponse `json:"Aggregations"`
+	Files        []FileResponse        `json:"Files"`
+	NextToken    string                `json:"NextToken"`
+}
+
+type AggregationResponse struct {
+	Field     string
+	Operation enum.AggregationOperationType
+	Value     float64
+	Groups    []GroupResponse
+}
+
+type GroupResponse struct {
+	Value string
+	Count int64
+}
+
+type FileResponse struct {
+	TOSBucketName                         string
+	FileName                              string
+	ETag                                  string
+	TOSStorageClass                       enum.StorageClassType
+	TOSCRC64                              string
+	ServerSideEncryption                  string
+	ServerSideEncryptionCustomerAlgorithm string
+	FileModifiedTime                      time.Time
+	Size                                  int64
+	Score                                 float32
+	TOSTaggingCount                       int64
+	TOSTagging                            map[string]string
+	TOSUserMeta                           map[string]string
+	TOSVersionID                          string
+	TOSObjectType                         string
+	ContentType                           string
+	TOSReplicationStatus                  enum.ReplicationStatusType
+	TOSIsDeleteMarker                     bool
+	AccountID                             string
+	CreateTime                            time.Time
+}
+
+type SemanticQueryInput struct {
+	GenericInput       `json:"-"`
+	AccountID          string                 `json:"-"`
+	DatasetName        string                 `json:"DatasetName"`
+	SemanticQueryInput string                 `json:"SemanticQueryInput"`
+	SemanticQueryType  enum.SemanticQueryType `json:"SemanticQueryType"`
+	MaxResults         int                    `json:"MaxResults"`
+	WithFields         []string               `json:"WithFields"`
+	Query              *QueryRequest          `json:"Query"`
+}
+
+type SemanticQueryOutput struct {
+	RequestInfo
+	Files []FileResponse `json:"Files"`
+}
+
+type CreateAccessPointInput struct {
+	GenericInput    `json:"-"`
+	AccountID       string                 `json:"-"`               // required
+	AccessPointName string                 `json:"-"`               // required
+	Bucket          string                 `json:"Bucket"`          // required
+	BucketAccountID string                 `json:"BucketAccountID"` // required
+	NetworkOrigin   enum.NetworkOriginType `json:"NetworkOrigin"`
+	VpcId           string                 `json:"VpcId"`
+}
+
+type CreateAccessPointOutput struct {
+	RequestInfo
+	AccessPointTrn string `json:"AccessPointTrn"`
+	Alias          string `json:"Alias"`
+}
+
+type GetAccessPointInput struct {
+	GenericInput
+	AccountID       string // required
+	AccessPointName string // required
+}
+
+type GetAccessPointOutput struct {
+	RequestInfo `json:"RequestInfo"`
+	AccessPoint
+}
+
+type ListAccessPointsInput struct {
+	GenericInput // v2.8.0
+	AccountID    string
+	Bucket       string `location:"query" locationName:"bucket"`
+	MaxResult    int    `location:"query" locationName:"maxResult"`
+	NextToken    string `location:"query" locationName:"nextToken"`
+}
+
+type ListAccessPointsOutput struct {
+	RequestInfo  `json:"-"`
+	IsTruncated  bool          `json:"IsTruncated"`
+	NextToken    string        `json:"NextToken"`
+	AccessPoints []AccessPoint `json:"AccessPoints"`
+}
+
+type AccessPoint struct {
+	AccessPointName string                 `json:"Name"`
+	Alias           string                 `json:"Alias"`
+	Bucket          string                 `json:"Bucket"`
+	BucketAccountID string                 `json:"BucketAccountID"`
+	NetworkOrigin   enum.NetworkOriginType `json:"NetworkOrigin"`
+	AccessPointTrn  string                 `json:"AccessPointTrn"`
+	CreationDate    time.Time              `json:"CreationDate,omitempty"`
+	Endpoints       AccessPointEndpoints   `json:"Endpoints"`
+	VpcId           string                 `json:"VpcId"`
+}
+
+type AccessPointEndpoints struct {
+	IntranetEndpoint string `json:"IntranetEndpoint"`
+	ExtranetEndpoint string `json:"ExtranetEndpoint"`
+}
+
+type DeleteAccessPointInput struct {
+	GenericInput
+	AccountID       string // required
+	AccessPointName string // required
+}
+
+type DeleteAccessPointOutput struct {
+	RequestInfo
+}
+
+type ListBindAcceleratorForAccessPointInput struct {
+	GenericInput
+	AccountID       string // required
+	AccessPointName string // required
+}
+
+type ListBindAcceleratorForAccessPointOutput struct {
+	RequestInfo
+	Accelerators []Accelerator `json:"Accelerators,omitempty"`
+}
+
+type Accelerator struct {
+	AcceleratorID   string `json:"Id"`
+	AcceleratorName string `json:"Name"`
+	AZ              string `json:"AZ"`
+}
+
+type ListBindAccessPointForAcceleratorInput struct {
+	GenericInput
+	AccountID     string // required
+	AcceleratorID string // required
+}
+
+type ListBindAccessPointForAcceleratorOutput struct {
+	RequestInfo
+	AccessPoints []AccessPointSummary `json:"AccessPoints"`
+}
+
+type AccessPointSummary struct {
+	AccessPointName string               `json:"Name"`
+	Alias           string               `json:"Alias"`
+	Endpoints       AccessPointEndpoints `json:"Endpoints,omitempty"`
+}
+
+type BindAcceleratorWithAccessPointInput struct {
+	GenericInput
+	AccountID       string // required
+	AccessPointName string // required
+	AcceleratorID   string // required
+}
+
+type BindAcceleratorWithAccessPointOutput struct {
+	RequestInfo
+}
+
+type UnbindAcceleratorWithAccessPointInput struct {
+	GenericInput
+	AccountID       string // required
+	AccessPointName string // required
+	AcceleratorID   string // required
+}
+
+type UnbindAcceleratorWithAccessPointOutput struct {
+	RequestInfo
+}
