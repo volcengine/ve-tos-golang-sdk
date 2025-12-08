@@ -2,9 +2,11 @@ package tests
 
 import (
 	"context"
-	"github.com/stretchr/testify/require"
-	"github.com/volcengine/ve-tos-golang-sdk/v2/tos"
 	"testing"
+
+	"github.com/stretchr/testify/require"
+
+	"github.com/volcengine/ve-tos-golang-sdk/v2/tos"
 )
 
 func TestBktTagging(t *testing.T) {

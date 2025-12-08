@@ -3,12 +3,14 @@ package tests
 import (
 	"context"
 	"encoding/base64"
-	"github.com/stretchr/testify/require"
-	"github.com/volcengine/ve-tos-golang-sdk/v2/tos"
 	"net/http"
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/require"
+
+	"github.com/volcengine/ve-tos-golang-sdk/v2/tos"
 )
 
 type callback struct {

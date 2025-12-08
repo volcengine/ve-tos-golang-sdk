@@ -2,12 +2,14 @@ package tests
 
 import (
 	"context"
-	"github.com/stretchr/testify/require"
-	"github.com/volcengine/ve-tos-golang-sdk/v2/tos"
-	"github.com/volcengine/ve-tos-golang-sdk/v2/tos/enum"
 	"net/http"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/require"
+
+	"github.com/volcengine/ve-tos-golang-sdk/v2/tos"
+	"github.com/volcengine/ve-tos-golang-sdk/v2/tos/enum"
 )
 
 func TestBucketCustomDomain(t *testing.T) {

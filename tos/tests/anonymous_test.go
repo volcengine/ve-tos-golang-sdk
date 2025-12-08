@@ -4,12 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/stretchr/testify/require"
-	"github.com/volcengine/ve-tos-golang-sdk/v2/tos"
 	"net/http"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
+
+	"github.com/volcengine/ve-tos-golang-sdk/v2/tos"
 )
 
 func TestAnonymous(t *testing.T) {
@@ -132,7 +134,7 @@ func TestAnonymous(t *testing.T) {
 	require.Nil(t, err)
 	require.Equal(t, resp.StatusCode, 200)
 	operatorEq := "eq"
-	policyUrl, err := client.PreSignedPolicyURL(context.Background(), &tos.PreSingedPolicyURLInput{
+	policyUrl, err := client.PreSignedPolicyURL(context.Background(), &tos.PreSignedPolicyURLInput{
 		Bucket:  bucket,
 		Expires: 3600,
 		Conditions: []tos.PolicySignatureCondition{{
