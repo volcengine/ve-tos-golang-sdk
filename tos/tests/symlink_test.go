@@ -2,13 +2,16 @@ package tests
 
 import (
 	"context"
-	"github.com/stretchr/testify/require"
-	"github.com/volcengine/ve-tos-golang-sdk/v2/tos"
-	"github.com/volcengine/ve-tos-golang-sdk/v2/tos/enum"
 	"io/ioutil"
+	"os"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
+	"github.com/volcengine/ve-tos-golang-sdk/v2/tos"
+	"github.com/volcengine/ve-tos-golang-sdk/v2/tos/enum"
 )
 
 func TestSoftSymlink(t *testing.T) {
@@ -21,7 +24,7 @@ func TestSoftSymlink(t *testing.T) {
 	defer func() {
 		cleanBucket(t, client, bucket)
 	}()
-	length := int64(6)
+	length := int64(512)
 	key := "raw-" + randomString(int(length))
 	data := randomString(int(length))
 	_, err := client.PutObjectV2(context.Background(), &tos.PutObjectV2Input{
@@ -122,4 +125,29 @@ func TestSoftSymlink(t *testing.T) {
 			require.Equal(t, object.ObjectType, "Symlink")
 		}
 	}
+
+	temp := strconv.Itoa(int(time.Now().UnixNano())) + ".temp"
+	defer os.Remove(temp)
+	res, err := client.DownloadFile(ctx, &tos.DownloadFileInput{
+		HeadObjectV2Input: tos.HeadObjectV2Input{Bucket: bucket, Key: softKey},
+		FilePath:          temp,
+	})
+	require.NoError(t, err)
+	require.Equal(t, res.SymlinkTargetSize, length)
+	fileData, err := ioutil.ReadFile(temp)
+	require.NoError(t, err)
+	require.Equal(t, data, string(fileData))
+
+	newKey := "new-" + randomString(7)
+	copyRes, err := client.ResumableCopyObject(ctx, &tos.ResumableCopyObjectInput{
+		CreateMultipartUploadV2Input: tos.CreateMultipartUploadV2Input{
+			Bucket: bucket,
+			Key:    newKey,
+		},
+		SrcBucket: bucket,
+		SrcKey:    softKey,
+		PartSize:  20 * 1024 * 1024,
+	})
+	require.NoError(t, err)
+	require.Equal(t, copyRes.StatusCode, 200)
 }

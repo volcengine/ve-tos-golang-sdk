@@ -23,7 +23,10 @@ const (
 	StorageClassIntelligentTiering StorageClassType = "INTELLIGENT_TIERING"
 	StorageClassColdArchive        StorageClassType = "COLD_ARCHIVE"
 	StorageClassArchive            StorageClassType = "ARCHIVE"
-	StorageClassDeepClodArchive    StorageClassType = "DEEP_COLD_ARCHIVE"
+	StorageClassDeepColdArchive    StorageClassType = "DEEP_COLD_ARCHIVE"
+
+	// Deprecated: use StorageClassDeepColdArchive of ClientV2 instead
+	StorageClassDeepClodArchive StorageClassType = "DEEP_COLD_ARCHIVE"
 )
 
 type MetadataDirectiveType string

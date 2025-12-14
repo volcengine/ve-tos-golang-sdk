@@ -9,6 +9,9 @@ import (
 	"github.com/volcengine/ve-tos-golang-sdk/v2/tos/enum"
 )
 
+type Retryable interface {
+	Reset() error
+}
 type Grantee struct {
 	ID          string `json:"ID,omitempty"`
 	DisplayName string `json:"DisplayName,omitempty"`
@@ -722,6 +725,7 @@ type ListedObjectV2 struct {
 	HashCrc64ecma uint64
 	Meta          Metadata
 	ObjectType    string `json:"Type,omitempty"`
+	HashCrc32c    uint64
 }
 
 type userMeta struct {
@@ -737,6 +741,7 @@ type listedObjectV2 struct {
 	Owner         Owner                 `json:"Owner,omitempty"`
 	StorageClass  enum.StorageClassType `json:"StorageClass,omitempty"`
 	HashCrc64ecma string                `json:"HashCrc64Ecma,omitempty"`
+	HashCrc32c    string                `json:"HashCrc32c,omitempty"`
 	Meta          []userMeta            `json:"UserMeta,omitempty"`
 	ObjectType    string                `json:"Type,omitempty"`
 }
@@ -1744,6 +1749,8 @@ type Redirect struct {
 	FetchHeaderToMetaDataRules     []FetchHeaderToMetaDataRule `json:"FetchHeaderToMetaDataRules,omitempty"`
 	PrivateSource                  *PrivateSource              `json:"PrivateSource,omitempty"`
 	FetchSourceOnRedirectWithQuery *bool                       `json:"FetchSourceOnRedirectWithQuery,omitempty"`
+	PassStatusCodeFromSource       []int                       `json:"PassStatusCodeFromSource,omitempty"`
+	PassHeaderFromSource           []string                    `json:"PassHeaderFromSource,omitempty"`
 }
 type PrivateSource struct {
 	SourceEndpoint CommonSourceEndpoint
@@ -1761,7 +1768,16 @@ type EndpointCredentialProvider struct {
 }
 
 type CredentialProvider struct {
-	Role string `json:"Role,omitempty"`
+	Role             string                  `json:"Role,omitempty"`
+	StaticCredential *CommonStaticCredential `json:"StaticCredential,omitempty"`
+	Region           string                  `json:"Region,omitempty"`
+}
+
+type CommonStaticCredential struct {
+	StorageVendor string `json:"StorageVendor"`
+	AK            string `json:"AK"`
+	SK            string `json:"SK"`
+	SKEncryptType string `json:"SKEncryptType,omitempty"`
 }
 
 type FetchHeaderToMetaDataRule struct {
@@ -2264,11 +2280,16 @@ type ReplicationRuleWithProgress struct {
 }
 
 type ReplicationRule struct {
-	ID                          string          `json:"ID"`
-	Status                      enum.StatusType `json:"Status"`
-	PrefixSet                   []string        `json:"PrefixSet,omitempty"`
-	Destination                 Destination     `json:"Destination"`
-	HistoricalObjectReplication enum.StatusType `json:"HistoricalObjectReplication"`
+	ID                          string                    `json:"ID"`
+	Status                      enum.StatusType           `json:"Status"`
+	PrefixSet                   []string                  `json:"PrefixSet,omitempty"`
+	Destination                 Destination               `json:"Destination"`
+	HistoricalObjectReplication enum.StatusType           `json:"HistoricalObjectReplication"`
+	AccessControlTranslation    *AccessControlTranslation `json:"AccessControlTranslation"`
+}
+
+type AccessControlTranslation struct {
+	Owner string `json:"Owner"`
 }
 
 type Destination struct {
@@ -2860,6 +2881,107 @@ type SetObjectExpiresInput struct {
 // Response
 type SetObjectExpiresOutput struct {
 	RequestInfo
+}
+
+// Request
+type GetFetchTaskV2Input struct {
+	GenericInput
+	Bucket string // required
+	TaskID string // required
+}
+
+// Response
+type GetFetchTaskV2Output struct {
+	RequestInfo
+	State string `json:"State"`
+	Err   string `json:"Err"`
+
+	Task FetchTask `json:"Task"`
+}
+
+type FetchTask struct {
+	URL           string `json:"URL,omitempty"`
+	IgnoreSameKey bool   `json:"IgnoreSameKey,omitempty"`
+	ContentMD5    string `json:"ContentMD5,omitempty"`
+	Bucket        string `json:"Bucket,omitempty"`
+	Key           string `json:"Object,omitempty"`
+
+	CallbackUrl      string                `json:"CallbackURL,omitempty"`
+	CallbackHost     string                `json:"CallbackHost,omitempty"`
+	CallbackBodyType string                `json:"CallbackBodyType,omitempty"`
+	CallbackBody     string                `json:"CallbackBody,omitempty"`
+	StorageClass     enum.StorageClassType `json:"StorageClass,omitempty"`
+	ACL              enum.ACLType          `json:"Acl,omitempty"`
+	GrantFullControl string                `json:"GrantFullControl,omitempty"`
+	GrantRead        string                `json:"GrantRead,omitempty"`
+	GrantReadAcp     string                `json:"GrantReadAcp,omitempty"`
+	GrantWrite       string                `json:"GrantWrite,omitempty"`
+	GrantWriteAcp    string                `json:"GrantWriteAcp,omitempty"`
+	SSECAlgorithm    string                `json:"SSECAlgorithm,omitempty"`
+	SSECKey          string                `json:"SSECKey,omitempty"`
+	SSECKeyMD5       string                `json:"SSECKeyMD5,omitempty"`
+	Meta             map[string]string     `json:"-"`
+}
+
+type getFetchTaskV2Output struct {
+	State string `json:"State"`
+	Err   string `json:"Err"`
+
+	Task fetchTask `json:"Task"`
+}
+
+type fetchTask struct {
+	URL           string `json:"URL,omitempty"`
+	IgnoreSameKey bool   `json:"IgnoreSameKey,omitempty"`
+	ContentMD5    string `json:"ContentMD5,omitempty"`
+	Bucket        string `json:"Bucket,omitempty"`
+	Key           string `json:"Object,omitempty"`
+
+	CallbackUrl      string                `json:"CallbackURL,omitempty"`
+	CallbackHost     string                `json:"CallbackHost,omitempty"`
+	CallbackBodyType string                `json:"CallbackBodyType,omitempty"`
+	CallbackBody     string                `json:"CallbackBody,omitempty"`
+	StorageClass     enum.StorageClassType `json:"StorageClass,omitempty"`
+	ACL              enum.ACLType          `json:"Acl,omitempty"`
+	GrantFullControl string                `json:"GrantFullControl,omitempty"`
+	GrantRead        string                `json:"GrantRead,omitempty"`
+	GrantReadAcp     string                `json:"GrantReadAcp,omitempty"`
+	GrantWrite       string                `json:"GrantWrite,omitempty"`
+	GrantWriteAcp    string                `json:"GrantWriteAcp,omitempty"`
+	SSECAlgorithm    string                `json:"SSECAlgorithm,omitempty"`
+	SSECKey          string                `json:"SSECKey,omitempty"`
+	SSECKeyMD5       string                `json:"SSECKeyMD5,omitempty"`
+	UserMeta         []userMeta            `json:"UserMeta,omitempty"`
+}
+
+func (g getFetchTaskV2Output) ParseToFetchTaskV2Output(requestInfo RequestInfo) *GetFetchTaskV2Output {
+	return &GetFetchTaskV2Output{
+		RequestInfo: requestInfo,
+		State:       g.State,
+		Err:         g.Err,
+		Task: FetchTask{
+			URL:              g.Task.URL,
+			IgnoreSameKey:    g.Task.IgnoreSameKey,
+			ContentMD5:       g.Task.ContentMD5,
+			Bucket:           g.Task.Bucket,
+			Key:              g.Task.Key,
+			CallbackUrl:      g.Task.CallbackUrl,
+			CallbackHost:     g.Task.CallbackHost,
+			CallbackBody:     g.Task.CallbackBody,
+			CallbackBodyType: g.Task.CallbackBodyType,
+			StorageClass:     g.Task.StorageClass,
+			ACL:              g.Task.ACL,
+			GrantFullControl: g.Task.GrantFullControl,
+			GrantRead:        g.Task.GrantRead,
+			GrantReadAcp:     g.Task.GrantReadAcp,
+			GrantWrite:       g.Task.GrantWrite,
+			GrantWriteAcp:    g.Task.GrantWriteAcp,
+			SSECAlgorithm:    g.Task.SSECAlgorithm,
+			SSECKey:          g.Task.SSECKey,
+			SSECKeyMD5:       g.Task.SSECKeyMD5,
+			Meta:             parseUserMetaDataToMap(g.Task.UserMeta),
+		},
+	}
 }
 
 // Request v2.10.0

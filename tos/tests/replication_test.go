@@ -50,6 +50,9 @@ func TestReplication(t *testing.T) {
 			StorageClass: enum.StorageClassIa,
 		},
 		HistoricalObjectReplication: enum.StatusEnabled,
+		AccessControlTranslation: &tos.AccessControlTranslation{
+			Owner: "BucketOwnerEntrusted",
+		},
 	}
 	input := &tos.PutBucketReplicationInput{
 		Bucket: bucket,
@@ -70,6 +73,7 @@ func TestReplication(t *testing.T) {
 	require.Equal(t, getOut.Rules[0].Status, rule1.Status)
 	require.Equal(t, getOut.Rules[0].PrefixSet, rule1.PrefixSet)
 	require.Equal(t, getOut.Rules[0].Destination, rule1.Destination)
+	require.Equal(t, getOut.Rules[0].AccessControlTranslation, rule1.AccessControlTranslation)
 	t.Log("GetBucketReplication Request ID:", getOut.RequestID)
 
 	infoResp, err := client.GetBucketInfo(ctx, &tos.GetBucketInfoInput{

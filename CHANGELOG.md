@@ -1,4 +1,9 @@
 # ChangeLog of TOS SDK for Go
+## 版本号 v2.8.0 日期：2025-12-03
+- 新增 GetFetchTaskV2 接口
+- 新增 CredentialsProvider 鉴权方式
+- PutObjectV2/UploadPartV2 接口新增针对实现 Retryable 的接口支持重试
+
 ## 版本号 v2.7.26 日期：2025-11-13
 - 新增 SRAP 相关接口
 - 新增 Accelerator 相关接口
