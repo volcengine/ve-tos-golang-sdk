@@ -111,6 +111,7 @@ func (cli *Client) copyObject(ctx context.Context, dstBucket, dstObject string, 
 			HostID:      marshalOut.HostID,
 			Resource:    marshalOut.Resource,
 			EC:          marshalOut.EC,
+			Key:         dstObject,
 		}
 	}
 	out := CopyObjectOutput{RequestInfo: res.RequestInfo(), ETag: marshalOut.ETag, LastModified: marshalOut.LastModified}
@@ -161,6 +162,7 @@ func (cli *ClientV2) CopyObject(ctx context.Context, input *CopyObjectInput) (*C
 			HostID:      marshalOut.HostID,
 			Resource:    marshalOut.Resource,
 			EC:          marshalOut.EC,
+			Key:         input.Key,
 		}
 	}
 	out := CopyObjectOutput{RequestInfo: res.RequestInfo(), ETag: marshalOut.ETag, LastModified: marshalOut.LastModified}
@@ -235,6 +237,7 @@ func (bkt *Bucket) UploadPartCopy(ctx context.Context, input *UploadPartCopyInpu
 			HostID:      out.HostID,
 			Resource:    out.Resource,
 			EC:          out.EC,
+			Key:         input.DestinationKey,
 		}
 	}
 	return &UploadPartCopyOutput{
@@ -304,6 +307,7 @@ func (cli *ClientV2) UploadPartCopyV2(
 			HostID:      out.HostID,
 			Resource:    out.Resource,
 			EC:          out.EC,
+			Key:         input.Key,
 		}
 	}
 	return &UploadPartCopyV2Output{

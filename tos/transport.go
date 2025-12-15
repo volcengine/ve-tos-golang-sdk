@@ -230,6 +230,7 @@ func (dt *DefaultTransport) RoundTrip(ctx context.Context, req *Request) (*Respo
 		Header:        res.Header,
 		Body:          res.Body,
 		RequestUrl:    req.URL(),
+		Key:           req.key,
 	}, nil
 }
 

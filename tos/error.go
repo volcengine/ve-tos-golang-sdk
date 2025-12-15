@@ -116,6 +116,7 @@ func newTosServerError(res *Response) error {
 		HostID:      se.HostID,
 		Resource:    se.Resource,
 		EC:          se.EC,
+		Key:         res.Key,
 	}
 }
 
@@ -127,6 +128,7 @@ type TosServerError struct {
 	HostID      string `json:"HostID,omitempty"`
 	Resource    string `json:"Resource,omitempty"`
 	EC          string `json:"EC,omitempty"`
+	Key         string `json:"Key,omitempty"`
 }
 
 type Error struct {
@@ -292,6 +294,7 @@ func checkError(res *Response, readBody bool, okCode int, okCodes ...int) error 
 		HostID:      unexpected.err.HostID,
 		Resource:    unexpected.err.Resource,
 		EC:          unexpected.err.EC,
+		Key:         res.Key,
 	}
 }
 
@@ -314,6 +317,10 @@ func (classifier StatusCodeClassifier) Classify(err error) retryAction {
 		if e.StatusCode == 400 && e.EC == "0005-00000044" {
 			return Retry
 		}
+		if e.StatusCode == 408 {
+			return Retry
+		}
+
 	}
 
 	cErr, ok := err.(*TosClientError)
@@ -340,7 +347,7 @@ func (classifier ServerErrorClassifier) Classify(err error) retryAction {
 	}
 	e, ok := err.(*TosServerError)
 	if ok {
-		if e.StatusCode >= 500 || e.StatusCode == 429 {
+		if e.StatusCode >= 500 || e.StatusCode == 429 || e.StatusCode == 408 {
 			return Retry
 		}
 	}

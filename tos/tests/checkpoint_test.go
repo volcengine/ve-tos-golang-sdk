@@ -10,6 +10,7 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -33,6 +34,7 @@ type dataTransferListenerTest struct {
 }
 
 func (d *dataTransferListenerTest) DataTransferStatusChange(status *tos.DataTransferStatus) {
+	fmt.Println("status retry count", d.RetryCount, "type", status.Type)
 	switch status.Type {
 	case enum.DataTransferStarted:
 		d.StartedTime += 1
@@ -594,7 +596,12 @@ func TestDownloadCancelHook(t *testing.T) {
 		cleanTestFile(t, fileName)
 		cleanTestFile(t, fileName+".file")
 		cleanTestFile(t, fileName+".checkpoint")
-		cleanTestFile(t, fileName+".file.temp")
+		// 删除可能存在的带时间戳的临时文件
+		if matches, _ := filepath.Glob(fileName + ".file" + ".temp.*"); len(matches) > 0 {
+			for _, p := range matches {
+				cleanTestFile(t, p)
+			}
+		}
 	}()
 	file, err := os.Create(fileName)
 	require.Nil(t, err)
@@ -633,8 +640,9 @@ func TestDownloadCancelHook(t *testing.T) {
 	_, err = client.DownloadFile(context.Background(), input)
 	require.True(t, listener.count >= 2)
 	t.Logf("listener.count:%d", listener.count)
-	_, err = os.Stat(fileName + ".file" + ".temp")
-	require.Nil(t, err)
+	// 临时文件命名包含时间戳后缀：.temp.<ns>
+	tempMatches, _ := filepath.Glob(fileName + ".file" + ".temp.*")
+	require.GreaterOrEqual(t, len(tempMatches), 1)
 
 	input.CancelHook = tos.NewCancelHook()
 	listener.input = input
@@ -730,7 +738,12 @@ func TestDownloadFileWithUpdate(t *testing.T) {
 		cleanBucket(t, client, bucket)
 		cleanTestFile(t, fileName)
 		cleanTestFile(t, fileName+".file")
-		cleanTestFile(t, fileName+".file"+".temp")
+		// 删除可能存在的带时间戳的临时文件
+		if matches, _ := filepath.Glob(fileName + ".file" + ".temp.*"); len(matches) > 0 {
+			for _, p := range matches {
+				cleanTestFile(t, p)
+			}
+		}
 		cleanTestFile(t, fileName+".checkpoint")
 		cleanTestFile(t, strings.Join([]string{fileName + ".file", bucket, key, "download"}, "."))
 	}()

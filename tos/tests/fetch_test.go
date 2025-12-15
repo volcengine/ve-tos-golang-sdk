@@ -140,6 +140,11 @@ func TestPutFetchTaskV2(t *testing.T) {
 	})
 	require.Nil(t, err)
 	fmt.Println(res.TaskID)
+	_, err = client.GetFetchTaskV2(ctx, &tos.GetFetchTaskV2Input{
+		Bucket: bucket,
+		TaskID: res.TaskID,
+	})
+	require.Nil(t, err)
 	var headRes *tos.HeadObjectV2Output
 	for i := 0; i < 20; i++ {
 
@@ -157,4 +162,10 @@ func TestPutFetchTaskV2(t *testing.T) {
 	actualValue, _ := headRes.Meta.Get("test-key")
 	require.Equal(t, actualValue, "test-value")
 	require.Equal(t, headRes.ContentLength, int64(length))
+	getRes, err := client.GetFetchTaskV2(ctx, &tos.GetFetchTaskV2Input{
+		Bucket: bucket,
+		TaskID: res.TaskID,
+	})
+	require.Nil(t, err)
+	require.Equal(t, getRes.Task.Meta["test-key"], "test-value")
 }

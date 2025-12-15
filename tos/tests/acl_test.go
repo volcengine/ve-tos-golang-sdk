@@ -318,7 +318,10 @@ func TestBucketACL(t *testing.T) {
 	require.Nil(t, err)
 	require.Equal(t, out.BucketAclDelivered, true)
 
-	cli, err := tos.NewClient(env.endpoint, tos.WithCredentials(tos.NewStaticCredentials(env.accessKey, env.secretKey)), tos.WithRegion(env.region))
+	cli, err := tos.NewClient(env.endpoint, tos.WithCredentials(tos.NewStaticCredentials(env.accessKey, env.secretKey)), tos.WithRegion(env.region), tos.WithUserAgentProductName("demo"), tos.WithUserAgentSoftName("go-sdk"), tos.WithUserAgentSoftVersion("v1.0.0"), tos.WithUserAgentCustomizedKeyValues(map[string]string{
+		"test-key":  "test-value",
+		"test-key2": "test-value2",
+	}))
 	require.Nil(t, err)
 	bucketAcl, err := cli.GetBucketACL(ctx, &tos.GetBucketACLInput{Bucket: bucket})
 	require.Nil(t, err)

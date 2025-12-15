@@ -70,8 +70,8 @@ func (cli *ClientV2) GetObjectToFile(ctx context.Context, input *GetObjectToFile
 	if err != nil {
 		return nil, InvalidFilePath.withCause(err)
 	}
-
-	tempFilePath := input.FilePath + TempFileSuffix
+	nanoseconds := time.Now().UnixNano()
+	tempFilePath := input.FilePath + TempFileSuffix + "." + strconv.FormatInt(nanoseconds, 10)
 	start := time.Now()
 	get, err := cli.GetObjectV2(ctx, &input.GetObjectV2Input)
 
@@ -409,6 +409,8 @@ func (bkt *Bucket) PutObject(ctx context.Context, objectKey string, content io.R
 				return nil
 			}
 			classifier = StatusCodeClassifier{}
+		} else {
+			return nil, err
 		}
 	}
 	res, err := bkt.client.newBuilder(bkt.name, objectKey, options...).
@@ -521,6 +523,13 @@ func (n2 nopCloser) Close() error {
 	return nil
 }
 
+func (n2 nopCloser) Reset() (err error) {
+	if rr, ok := n2.base.(Retryable); ok {
+		return rr.Reset()
+	}
+	return errors.New("io Reader not support reset. ")
+}
+
 // wrapReader wrap reader with some extension function.
 // If reader can be interpreted as io.ReadCloser, use itself as base ReadCloser, else wrap it a NopCloser.
 func wrapReader(reader io.Reader, totalBytes int64, listener DataTransferListener, limiter RateLimiter, crcChecker *crcChecker) io.ReadCloser {
@@ -596,6 +605,8 @@ func (cli *ClientV2) PutObjectV2(ctx context.Context, input *PutObjectV2Input) (
 	var (
 		onRetry    func(req *Request) error = nil
 		classifier classifier
+		// record the initial read offset if content supports seeking,
+		// retry control variables
 	)
 
 	if content != nil {
@@ -606,24 +617,38 @@ func (cli *ClientV2) PutObjectV2(ctx context.Context, input *PutObjectV2Input) (
 	}
 
 	classifier = NoRetryClassifier{}
-	if seeker, ok := content.(io.Seeker); ok {
-		start, err := seeker.Seek(0, io.SeekCurrent)
-		if err == nil {
-			onRetry = func(req *Request) error {
-				// PutObject/UploadPart can be treated as an idempotent semantics if the request message body
-				// supports a reset operation. e.g. the request message body is a string,
-				// a local file handle, binary data in memory
-				if seeker, ok := req.Content.(io.Seeker); ok {
-					_, err := seeker.Seek(start, io.SeekStart)
-					if err != nil {
-						return err
-					}
-				} else {
-					return newTosClientError("Io Reader not support retry", nil)
-				}
-				return nil
+
+	if _, ok := input.Content.(Retryable); ok {
+		onRetry = func(req *Request) error {
+			retryableReader := req.Content.(Retryable)
+			if err := retryableReader.Reset(); err != nil {
+				return err
 			}
-			classifier = StatusCodeClassifier{}
+			return nil
+		}
+		classifier = StatusCodeClassifier{}
+	} else {
+		if seeker, ok := input.Content.(io.Seeker); ok {
+			start, err := seeker.Seek(0, io.SeekCurrent)
+			if err == nil {
+				onRetry = func(req *Request) error {
+					// PutObject/UploadPart can be treated as an idempotent semantics if the request message body
+					// supports a reset operation. e.g. the request message body is a string,
+					// a local file handle, binary data in memory
+					if seeker, ok := req.Content.(io.Seeker); ok {
+						_, err := seeker.Seek(start, io.SeekStart)
+						if err != nil {
+							return err
+						}
+					} else {
+						return newTosClientError("Io Reader not support retry", nil)
+					}
+					return nil
+				}
+				classifier = StatusCodeClassifier{}
+			} else {
+				return nil, err
+			}
 		}
 	}
 
@@ -1011,6 +1036,7 @@ func (cli *ClientV2) ListObjectsV2(ctx context.Context, input *ListObjectsV2Inpu
 	contents := make([]ListedObjectV2, 0, len(temp.Contents))
 	for _, object := range temp.Contents {
 		var hashCrc uint64
+		var hashCrc32 uint64
 		if len(object.HashCrc64ecma) == 0 {
 			hashCrc = 0
 		} else {
@@ -1018,6 +1044,16 @@ func (cli *ClientV2) ListObjectsV2(ctx context.Context, input *ListObjectsV2Inpu
 			if err != nil {
 				return nil, &TosServerError{
 					TosError:    newTosErr("tos: server returned invalid HashCrc64Ecma", res.RequestUrl, res.RequestInfo().EcCode, res.RequestInfo().RequestID),
+					RequestInfo: RequestInfo{RequestID: temp.RequestID},
+				}
+			}
+		}
+
+		if len(object.HashCrc32c) != 0 {
+			hashCrc32, err = strconv.ParseUint(object.HashCrc32c, 10, 64)
+			if err != nil {
+				return nil, &TosServerError{
+					TosError:    newTosErr("tos: server returned invalid HashCrc32c", res.RequestUrl, res.RequestInfo().EcCode, res.RequestInfo().RequestID),
 					RequestInfo: RequestInfo{RequestID: temp.RequestID},
 				}
 			}
@@ -1031,6 +1067,7 @@ func (cli *ClientV2) ListObjectsV2(ctx context.Context, input *ListObjectsV2Inpu
 			Owner:         object.Owner,
 			StorageClass:  object.StorageClass,
 			HashCrc64ecma: uint64(hashCrc),
+			HashCrc32c:    hashCrc32,
 			Meta:          parseUserMetaData(object.Meta),
 			ObjectType:    object.ObjectType,
 		})
@@ -1071,6 +1108,7 @@ func (cli *ClientV2) listObjectsType2(ctx context.Context, input *ListObjectsTyp
 	contents := make([]ListedObjectV2, 0, len(temp.Contents))
 	for _, object := range temp.Contents {
 		var hashCrc uint64
+		var hashCrc32 uint64
 		if len(object.HashCrc64ecma) == 0 {
 			hashCrc = 0
 		} else {
@@ -1082,6 +1120,17 @@ func (cli *ClientV2) listObjectsType2(ctx context.Context, input *ListObjectsTyp
 				}
 			}
 		}
+
+		if len(object.HashCrc32c) != 0 {
+			hashCrc32, err = strconv.ParseUint(object.HashCrc32c, 10, 64)
+			if err != nil {
+				return nil, &TosServerError{
+					TosError:    newTosErr("tos: server returned invalid HashCrc32c", res.RequestUrl, res.RequestInfo().EcCode, res.RequestInfo().RequestID),
+					RequestInfo: RequestInfo{RequestID: temp.RequestID},
+				}
+			}
+		}
+
 		contents = append(contents, ListedObjectV2{
 			Key:           object.Key,
 			LastModified:  object.LastModified,
@@ -1090,6 +1139,7 @@ func (cli *ClientV2) listObjectsType2(ctx context.Context, input *ListObjectsTyp
 			Owner:         object.Owner,
 			StorageClass:  object.StorageClass,
 			HashCrc64ecma: hashCrc,
+			HashCrc32c:    hashCrc32,
 			Meta:          parseUserMetaData(object.Meta),
 			ObjectType:    object.ObjectType,
 		})

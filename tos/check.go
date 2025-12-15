@@ -75,7 +75,7 @@ func isValidACL(aclType enum.ACLType) error {
 func isValidStorageClass(storageClass enum.StorageClassType) error {
 
 	if storageClass == enum.StorageClassIa || storageClass == enum.StorageClassStandard || storageClass == enum.StorageClassArchiveFr || storageClass == enum.StorageClassColdArchive ||
-		storageClass == enum.StorageClassIntelligentTiering || storageClass == enum.StorageClassArchive || storageClass == enum.StorageClassDeepClodArchive {
+		storageClass == enum.StorageClassIntelligentTiering || storageClass == enum.StorageClassArchive || storageClass == enum.StorageClassDeepColdArchive {
 		return nil
 	}
 

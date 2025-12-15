@@ -253,3 +253,21 @@ func parseUserMetaData(userMeta []userMeta) Metadata {
 	}
 	return &CustomMeta{metas}
 }
+
+func parseUserMetaDataToMap(userMeta []userMeta) map[string]string {
+	if len(userMeta) == 0 {
+		return nil
+	}
+	metas := make(map[string]string, len(userMeta))
+	for _, meta := range userMeta {
+		kk, err := url.QueryUnescape(meta.Key)
+		if err != nil {
+			kk = meta.Key
+		}
+		metas[strings.ToLower(kk)], err = url.QueryUnescape(meta.Value)
+		if err != nil {
+			metas[strings.ToLower(kk)] = meta.Value
+		}
+	}
+	return metas
+}

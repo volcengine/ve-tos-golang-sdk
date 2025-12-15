@@ -108,19 +108,20 @@ func initCopyPartsInfo(headOutput *HeadObjectV2Output, partSize int64) ([]copyPa
 }
 
 func initCopyCheckpoint(input *ResumableCopyObjectInput, headOutput *HeadObjectV2Output) (*copyObjectCheckpoint, error) {
-	parts, err := initCopyPartsInfo(headOutput, input.PartSize)
-	if err != nil {
-		return nil, err
-	}
-	cp := &copyObjectCheckpoint{
-		Bucket:                      input.Bucket,
-		Key:                         input.Key,
-		SrcBucket:                   input.SrcBucket,
-		SrcVersionID:                input.SrcVersionID,
-		PartSize:                    input.PartSize,
-		UploadID:                    "",
-		CopySourceIfMatch:           input.CopySourceIfMatch,
-		CopySourceIfModifiedSince:   input.CopySourceIfModifiedSince,
+    parts, err := initCopyPartsInfo(headOutput, input.PartSize)
+    if err != nil {
+        return nil, err
+    }
+    cp := &copyObjectCheckpoint{
+        Bucket:                      input.Bucket,
+        Key:                         input.Key,
+        SrcBucket:                   input.SrcBucket,
+        SrcKey:                      input.SrcKey,
+        SrcVersionID:                input.SrcVersionID,
+        PartSize:                    input.PartSize,
+        UploadID:                    "",
+        CopySourceIfMatch:           input.CopySourceIfMatch,
+        CopySourceIfModifiedSince:   input.CopySourceIfModifiedSince,
 		CopySourceIfNoneMatch:       input.CopySourceIfNoneMatch,
 		CopySourceIfUnmodifiedSince: input.CopySourceIfUnmodifiedSince,
 		CopySourceSSECAlgorithm:     input.CopySourceSSECAlgorithm,
@@ -258,6 +259,59 @@ func (cli *ClientV2) ResumableCopyObject(ctx context.Context, input *ResumableCo
 	})
 	if err != nil {
 		return nil, err
+	}
+
+	if headOutput.ObjectType == "Symlink" {
+		resp, err := cli.CopyObject(ctx, &CopyObjectInput{
+			Bucket:                      copyInput.Bucket,
+			Key:                         copyInput.Key,
+			SrcBucket:                   copyInput.SrcBucket,
+			SrcKey:                      copyInput.SrcKey,
+			SrcVersionID:                copyInput.SrcVersionID,
+			CacheControl:                copyInput.CacheControl,
+			ContentDisposition:          copyInput.ContentDisposition,
+			ContentEncoding:             copyInput.ContentEncoding,
+			ContentLanguage:             copyInput.ContentLanguage,
+			ContentType:                 copyInput.ContentType,
+			Expires:                     copyInput.Expires,
+			ACL:                         copyInput.ACL,
+			GrantFullControl:            copyInput.GrantFullControl,
+			GrantRead:                   copyInput.GrantRead,
+			GrantReadAcp:                copyInput.GrantReadAcp,
+			GrantWriteAcp:               copyInput.GrantWriteAcp,
+			WebsiteRedirectLocation:     copyInput.WebsiteRedirectLocation,
+			StorageClass:                copyInput.StorageClass,
+			CopySourceIfMatch:           copyInput.CopySourceIfMatch,
+			CopySourceIfNoneMatch:       copyInput.CopySourceIfNoneMatch,
+			CopySourceIfUnmodifiedSince: copyInput.CopySourceIfUnmodifiedSince,
+			CopySourceIfModifiedSince:   copyInput.CopySourceIfModifiedSince,
+			CopySourceSSECAlgorithm:     copyInput.CopySourceSSECAlgorithm,
+			CopySourceSSECKeyMD5:        copyInput.CopySourceSSECKeyMD5,
+			CopySourceSSECKey:           copyInput.CopySourceSSECKey,
+			ServerSideEncryption:        copyInput.ServerSideEncryption,
+			ServerSideEncryptionKeyID:   copyInput.ServerSideEncryptionKeyID,
+			SSECKey:                     copyInput.SSECKey,
+			SSECKeyMD5:                  copyInput.SSECKeyMD5,
+			SSECAlgorithm:               copyInput.SSECAlgorithm,
+			TrafficLimit:                copyInput.TrafficLimit,
+			ForbidOverwrite:             copyInput.ForbidOverwrite,
+			Tagging:                     copyInput.Tagging,
+			ObjectExpires:               copyInput.ObjectExpires,
+			GenericInput:                copyInput.GenericInput,
+		})
+		if err != nil {
+			return nil, err
+		}
+		return &ResumableCopyObjectOutput{
+			RequestInfo:   resp.RequestInfo,
+			Bucket:        input.Bucket,
+			Key:           input.Key,
+			Etag:          resp.ETag,
+			VersionID:     resp.VersionID,
+			SSECAlgorithm: resp.SSECAlgorithm,
+			SSECKeyMD5:    resp.SSECKeyMD5,
+			HashCrc64ecma: headOutput.HashCrc64ecma,
+		}, nil
 	}
 	event := &copyEvent{input: copyInput}
 	init := func() (*copyObjectCheckpoint, error) {

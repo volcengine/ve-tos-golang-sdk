@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/url"
 	"runtime"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -30,6 +31,7 @@ const (
 	signConditionBucket             = "bucket"
 	signConditionKey                = "key"
 	signConditions                  = "conditions"
+	unknowUserAgentField            = "undefined"
 	maxPreSignExpires               = 604800 // 7 day
 	defaultSignExpires              = 3600   // 1 hour
 )
@@ -52,25 +54,29 @@ const (
 //
 // Deprecated: use ClientV2 instead
 type Client struct {
-	scheme                     string
-	host                       string
-	urlMode                    urlMode
-	userAgent                  string
-	controlEndpoint            string
-	controlScheme              string
-	credentials                Credentials // nullable
-	signer                     Signer      // nullable
-	transport                  Transport
-	recognizer                 ContentTypeRecognizer
-	config                     Config
-	retry                      *retryer
-	enableCRC                  bool
-	logger                     Logger
-	isCustomDomain             bool
-	disableEncodingMeta        bool
-	except100ContinueThreshold int64
-	baseClient                 *baseClient
-	disableTrailerHeader       bool
+	scheme                       string
+	host                         string
+	urlMode                      urlMode
+	userAgent                    string
+	controlEndpoint              string
+	controlScheme                string
+	credentials                  Credentials // nullable
+	signer                       Signer      // nullable
+	transport                    Transport
+	recognizer                   ContentTypeRecognizer
+	config                       Config
+	retry                        *retryer
+	enableCRC                    bool
+	logger                       Logger
+	isCustomDomain               bool
+	disableEncodingMeta          bool
+	except100ContinueThreshold   int64
+	baseClient                   *baseClient
+	disableTrailerHeader         bool
+	userAgentProductName         string
+	userAgentSoftName            string
+	userAgentSoftVersion         string
+	userAgentCustomizedKeyValues map[string]string
 }
 
 // ClientV2 TOS ClientV2
@@ -120,14 +126,19 @@ func (cli *ClientV2) getBucketType(ctx context.Context, bucketName string) (enum
 }
 
 func (cli *ClientV2) Close() {
-	if t, ok := cli.transport.(*DefaultTransport); ok {
-		if h, ok := t.client.Transport.(*http.Transport); ok {
-			h.CloseIdleConnections()
-		}
-		if t.resolver != nil {
-			t.resolver.Close()
-		}
-	}
+    if t, ok := cli.transport.(*DefaultTransport); ok {
+        if h, ok := t.client.Transport.(*http.Transport); ok {
+            h.CloseIdleConnections()
+        }
+        if t.resolver != nil {
+            t.resolver.Close()
+        }
+    }
+
+    // stop background credentials refresh if present
+    if pc, ok := cli.credentials.(*providerBackedCredentials); ok {
+        pc.Stop()
+    }
 
 }
 
@@ -345,6 +356,30 @@ func WithAutoRecognizeContentType(enable bool) ClientOption {
 	}
 }
 
+func WithUserAgentProductName(userAgentProductName string) ClientOption {
+	return func(client *Client) {
+		client.userAgentProductName = userAgentProductName
+	}
+}
+
+func WithUserAgentSoftName(userAgentSoftName string) ClientOption {
+	return func(client *Client) {
+		client.userAgentSoftName = userAgentSoftName
+	}
+}
+
+func WithUserAgentSoftVersion(userAgentSoftVersion string) ClientOption {
+	return func(client *Client) {
+		client.userAgentSoftVersion = userAgentSoftVersion
+	}
+}
+
+func WithUserAgentCustomizedKeyValues(userAgentCustomizedKeyValues map[string]string) ClientOption {
+	return func(client *Client) {
+		client.userAgentCustomizedKeyValues = userAgentCustomizedKeyValues
+	}
+}
+
 // WithContentTypeRecognizer set ContentTypeRecognizer to recognize Content-Type,
 // the default is ExtensionBasedContentTypeRecognizer
 func WithContentTypeRecognizer(recognizer ContentTypeRecognizer) ClientOption {
@@ -415,6 +450,40 @@ func initClient(client *Client, endpoint string, options ...ClientOption) error 
 	return nil
 }
 
+func buildUserAgent(productName string, softName string, softVersion string, customTag map[string]string) string {
+
+    if productName == "" && softName == "" && softVersion == "" {
+        return fmt.Sprintf("ve-tos-go-sdk/%s (%s/%s;%s)", Version, runtime.GOOS, runtime.GOARCH, runtime.Version())
+    }
+    if productName == "" {
+        productName = unknowUserAgentField
+    }
+
+	if softName == "" {
+		softName = unknowUserAgentField
+	}
+	if softVersion == "" {
+		softVersion = unknowUserAgentField
+	}
+
+	userAgent := fmt.Sprintf("ve-tos-go-sdk/%s (%s/%s;%s)", Version, runtime.GOOS, runtime.GOARCH, runtime.Version())
+	userAgent += fmt.Sprintf(" -- %s/%s/%s ", productName, softName, softVersion)
+	if len(customTag) > 0 {
+		// 为保证 UA 稳定性，按键名排序输出 customTag
+		keys := make([]string, 0, len(customTag))
+		for k := range customTag {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		userAgent += "("
+		for _, k := range keys {
+			userAgent += fmt.Sprintf("%s/%s;", k, customTag[k])
+		}
+		userAgent += ")"
+	}
+	return userAgent
+}
+
 // NewClient create a new Tos Client
 //
 //	endpoint: access endpoint
@@ -427,7 +496,6 @@ func NewClient(endpoint string, options ...ClientOption) (*Client, error) {
 	client := Client{
 		recognizer:                 ExtensionBasedContentTypeRecognizer{},
 		config:                     defaultConfig(),
-		userAgent:                  fmt.Sprintf("ve-tos-go-sdk/%s (%s/%s;%s)", Version, runtime.GOOS, runtime.GOARCH, runtime.Version()),
 		retry:                      newRetryer([]time.Duration{}),
 		except100ContinueThreshold: enum.DefaultExcept100ContinueThreshold,
 		disableTrailerHeader:       true,
@@ -438,6 +506,7 @@ func NewClient(endpoint string, options ...ClientOption) (*Client, error) {
 		return nil, err
 	}
 	client.baseClient = newBaseClient(&client)
+	client.userAgent = buildUserAgent(client.userAgentProductName, client.userAgentSoftName, client.userAgentSoftVersion, client.userAgentCustomizedKeyValues)
 	return &client, nil
 }
 
@@ -728,6 +797,7 @@ func (cli *ClientV2) FetchObjectV2(ctx context.Context, input *FetchObjectInputV
 			HostID:      marshalOut.HostID,
 			Resource:    marshalOut.Resource,
 			EC:          marshalOut.EC,
+			Key:         input.Key,
 		}
 	}
 
@@ -909,4 +979,31 @@ func (cli *ClientV2) PreSignedPolicyURL(ctx context.Context, input *PreSingedPol
 		host:           resHost,
 		isCustomDomain: input.IsCustomDomain,
 	}, nil
+}
+
+func (cli *ClientV2) GetFetchTaskV2(ctx context.Context, input *GetFetchTaskV2Input) (*GetFetchTaskV2Output, error) {
+
+	if input == nil {
+		return nil, InputIsNilClientError
+	}
+	if err := isValidBucketName(input.Bucket, cli.isCustomDomain); err != nil {
+		return nil, err
+	}
+	res, err := cli.newBuilder(input.Bucket, "").
+		SetGeneric(input.GenericInput).
+		WithQuery("fetchTask", "").
+		WithQuery("taskId", input.TaskID).
+		WithRetry(nil, StatusCodeClassifier{}).
+		Request(ctx, http.MethodGet, nil, cli.roundTripper(http.StatusOK))
+	if err != nil {
+		return nil, err
+	}
+	defer res.Close()
+	marshalOut := getFetchTaskV2Output{}
+	if err = marshalOutput(res, &marshalOut); err != nil {
+		return nil, err
+	}
+
+	output := marshalOut.ParseToFetchTaskV2Output(res.RequestInfo())
+	return output, nil
 }

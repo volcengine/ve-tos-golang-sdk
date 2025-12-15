@@ -143,6 +143,8 @@ func (bkt *Bucket) UploadPart(ctx context.Context, input *UploadPartInput, optio
 				return nil
 			}
 			cf = StatusCodeClassifier{}
+		} else {
+			return nil, err
 		}
 	}
 	res, err := bkt.client.newBuilder(bkt.name, input.Key, options...).
@@ -211,7 +213,17 @@ func (cli *ClientV2) UploadPartV2(ctx context.Context, input *UploadPartV2Input)
 	}
 
 	cf = NoRetryClassifier{}
-	if seeker, ok := content.(io.Seeker); ok {
+	// 优先对封装层调用 Reset，使监听器的重试计数累加
+	if _, ok := input.Content.(Retryable); ok {
+		onRetry = func(req *Request) error {
+			retryableReader := req.Content.(Retryable)
+			if err := retryableReader.Reset(); err != nil {
+				return err
+			}
+			return nil
+		}
+		cf = StatusCodeClassifier{}
+	} else if seeker, ok := input.Content.(io.Seeker); ok {
 		start, err := seeker.Seek(0, io.SeekCurrent)
 		if err == nil {
 			onRetry = func(req *Request) error {
@@ -229,6 +241,8 @@ func (cli *ClientV2) UploadPartV2(ctx context.Context, input *UploadPartV2Input)
 				return nil
 			}
 			cf = StatusCodeClassifier{}
+		} else {
+			return nil, err
 		}
 	}
 	rb := cli.newBuilder(input.Bucket, input.Key).

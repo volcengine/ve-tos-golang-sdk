@@ -54,6 +54,7 @@ type Request struct {
 	RequestHost   string    // 不为空时，代表本次请求 Header 中指定的 Host 头域，仅影响签名和发送请求时的 Host 头域，实际建立仍使用 Endpoint
 	rawContent    io.Reader
 	rawContentLen *int64
+	key           string
 }
 
 func (req *Request) URL() string {
@@ -286,6 +287,7 @@ func (rb *requestBuilder) build(method string, content io.Reader) *Request {
 		RequestHost: rb.RequestHost,
 		RequestDate: rb.RequestDate,
 		rawContent:  content,
+		key:         rb.Object,
 	}
 
 	if content != nil {
@@ -537,6 +539,7 @@ type Response struct {
 	Header        http.Header
 	Body          io.ReadCloser
 	RequestUrl    string
+	Key           string
 }
 
 func (r *Response) RequestInfo() RequestInfo {

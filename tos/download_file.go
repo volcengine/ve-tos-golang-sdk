@@ -9,6 +9,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -26,6 +27,11 @@ func getDownloadCheckpoint(input *DownloadFileInput, init func(input *HeadObject
 	loadCheckPoint(checkpointPath, checkpoint)
 	checkpoint.checkpointPath = checkpointPath
 	if checkpoint.Valid(input, output) {
+		if checkpoint.TempFilePath == "" {
+			input.tempFile = input.filePath + TempFileSuffix
+		} else {
+			input.tempFile = checkpoint.TempFilePath
+		}
 		return
 	}
 
@@ -155,10 +161,14 @@ func parseDownloadFilePath(input *DownloadFileInput) (needDownloadFile bool, err
 	if isDirRes {
 		input.filePath = filepath.Clean(filepath.Join(input.filePath, input.Key))
 	}
-	input.tempFile = input.filePath + TempFileSuffix
 
 	if input.EnableCheckpoint {
 		input.CheckpointFile = getDownloadCheckPointPath(input.CheckpointFile, input.filePath, input.Bucket, input.Key, input.VersionID)
+	}
+
+	if input.tempFile == "" || !strings.HasPrefix(input.tempFile, input.filePath+TempFileSuffix+".") {
+		nanoseconds := time.Now().UnixNano()
+		input.tempFile = input.filePath + TempFileSuffix + "." + strconv.FormatInt(nanoseconds, 10)
 	}
 
 	if isDirRes && strings.HasSuffix(input.Key, "/") {
@@ -195,8 +205,13 @@ func validateDownloadInput(input *DownloadFileInput, isCustomDomain bool) error 
 }
 
 func initDownloadCheckpoint(input *DownloadFileInput, headOutput *HeadObjectV2Output) (*downloadCheckpoint, error) {
-	partsNum := headOutput.ContentLength / input.PartSize
-	remainder := headOutput.ContentLength % input.PartSize
+
+	contentLength := headOutput.ContentLength
+	if headOutput.SymlinkTargetSize != 0 {
+		contentLength = headOutput.SymlinkTargetSize
+	}
+	partsNum := contentLength / input.PartSize
+	remainder := contentLength % input.PartSize
 	if remainder != 0 {
 		partsNum++
 	}
@@ -222,18 +237,19 @@ func initDownloadCheckpoint(input *DownloadFileInput, headOutput *HeadObjectV2Ou
 		IfNoneMatch:       input.IfNoneMatch,
 		IfUnmodifiedSince: input.IfUnmodifiedSince,
 		SSECAlgorithm:     input.SSECAlgorithm,
-		SSECKeyMD5:        input.SSECKey,
+		SSECKeyMD5:        input.SSECKeyMD5,
 		ObjectInfo: objectInfo{
 			Etag:          headOutput.ETag,
 			HashCrc64ecma: headOutput.HashCrc64ecma,
 			LastModified:  headOutput.LastModified,
-			ObjectSize:    headOutput.ContentLength,
+			ObjectSize:    contentLength,
 		},
 		FileInfo: downloadFileInfo{
 			FilePath:     input.filePath,
 			TempFilePath: input.tempFile,
 		},
-		PartsInfo: parts,
+		PartsInfo:    parts,
+		TempFilePath: input.tempFile,
 	}, nil
 }
 
@@ -303,7 +319,7 @@ func getDownloadTasks(cli *ClientV2, ctx context.Context, headOutput *HeadObject
 				rangeEnd:    part.RangeEnd,
 				consumed:    &consumed,
 				subtotal:    &subtotal,
-				total:       headOutput.ContentLength,
+				total:       checkpoint.ObjectInfo.ObjectSize,
 				enableCRC64: cli.enableCRC,
 			})
 		} else {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"hash"
 	"hash/crc64"
@@ -130,6 +131,7 @@ type copyObjectCheckpoint struct {
 	Bucket                      string         `json:"bucket"`
 	Key                         string         `json:"key"`
 	SrcBucket                   string         `json:"src_bucket"`
+	SrcKey                      string         `json:"src_key"`
 	SrcVersionID                string         `json:"src_version_id"`
 	PartSize                    int64          `json:"part_size"`
 	UploadID                    string         `json:"upload_id"`
@@ -155,7 +157,7 @@ func (c *copyObjectCheckpoint) Valid(input *ResumableCopyObjectInput, headOutput
 	}
 	// 复制基本信息发生改变
 	if c.Bucket != input.Bucket || input.Key != c.Key ||
-		input.SrcBucket != c.SrcBucket || input.SrcVersionID != c.SrcVersionID ||
+		input.SrcBucket != c.SrcBucket || input.SrcKey != c.SrcKey || input.SrcVersionID != c.SrcVersionID ||
 		input.PartSize != c.PartSize || input.EncodingType != c.EncodingType {
 		return false
 	}
@@ -243,6 +245,7 @@ type downloadCheckpoint struct {
 	ObjectInfo    objectInfo         `json:"ObjectInfo,omitempty"`
 	FileInfo      downloadFileInfo   `json:"FileInfo,omitempty"`
 	PartsInfo     []downloadPartInfo `json:"PartsInfo,omitempty"`
+	TempFilePath  string             `json:"TempFilePath,omitempty"`
 }
 
 func (c *downloadCheckpoint) UpdatePartsInfo(result interface{}) {
@@ -736,14 +739,14 @@ type readCloserWithCRC struct {
 	base      io.ReadCloser
 }
 
-func (c *readCloserWithCRC) GetValue() (string, error) {
-	sum := c.checker.Sum(nil)
-	sum64 := make([]byte, c.GetLength())
+func (r *readCloserWithCRC) GetValue() (string, error) {
+	sum := r.checker.Sum(nil)
+	sum64 := make([]byte, r.GetLength())
 	base64.StdEncoding.Encode(sum64, sum)
 	return string(sum64), nil
 }
 
-func (c *readCloserWithCRC) GetLength() int64 {
+func (r *readCloserWithCRC) GetLength() int64 {
 	return int64(base64.StdEncoding.EncodedLen(crc64.Size))
 }
 func (r *readCloserWithCRC) Seek(offset int64, whence int) (int64, error) {
@@ -781,6 +784,17 @@ func (r *readCloserWithCRC) Read(p []byte) (n int, err error) {
 
 func (r *readCloserWithCRC) Close() error {
 	return r.base.Close()
+}
+
+// Reset resets CRC checker and forwards reset to underlying reader if supported.
+func (r *readCloserWithCRC) Reset() error {
+	if r.checker != nil {
+		r.checker.Reset()
+	}
+	if rr, ok := r.base.(Retryable); ok {
+		return rr.Reset()
+	}
+	return errors.New("readCloserWithCRC not support Reset")
 }
 
 // parallelReadCloserWithListener warp multiple io.ReadCloser will be R/W in parallel with a same DataTransferListener
@@ -936,6 +950,19 @@ func (r *readCloserWithListener) Close() error {
 	return r.base.Close()
 }
 
+// Reset resets internal counters and bumps retryCount; forwards reset to underlying if supported.
+func (r *readCloserWithListener) Reset() error {
+	r.consumed = 0
+	r.subtotal = 0
+	r.onceEof = false
+	r.retryCount += 1
+	// 优先直接调用底层 Retryable
+	if rr, ok := r.base.(Retryable); ok {
+		return rr.Reset()
+	}
+	return errors.New("readCloserWithListener base not support Reset")
+}
+
 // ReadCloserWithLimiter warp io.ReadCloser with DataTransferListener
 type ReadCloserWithLimiter struct {
 	limiter  RateLimiter
@@ -975,6 +1002,15 @@ func (r *ReadCloserWithLimiter) Read(p []byte) (n int, err error) {
 
 func (r *ReadCloserWithLimiter) Close() error {
 	return r.base.Close()
+}
+
+// Reset clears limiter state and forwards reset to underlying reader if supported.
+func (r *ReadCloserWithLimiter) Reset() error {
+	r.acquireN = 0
+	if rr, ok := r.base.(Retryable); ok {
+		return rr.Reset()
+	}
+	return errors.New("ReadCloserWithLimiter base not support Reset")
 }
 
 type copyTask struct {

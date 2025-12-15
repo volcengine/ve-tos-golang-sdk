@@ -8,7 +8,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"github.com/sirupsen/logrus"
 	"io"
 	"io/ioutil"
 	"math/rand"
@@ -20,6 +19,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/sirupsen/logrus"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -1269,6 +1270,16 @@ func TestPutAndGetFile(t *testing.T) {
 	}
 	require.Equal(t, expires.Format(time.UnixDate), get.Expires.Format(time.UnixDate))
 	require.Equal(t, storageClass, get.StorageClass)
+
+	unexistKey := time.Now().String()
+	_, err = client.HeadObjectV2(context.Background(), &tos.HeadObjectV2Input{
+		Bucket: bucket,
+		Key:    unexistKey,
+	})
+	require.NotNil(t, err)
+	serr := err.(*tos.TosServerError)
+	require.Equal(t, serr.StatusCode, 404)
+	require.Equal(t, serr.Key, unexistKey)
 }
 
 func TestPutAndGetFileDir(t *testing.T) {
@@ -2046,6 +2057,42 @@ func (r *retryReader) Seek(offset int64, whence int) (int64, error) {
 	return seek.Seek(offset, whence)
 }
 
+type retryResetReader struct {
+	count      int
+	reader     io.Reader
+	n          int
+	t          *testing.T
+	resetCount int
+}
+
+func (r *retryResetReader) Reset() error {
+	r.resetCount++
+	seek := r.reader.(io.Seeker)
+	r.t.Log("reset count:", r.resetCount)
+	_, err := seek.Seek(0, io.SeekStart)
+	return err
+}
+
+func (r *retryResetReader) Read(p []byte) (n int, err error) {
+	if r.count == 5 {
+		r.t.Log("Already Read:", r.n)
+		require.True(r.t, r.n > 0)
+		return r.reader.Read(p)
+	}
+	r.t.Log("read count:", r.count)
+	r.count++
+
+	time.Sleep(time.Second * 3)
+	n, err = r.reader.Read(p)
+	r.n += n
+	return n, err
+}
+
+func (r *retryResetReader) Seek(offset int64, whence int) (int64, error) {
+	seek := r.reader.(io.Seeker)
+	return seek.Seek(offset, whence)
+}
+
 type noRetryReader struct {
 	count  int
 	reader io.Reader
@@ -2082,6 +2129,20 @@ func TestObjectWithRetry(t *testing.T) {
 	})
 	require.Nil(t, err)
 	require.Equal(t, data.count, 5)
+	require.Equal(t, dataListener.RetryCount, 5)
+
+	dataListener = &dataTransferListenerTest{}
+	resetReader := &retryResetReader{reader: strings.NewReader(rawData), t: t}
+	_, err = client.PutObjectV2(ctx, &tos.PutObjectV2Input{
+		PutObjectBasicInput: tos.PutObjectBasicInput{
+			Bucket:               bucket,
+			Key:                  key,
+			DataTransferListener: dataListener,
+		},
+		Content: resetReader,
+	})
+	require.Nil(t, err)
+	require.Equal(t, resetReader.count, 5)
 	require.Equal(t, dataListener.RetryCount, 5)
 
 	dataListener = &dataTransferListenerTest{}

@@ -7,6 +7,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
+
 	"github.com/volcengine/ve-tos-golang-sdk/v2/tos"
 )
 
@@ -74,4 +75,28 @@ func (e testEnv) prepareClient(bucketName string, extraOptions ...tos.ClientOpti
 		checkSuccess(e.t, create, err, 200)
 	}
 	return client
+}
+
+func (e testEnv) prepareClientWithProvider(bucketName string, provider tos.CredentialsProvider, extraOptions ...tos.ClientOption) *tos.ClientV2 {
+    log := logrus.New()
+    log.Level = logrus.DebugLevel
+    log.Formatter = &logrus.TextFormatter{DisableQuote: true}
+    options := []tos.ClientOption{
+        tos.WithRegion(e.region),
+        tos.WithCredentialsProvider(provider),
+        tos.WithEnableVerifySSL(false),
+        tos.WithLogger(log),
+        tos.WithMaxRetryCount(10),
+        tos.WithControlEndpoint(e.controlEndpoint),
+    }
+    options = append(options, extraOptions...)
+    client, err := tos.NewClientV2(e.endpoint, options...)
+    require.Nil(e.t, err)
+    if bucketName != "" {
+        create, err := client.CreateBucketV2(context.Background(), &tos.CreateBucketV2Input{
+            Bucket: bucketName,
+        })
+        checkSuccess(e.t, create, err, 200)
+    }
+    return client
 }

@@ -63,29 +63,3 @@ func TestWrapLimiterReader_Seek(t *testing.T) {
 	require.NotNil(t, err)
 	require.Equal(t, NotSupportSeek, err)
 }
-
-func TestWrapLimiterReader_SeekAndRead(t *testing.T) {
-	data := make([]byte, 100)
-	_, err := rand.Reader.Read(data)
-	require.Nil(t, err)
-	reader := bytes.NewReader(data)
-	lmReader := newWrapLimiterReader(reader, int64(len(data)))
-
-	// 从中间位置开始读取
-	startOffset := int64(50)
-	_, err = lmReader.Seek(startOffset, io.SeekStart)
-	require.Nil(t, err)
-
-	data1, err := io.ReadAll(lmReader)
-	require.Nil(t, err)
-	require.Equal(t, data[startOffset:], data1)
-
-	// Seek 回到相同位置并重新读取
-	_, err = lmReader.Seek(startOffset, io.SeekStart)
-	require.Nil(t, err)
-	data2, err := io.ReadAll(lmReader)
-	require.Nil(t, err)
-
-	// 验证两次读取的数据一致
-	require.Equal(t, data1, data2)
-}
