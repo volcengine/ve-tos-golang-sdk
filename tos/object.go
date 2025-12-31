@@ -125,6 +125,21 @@ func (cli *ClientV2) GetObjectV2(ctx context.Context, input *GetObjectV2Input) (
 		rb.WithHeader(HeaderRange, rb.Range.String())
 		isRange = true
 	}
+
+	if input.Process == "doc-preview" {
+		if input.StartPage != nil {
+			rb.WithQuery("start-page", strconv.Itoa(*input.StartPage))
+		}
+
+		if input.EndPage != nil {
+			rb.WithQuery("end-page", strconv.Itoa(*input.EndPage))
+		}
+
+		if input.ImageMode != nil {
+			rb.WithQuery("image-mode", strconv.Itoa(int(*input.ImageMode)))
+		}
+	}
+
 	if isRange && input.ResponseContentEncoding == "" && !cli.disableTrailerHeader {
 		rb.WithHeader(HeaderTosTrailer, "x-tos-hash-range-crc64ecma")
 		rb.WithHeader(HeaderAcceptEncoding, "tos-raw-trailer")
@@ -1371,6 +1386,7 @@ func (cli *ClientV2) GetFileStatus(ctx context.Context, input *GetFileStatusInpu
 			Crc32:        resp.Header.Get(HeaderHashCrc32C),
 			Crc64:        strconv.FormatUint(resp.HashCrc64ecma, 10),
 			Etag:         resp.ETag,
+			ObjectType:   resp.ObjectType,
 		}, nil
 	}
 	res, err := cli.newBuilder(input.Bucket, input.Key).
@@ -1513,4 +1529,54 @@ func (cli *ClientV2) PutSymlink(ctx context.Context, input *PutSymlinkInput) (*P
 
 func (cli *ClientV2) GetSymlink(ctx context.Context, input *GetSymlinkInput) (*GetSymlinkOutput, error) {
 	return cli.baseClient.GetSymlink(ctx, input)
+}
+
+func (cli *ClientV2) DoesObjectExist(ctx context.Context, input *DoesObjectExistInput) (bool, error) {
+	if input == nil {
+		return false, InputIsNilClientError
+	}
+
+	res, err := cli.HeadObjectV2(ctx, &HeadObjectV2Input{Bucket: input.Bucket, Key: input.Key, VersionID: input.VersionID, GenericInput: input.GenericInput})
+	if err != nil {
+		serr, ok := err.(*TosServerError)
+		if !ok {
+			return false, err
+		}
+		if serr.EC == "0015-00000008" {
+			return true, nil
+		}
+
+		if serr.EC == "0017-00000003" {
+			return false, nil
+		}
+	}
+
+	if err == nil && res.StatusCode == http.StatusOK {
+		return true, nil
+	}
+
+	return false, err
+}
+
+func (cli *ClientV2) SetObjectTime(ctx context.Context, input *SetObjectTimeInput) (*SetObjectTimeOutput, error) {
+	if input == nil {
+		return nil, InputIsNilClientError
+	}
+	if err := isValidNames(input.Bucket, input.Key, cli.isCustomDomain); err != nil {
+		return nil, err
+	}
+
+	res, err := cli.newBuilder(input.Bucket, input.Key).
+		SetGeneric(input.GenericInput).
+		WithQuery("time", "").
+		WithHeader(HeaderTosModifyTimestamp, strconv.FormatInt(input.ModifyTimestamp.Unix(), 10)).
+		WithHeader(HeaderTosModifyTimestampNs, strconv.Itoa(input.ModifyTimestamp.Nanosecond())).
+		WithRetry(nil, StatusCodeClassifier{}).
+		Request(ctx, http.MethodPost, nil, cli.roundTripper(http.StatusOK))
+	if err != nil {
+		return nil, err
+	}
+	defer res.Close()
+
+	return &SetObjectTimeOutput{RequestInfo: res.RequestInfo()}, nil
 }

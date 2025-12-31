@@ -236,11 +236,18 @@ type FetchObjectOutputV2 struct {
 }
 
 type PreSingedPostSignatureInput struct {
-	Bucket             string
-	Key                string
-	Expires            int64
-	Conditions         []PostSignatureCondition
-	ContentLengthRange *ContentLengthRange
+	Bucket                string
+	Key                   string
+	Expires               int64
+	Conditions            []PostSignatureCondition
+	ContentLengthRange    *ContentLengthRange
+	MultiValuesConditions []PostSignatureMultiValuesCondition
+}
+
+type PostSignatureMultiValuesCondition struct {
+	Key      string
+	Values   []string
+	Operator string
 }
 
 type PreSingedPostSignatureOutput struct {
@@ -342,6 +349,7 @@ type PreSignedURLInput struct {
 	Query               map[string]string
 	AlternativeEndpoint string
 	IsCustomDomain      *bool
+	IsSignedAllHeaders  bool
 }
 
 type PreSignedURLOutput struct {
@@ -371,6 +379,7 @@ type CreateBucketV2Input struct {
 	AzRedundancy     enum.AzRedundancyType `location:"header" locationName:"X-Tos-Az-Redundancy"`      // setting the AZ type for buckets
 	ProjectName      string                `location:"header" locationName:"X-Tos-Project-Name"`
 	BucketType       enum.BucketType       `location:"header" locationName:"X-Tos-Bucket-Type"`
+	Tagging          string                `location:"header" locationName:"X-Tos-Tagging"`
 }
 
 type CreateBucketOutput struct {
@@ -505,6 +514,7 @@ type PutObjectBasicInput struct {
 	IfMatch                   string                `location:"header" locationName:"X-Tos-If-Match"`
 	Tagging                   string                `location:"header" locationName:"X-Tos-Tagging"`
 	ObjectExpires             int64                 `location:"header" locationName:"X-Tos-Object-Expires"`
+	VideoOperations           string                `location:"header" locationName:"X-Tos-Video-Operations"`
 	Meta                      map[string]string     `location:"headers"`
 	DataTransferListener      DataTransferListener
 	RateLimiter               RateLimiter
@@ -1021,6 +1031,9 @@ type GetObjectV2Input struct {
 
 	DataTransferListener DataTransferListener
 	RateLimiter          RateLimiter
+	StartPage            *int
+	EndPage              *int
+	ImageMode            *enum.ImageModeType
 	// Deprecated Not Use
 	PartNumber int
 	GenericInput
@@ -1293,10 +1306,11 @@ type CreateMultipartUploadV2Input struct {
 }
 
 type RenameObjectInput struct {
-	Bucket         string
-	Key            string
-	NewKey         string `location:"query" locationName:"name"`
-	RecursiveMkdir bool   `location:"header" locationName:"X-Tos-Recursive-Mkdir"`
+	Bucket          string
+	Key             string
+	NewKey          string `location:"query" locationName:"name"`
+	RecursiveMkdir  bool   `location:"header" locationName:"X-Tos-Recursive-Mkdir"`
+	ForbidOverwrite bool   `location:"header" locationName:"X-Tos-Forbid-Overwrite"`
 	GenericInput
 }
 
@@ -1606,16 +1620,28 @@ type putBucketLifecycleInput struct {
 }
 
 type lifecycleRule struct {
-	ID                             string                          `json:"ID,omitempty"`
-	Prefix                         string                          `json:"Prefix,omitempty"`
-	Status                         enum.StatusType                 `json:"Status,omitempty"`
-	Transitions                    []transition                    `json:"Transitions,omitempty"`
-	Expiration                     *expiration                     `json:"Expiration,omitempty"`
-	NonCurrentVersionTransition    []NonCurrentVersionTransition   `json:"NoncurrentVersionTransitions,omitempty"`
-	NoCurrentVersionExpiration     *NoCurrentVersionExpiration     `json:"NoncurrentVersionExpiration,omitempty"`
-	Tag                            []Tag                           `json:"Tags,omitempty"`
-	AbortInCompleteMultipartUpload *AbortInCompleteMultipartUpload `json:"AbortIncompleteMultipartUpload,omitempty"`
-	Filter                         *LifecycleRuleFilter            `json:"Filter,omitempty"`
+	ID                                     string                                  `json:"ID,omitempty"`
+	Prefix                                 string                                  `json:"Prefix,omitempty"`
+	Status                                 enum.StatusType                         `json:"Status,omitempty"`
+	Transitions                            []transition                            `json:"Transitions,omitempty"`
+	Expiration                             *expiration                             `json:"Expiration,omitempty"`
+	NonCurrentVersionTransition            []NonCurrentVersionTransition           `json:"NoncurrentVersionTransitions,omitempty"`
+	NoCurrentVersionExpiration             *NoCurrentVersionExpiration             `json:"NoncurrentVersionExpiration,omitempty"`
+	Tag                                    []Tag                                   `json:"Tags,omitempty"`
+	AbortInCompleteMultipartUpload         *AbortInCompleteMultipartUpload         `json:"AbortIncompleteMultipartUpload,omitempty"`
+	Filter                                 *LifecycleRuleFilter                    `json:"Filter,omitempty"`
+	AccessTimeTransitions                  []AccessTimeTransition                  `json:"AccessTimeTransitions,omitempty"`
+	NonCurrentVersionAccessTimeTransitions []NonCurrentVersionAccessTimeTransition `json:"NonCurrentVersionAccessTimeTransitions,omitempty"`
+}
+
+type AccessTimeTransition struct {
+	StorageClass enum.StorageClassType `json:"StorageClass,omitempty"`
+	Days         int                   `json:"Days,omitempty"`
+}
+
+type NonCurrentVersionAccessTimeTransition struct {
+	StorageClass   enum.StorageClassType `json:"StorageClass,omitempty"`
+	NonCurrentDays int                   `json:"NonCurrentDays,omitempty"`
 }
 
 type PutBucketLifecycleInput struct {
@@ -1645,16 +1671,18 @@ type DeleteBucketLifecycleOutput struct {
 }
 
 type LifecycleRule struct {
-	ID                             string                          `json:"ID,omitempty"`
-	Prefix                         string                          `json:"Prefix,omitempty"`
-	Status                         enum.StatusType                 `json:"Status,omitempty"`
-	Transitions                    []Transition                    `json:"Transitions,omitempty"`
-	Expiration                     *Expiration                     `json:"Expiration,omitempty"`
-	NonCurrentVersionTransition    []NonCurrentVersionTransition   `json:"NoncurrentVersionTransitions,omitempty"`
-	NoCurrentVersionExpiration     *NoCurrentVersionExpiration     `json:"NoncurrentVersionExpiration,omitempty"`
-	Tag                            []Tag                           `json:"Tags,omitempty"`
-	AbortInCompleteMultipartUpload *AbortInCompleteMultipartUpload `json:"AbortIncompleteMultipartUpload,omitempty"`
-	Filter                         *LifecycleRuleFilter            `json:"Filter,omitempty"`
+	ID                                     string                                  `json:"ID,omitempty"`
+	Prefix                                 string                                  `json:"Prefix,omitempty"`
+	Status                                 enum.StatusType                         `json:"Status,omitempty"`
+	Transitions                            []Transition                            `json:"Transitions,omitempty"`
+	Expiration                             *Expiration                             `json:"Expiration,omitempty"`
+	NonCurrentVersionTransition            []NonCurrentVersionTransition           `json:"NoncurrentVersionTransitions,omitempty"`
+	NoCurrentVersionExpiration             *NoCurrentVersionExpiration             `json:"NoncurrentVersionExpiration,omitempty"`
+	Tag                                    []Tag                                   `json:"Tags,omitempty"`
+	AbortInCompleteMultipartUpload         *AbortInCompleteMultipartUpload         `json:"AbortIncompleteMultipartUpload,omitempty"`
+	Filter                                 *LifecycleRuleFilter                    `json:"Filter,omitempty"`
+	AccessTimeTransitions                  []AccessTimeTransition                  `json:"AccessTimeTransitions,omitempty"`
+	NonCurrentVersionAccessTimeTransitions []NonCurrentVersionAccessTimeTransition `json:"NonCurrentVersionAccessTimeTransitions,omitempty"`
 }
 
 type LifecycleRuleFilter struct {
@@ -1971,7 +1999,9 @@ type UploadFileInput struct {
 	UploadEventListener  UploadEventListener
 	RateLimiter          RateLimiter
 	// cancelHook 支持取消断点续传任务
-	CancelHook CancelHook
+	CancelHook  CancelHook
+	Callback    string
+	CallbackVar string
 	GenericInput
 }
 
@@ -2008,16 +2038,17 @@ type UploadEventListener interface {
 
 type UploadFileOutput struct {
 	RequestInfo
-	Bucket        string
-	Key           string
-	UploadID      string
-	ETag          string
-	Location      string
-	VersionID     string
-	HashCrc64ecma uint64
-	SSECAlgorithm string
-	SSECKeyMD5    string
-	EncodingType  string
+	Bucket         string
+	Key            string
+	UploadID       string
+	ETag           string
+	Location       string
+	VersionID      string
+	HashCrc64ecma  uint64
+	SSECAlgorithm  string
+	SSECKeyMD5     string
+	EncodingType   string
+	CallbackResult string
 }
 
 type DataTransferStatus struct {
@@ -2382,12 +2413,13 @@ type PutBucketCustomDomainInput struct {
 }
 
 type CustomDomainRule struct {
-	CertID          string              `json:"CertId"`
-	CertStatus      enum.CertStatusType `json:"CertStatus"`
-	Domain          string              `json:"Domain"`
-	Forbidden       bool                `json:"Forbidden"`
-	ForbiddenReason string              `json:"ForbiddenReason"`
-	Cname           string              `json:"Cname"`
+	CertID          string                `json:"CertId"`
+	CertStatus      enum.CertStatusType   `json:"CertStatus"`
+	Domain          string                `json:"Domain"`
+	Forbidden       bool                  `json:"Forbidden"`
+	ForbiddenReason string                `json:"ForbiddenReason"`
+	Cname           string                `json:"Cname"`
+	Protocol        enum.AuthProtocolType `json:"Protocol"`
 }
 
 type PutBucketCustomDomainOutput struct {
@@ -2593,6 +2625,7 @@ type GetFileStatusOutput struct {
 	Crc32        string
 	Crc64        string
 	Etag         string
+	ObjectType   string `json:"Type"`
 }
 
 type PutSymlinkInput struct {
@@ -3192,5 +3225,54 @@ type UnbindAcceleratorWithAccessPointInput struct {
 }
 
 type UnbindAcceleratorWithAccessPointOutput struct {
+	RequestInfo
+}
+
+// Access Monitor types
+type PutBucketAccessMonitorInput struct {
+	GenericInput        // v2.8.0
+	Bucket       string // required
+	Status       enum.StatusType
+}
+
+// Response
+type PutBucketAccessMonitorOutput struct {
+	RequestInfo
+}
+
+// Request
+type GetBucketAccessMonitorInput struct {
+	GenericInput        // v2.8.0
+	Bucket       string // required
+}
+
+// Response
+type GetBucketAccessMonitorOutput struct {
+	RequestInfo
+	Status enum.StatusType
+}
+
+// Request
+type DoesBucketExistInput struct {
+	GenericInput        // v2.8.0
+	Bucket       string // required
+}
+
+// Request
+type DoesObjectExistInput struct {
+	GenericInput        // v2.8.0
+	Bucket       string // required
+	Key          string // required
+	VersionID    string
+}
+
+type SetObjectTimeInput struct {
+	GenericInput
+	Bucket          string
+	Key             string
+	ModifyTimestamp time.Time
+}
+
+type SetObjectTimeOutput struct {
 	RequestInfo
 }

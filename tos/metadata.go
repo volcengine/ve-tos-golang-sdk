@@ -77,6 +77,7 @@ type ObjectMetaV2 struct {
 	IsDirectory               bool
 	Expiration                string
 	TaggingCount              int64
+	LastModifyTimestamp       time.Time
 }
 
 func parseRestoreInfo(res *Response) *RestoreInfo {
@@ -212,6 +213,18 @@ func (om *ObjectMetaV2) fromResponseV2(res *Response, disableEncodingMeta bool) 
 			om.ContentLength = length
 		}
 	}
+
+	if ns := res.Header.Get(HeaderLastModifiedNs); ns == "" {
+		om.LastModifyTimestamp = lastModified
+	} else {
+		ns, err := strconv.ParseUint(ns, 10, 64)
+		if err == nil {
+			om.LastModifyTimestamp = lastModified.Add(time.Duration(ns))
+		} else {
+			om.LastModifyTimestamp = lastModified
+		}
+	}
+
 }
 
 func userMetadata(header http.Header, disableEncodingMeta bool) map[string]string {

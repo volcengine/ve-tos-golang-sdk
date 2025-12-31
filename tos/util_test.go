@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/rand"
 	"io"
+	"io/ioutil"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -15,7 +16,7 @@ func TestWrapLimiterReader(t *testing.T) {
 	require.Nil(t, err)
 	reader := bytes.NewReader(data)
 	lmReader := newWrapLimiterReader(reader, int64(1))
-	readData, err := io.ReadAll(lmReader)
+	readData, err := ioutil.ReadAll(lmReader)
 	require.Nil(t, err)
 	require.Equal(t, readData[:1], data[:1])
 }

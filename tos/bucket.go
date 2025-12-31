@@ -293,3 +293,30 @@ func (cli *ClientV2) GetBucketInfo(ctx context.Context, input *GetBucketInfoInpu
 	}
 	return &output, nil
 }
+
+func (cli *ClientV2) DoesBucketExist(ctx context.Context, input *DoesBucketExistInput) (bool, error) {
+	if input == nil {
+		return false, InputIsNilClientError
+	}
+	if err := isValidBucketName(input.Bucket, cli.isCustomDomain); err != nil {
+		return false, err
+	}
+	res, err := cli.HeadBucket(ctx, &HeadBucketInput{
+		Bucket: input.Bucket,
+	})
+
+	if err != nil {
+		if serr, ok := err.(*TosServerError); ok {
+			if serr.EC == "0006-00000001" {
+				return false, nil
+			}
+		}
+		return false, err
+	}
+
+	if res.StatusCode == http.StatusOK {
+		return true, nil
+	}
+
+	return false, err
+}

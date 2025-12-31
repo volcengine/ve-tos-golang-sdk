@@ -34,16 +34,18 @@ func (cli *ClientV2) parseLifecycleInput(input *PutBucketLifecycleInput) putBuck
 		}
 
 		lifecycleInput = append(lifecycleInput, lifecycleRule{
-			ID:                             lifecycle.ID,
-			Prefix:                         lifecycle.Prefix,
-			Status:                         lifecycle.Status,
-			Transitions:                    transitionList,
-			Expiration:                     exp,
-			NonCurrentVersionTransition:    lifecycle.NonCurrentVersionTransition,
-			NoCurrentVersionExpiration:     lifecycle.NoCurrentVersionExpiration,
-			Tag:                            lifecycle.Tag,
-			AbortInCompleteMultipartUpload: lifecycle.AbortInCompleteMultipartUpload,
-			Filter:                         lifecycle.Filter,
+			ID:                                     lifecycle.ID,
+			Prefix:                                 lifecycle.Prefix,
+			Status:                                 lifecycle.Status,
+			Transitions:                            transitionList,
+			Expiration:                             exp,
+			NonCurrentVersionTransition:            lifecycle.NonCurrentVersionTransition,
+			NoCurrentVersionExpiration:             lifecycle.NoCurrentVersionExpiration,
+			Tag:                                    lifecycle.Tag,
+			AbortInCompleteMultipartUpload:         lifecycle.AbortInCompleteMultipartUpload,
+			Filter:                                 lifecycle.Filter,
+			AccessTimeTransitions:                  lifecycle.AccessTimeTransitions,
+			NonCurrentVersionAccessTimeTransitions: lifecycle.NonCurrentVersionAccessTimeTransitions,
 		})
 
 	}

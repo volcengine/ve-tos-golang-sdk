@@ -113,7 +113,7 @@ func isValidMetadataDirective(directiveType enum.MetadataDirectiveType) error {
 func isValidPermission(permissionType enum.PermissionType) error {
 	if permissionType == enum.PermissionRead || permissionType == enum.PermissionReadAcp ||
 		permissionType == enum.PermissionWriteAcp || permissionType == enum.PermissionWrite ||
-		permissionType == enum.PermissionFullControl {
+		permissionType == enum.PermissionFullControl || permissionType == enum.PermissionReadNonList {
 		return nil
 	}
 	return InvalidPermission

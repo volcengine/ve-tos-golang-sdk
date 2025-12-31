@@ -406,6 +406,8 @@ func (cli *ClientV2) uploadPart(ctx context.Context, checkpoint *uploadCheckpoin
 		UploadID:     checkpoint.UploadID,
 		Parts:        checkpoint.GetParts(),
 		GenericInput: input.GenericInput,
+		Callback:     input.Callback,
+		CallbackVar:  input.CallbackVar,
 	})
 	if err != nil {
 		if serr, ok := err.(*TosServerError); ok {
@@ -425,16 +427,17 @@ func (cli *ClientV2) uploadPart(ctx context.Context, checkpoint *uploadCheckpoin
 	_ = os.Remove(input.CheckpointFile)
 
 	return &UploadFileOutput{
-		RequestInfo:   complete.RequestInfo,
-		Bucket:        complete.Bucket,
-		Key:           complete.Key,
-		UploadID:      checkpoint.UploadID,
-		ETag:          complete.ETag,
-		Location:      complete.Location,
-		VersionID:     complete.VersionID,
-		HashCrc64ecma: complete.HashCrc64ecma,
-		SSECAlgorithm: checkpoint.SSECAlgorithm,
-		SSECKeyMD5:    checkpoint.SSECKeyMD5,
-		EncodingType:  checkpoint.EncodingType,
+		RequestInfo:    complete.RequestInfo,
+		Bucket:         complete.Bucket,
+		Key:            complete.Key,
+		UploadID:       checkpoint.UploadID,
+		ETag:           complete.ETag,
+		Location:       complete.Location,
+		VersionID:      complete.VersionID,
+		HashCrc64ecma:  complete.HashCrc64ecma,
+		SSECAlgorithm:  checkpoint.SSECAlgorithm,
+		SSECKeyMD5:     checkpoint.SSECKeyMD5,
+		EncodingType:   checkpoint.EncodingType,
+		CallbackResult: complete.CallbackResult,
 	}, nil
 }

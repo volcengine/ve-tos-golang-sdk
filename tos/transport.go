@@ -3,6 +3,7 @@ package tos
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"io"
 	"math/rand"
 	"net"
@@ -66,6 +67,10 @@ type TransportConfig struct {
 	HighLatencyLogThreshold *int
 
 	ProxyFunc func(*http.Request) (*url.URL, error)
+
+	RootCAs             *x509.CertPool
+	Certificate         *tls.Certificate
+	FollowRedirectTimes int64
 }
 
 type Transport interface {
@@ -113,6 +118,13 @@ func NewDefaultTransport(config *TransportConfig) *DefaultTransport {
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: config.InsecureSkipVerify},
 	}
 
+	if config.Certificate != nil {
+		transport.TLSClientConfig.Certificates = []tls.Certificate{*config.Certificate}
+	}
+	if config.RootCAs != nil {
+		transport.TLSClientConfig.RootCAs = config.RootCAs
+	}
+
 	if config.ProxyFunc != nil {
 		transport.Proxy = config.ProxyFunc
 	} else if config.Proxy != nil && config.Proxy.proxyHost != "" {
@@ -128,6 +140,13 @@ func NewDefaultTransport(config *TransportConfig) *DefaultTransport {
 	return &DefaultTransport{
 		client: http.Client{
 			CheckRedirect: func(req *http.Request, via []*http.Request) error {
+				if config.FollowRedirectTimes == 0 {
+					return http.ErrUseLastResponse
+				}
+				if len(via) < int(config.FollowRedirectTimes) {
+					return nil
+				}
+
 				return http.ErrUseLastResponse
 			},
 			Transport: transport,

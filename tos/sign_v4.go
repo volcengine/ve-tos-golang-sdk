@@ -54,6 +54,10 @@ type Signer interface {
 	SignQuery(req *Request, ttl time.Duration) url.Values
 }
 
+type SignerWithSignQueryHeader interface {
+	SignQueryWithHeader(req *Request, ttl time.Duration, extraHeader map[string]string) url.Values
+}
+
 type SigningKeyInfo struct {
 	Date       string
 	Region     string
@@ -114,7 +118,7 @@ func (sv *SignV4) WithSigningKey(signingKey func(*SigningKeyInfo) []byte) {
 	sv.signingKey = signingKey
 }
 
-func (sv *SignV4) signedHeader(header http.Header, isSignedQuery bool) KVs {
+func (sv *SignV4) signedHeader(header http.Header, isSignedQuery bool, extraHeader map[string]string) KVs {
 	var signed = make(KVs, 0, 10)
 	for key, values := range header {
 		kk := strings.ToLower(key)
@@ -125,6 +129,14 @@ func (sv *SignV4) signedHeader(header http.Header, isSignedQuery bool) KVs {
 			}
 			signed = append(signed, KV{Key: kk, Values: vv})
 		}
+	}
+
+	for key, value := range extraHeader {
+		kk := strings.ToLower(key)
+		if sv.signingHeader(kk, isSignedQuery) {
+			continue
+		}
+		signed = append(signed, KV{Key: kk, Values: []string{strings.Join(strings.Fields(value), " ")}})
 	}
 	return signed
 }
@@ -240,7 +252,7 @@ func (sv *SignV4) SignHeader(req *Request) http.Header {
 		host = req.RequestHost
 	}
 
-	signedHeader := sv.signedHeader(req.Header, false)
+	signedHeader := sv.signedHeader(req.Header, false, nil)
 	signedHeader = append(signedHeader, KV{Key: strings.ToLower(v4Date), Values: []string{date}})
 	signedHeader = append(signedHeader, KV{Key: "date", Values: []string{date}})
 	signedHeader = append(signedHeader, KV{Key: "host", Values: []string{host}})
@@ -274,6 +286,10 @@ func (sv *SignV4) SignHeader(req *Request) http.Header {
 }
 
 func (sv *SignV4) SignQuery(req *Request, ttl time.Duration) url.Values {
+	return sv.SignQueryWithHeader(req, ttl, nil)
+}
+
+func (sv *SignV4) SignQueryWithHeader(req *Request, ttl time.Duration, extraHeader map[string]string) url.Values {
 	now := sv.now()
 	date := now.Format(iso8601Layout)
 	query := req.Query
@@ -304,7 +320,7 @@ func (sv *SignV4) SignQuery(req *Request, ttl time.Duration) url.Values {
 		extra.Add(v4SecurityToken, sts)
 	}
 
-	signedHeader := sv.signedHeader(req.Header, true)
+	signedHeader := sv.signedHeader(req.Header, true, extraHeader)
 	signedHeader = append(signedHeader, KV{Key: "host", Values: []string{host}})
 	sort.Sort(signedHeader)
 

@@ -54,6 +54,7 @@ const (
 	PermissionReadAcp     PermissionType = "READ_ACP"
 	PermissionWriteAcp    PermissionType = "WRITE_ACP"
 	PermissionFullControl PermissionType = "FULL_CONTROL"
+	PermissionReadNonList PermissionType = "READ_NON_LIST"
 )
 
 type GranteeType string
@@ -314,4 +315,18 @@ type NetworkOriginType string
 const (
 	NetworkOriginVpc      NetworkOriginType = "vpc"
 	NetworkOriginInternet NetworkOriginType = "internet"
+)
+
+type AuthProtocolType string
+
+const (
+	AuthProtocolTos AuthProtocolType = "tos"
+	AuthProtocolS3  AuthProtocolType = "s3"
+)
+
+type ImageModeType int
+
+const (
+	ImageModeSingle ImageModeType = 0
+	ImageModeBatch  ImageModeType = 1
 )

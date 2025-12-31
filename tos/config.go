@@ -29,5 +29,6 @@ func DefaultTransportConfig() TransportConfig {
 		ReadTimeout:             30 * time.Second,
 		WriteTimeout:            30 * time.Second,
 		HighLatencyLogThreshold: &highLatencyLogThreshold,
+		DNSCacheTime:            15 * time.Minute,
 	}
 }

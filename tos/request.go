@@ -326,7 +326,7 @@ func (rb *requestBuilder) buildTrailers(req *Request) {
 
 	for k, vals := range chunkReader.getHttpHeader() {
 		if k == "Content-Encoding" {
-			ce := req.Header.Values(k)
+			ce := req.Header[k]
 			ce = append(vals, ce...)
 			req.Header[k] = []string{strings.Join(ce, ",")}
 		} else {
@@ -512,13 +512,18 @@ func (rb *requestBuilder) RequestControl(ctx context.Context, method string,
 	return res, err
 }
 
-func (rb *requestBuilder) PreSignedURL(method string, ttl time.Duration) (string, error) {
+func (rb *requestBuilder) PreSignedURL(method string, ttl time.Duration, extraHeader map[string]string) (string, error) {
 	req := rb.build(method, nil)
 	if rb.Signer == nil {
 		return req.URL(), nil
 	}
 
-	query := rb.Signer.SignQuery(req, ttl)
+	var query url.Values
+	if s, ok := rb.Signer.(SignerWithSignQueryHeader); ok {
+		query = s.SignQueryWithHeader(req, ttl, extraHeader)
+	} else {
+		query = rb.Signer.SignQuery(req, ttl)
+	}
 	for k, v := range query {
 		req.Query[k] = v
 	}

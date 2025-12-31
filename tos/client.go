@@ -4,10 +4,13 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"net/url"
@@ -54,6 +57,7 @@ const (
 //
 // Deprecated: use ClientV2 instead
 type Client struct {
+	mu                           sync.RWMutex
 	scheme                       string
 	host                         string
 	urlMode                      urlMode
@@ -77,6 +81,10 @@ type Client struct {
 	userAgentSoftName            string
 	userAgentSoftVersion         string
 	userAgentCustomizedKeyValues map[string]string
+	clientCrt                    string
+	clientKey                    string
+	caCrt                        string
+	followRedirectTimes          int64
 }
 
 // ClientV2 TOS ClientV2
@@ -126,24 +134,84 @@ func (cli *ClientV2) getBucketType(ctx context.Context, bucketName string) (enum
 }
 
 func (cli *ClientV2) Close() {
-    if t, ok := cli.transport.(*DefaultTransport); ok {
-        if h, ok := t.client.Transport.(*http.Transport); ok {
-            h.CloseIdleConnections()
-        }
-        if t.resolver != nil {
-            t.resolver.Close()
-        }
-    }
+	cli.mu.Lock()
+	defer cli.mu.Unlock()
 
-    // stop background credentials refresh if present
-    if pc, ok := cli.credentials.(*providerBackedCredentials); ok {
-        pc.Stop()
-    }
+	if t, ok := cli.transport.(*DefaultTransport); ok {
+		if h, ok := t.client.Transport.(*http.Transport); ok {
+			h.CloseIdleConnections()
+		}
+		if t.resolver != nil {
+			t.resolver.Close()
+		}
+	}
+
+	// stop background credentials refresh if present
+	if pc, ok := cli.credentials.(*providerBackedCredentials); ok {
+		pc.Stop()
+	}
 
 }
 
 func (cli *ClientV2) SetHTTPTransport(transport http.RoundTripper) {
 	cli.transport = newDefaultTranposrtWithHTTPTransport(transport)
+}
+
+// RefreshEndpointRegion update Endpoint/Region, Endpoint or Region can be empty, return value represents whether update is successful
+func (cli *ClientV2) RefreshEndpointRegion(endpoint string, region string) bool {
+	if len(endpoint) == 0 && len(region) == 0 {
+		return false
+	}
+
+	cli.mu.Lock()
+	defer cli.mu.Unlock()
+
+	if len(endpoint) > 0 {
+		if isInvalidEndpoint(endpoint) {
+			return false
+		}
+		cli.config.Endpoint = endpoint
+		cli.scheme, cli.host, cli.urlMode = schemeHost(endpoint)
+	}
+
+	if len(region) > 0 {
+		cli.config.Region = region
+		if cli.credentials != nil {
+			signer := NewSignV4(cli.credentials, region)
+			signer.WithSignLogger(cli.logger)
+			cli.signer = signer
+		}
+	}
+	return true
+}
+
+// RefreshCredentials update AK/SK/SecurityToken, SecurityToken can be empty, return value represents whether update is successful
+func (cli *ClientV2) RefreshCredentials(ak string, sk string, securityToken string) bool {
+	if len(ak) == 0 || len(sk) == 0 {
+		return false
+	}
+
+	cli.mu.Lock()
+	defer cli.mu.Unlock()
+
+	cred := NewStaticCredentials(ak, sk)
+	if len(securityToken) > 0 {
+		cred.WithSecurityToken(securityToken)
+	}
+
+	// stop background credentials refresh if present
+	if pc, ok := cli.credentials.(*providerBackedCredentials); ok {
+		pc.Stop()
+	}
+
+	cli.credentials = cred
+
+	if len(cli.config.Region) > 0 {
+		signer := NewSignV4(cred, cli.config.Region)
+		signer.WithSignLogger(cli.logger)
+		cli.signer = signer
+	}
+	return true
 }
 
 type ClientOption func(*Client)
@@ -380,6 +448,25 @@ func WithUserAgentCustomizedKeyValues(userAgentCustomizedKeyValues map[string]st
 	}
 }
 
+func WithCaCrt(caCrt string) ClientOption {
+	return func(client *Client) {
+		client.caCrt = caCrt
+	}
+}
+
+func WithClientCrt(clientCrt string, clientKey string) ClientOption {
+	return func(client *Client) {
+		client.clientCrt = clientCrt
+		client.clientKey = clientKey
+	}
+}
+
+func WithFollowRedirectTimes(followRedirectTimes int64) ClientOption {
+	return func(client *Client) {
+		client.followRedirectTimes = followRedirectTimes
+	}
+}
+
 // WithContentTypeRecognizer set ContentTypeRecognizer to recognize Content-Type,
 // the default is ExtensionBasedContentTypeRecognizer
 func WithContentTypeRecognizer(recognizer ContentTypeRecognizer) ClientOption {
@@ -435,6 +522,27 @@ func initClient(client *Client, endpoint string, options ...ClientOption) error 
 	}
 
 	if client.transport == nil {
+		if client.caCrt != "" && client.config.TransportConfig.RootCAs == nil {
+			caPEM, err := ioutil.ReadFile(client.caCrt)
+			if err != nil {
+				return fmt.Errorf("failed to read CA certificate: %s", err.Error())
+			}
+			pool := x509.NewCertPool()
+			if !pool.AppendCertsFromPEM(caPEM) {
+				return fmt.Errorf("failed to parse CA certificate")
+			}
+			client.config.TransportConfig.RootCAs = pool
+		}
+
+		if client.clientKey != "" && client.clientCrt != "" && client.config.TransportConfig.Certificate == nil {
+			cliCert, err := tls.LoadX509KeyPair(client.clientCrt, client.clientKey)
+			if err != nil {
+				return fmt.Errorf("failed to load client certificate: %s", err.Error())
+			}
+			client.config.TransportConfig.Certificate = &cliCert
+		}
+
+		client.config.TransportConfig.FollowRedirectTimes = client.followRedirectTimes
 		transport := NewDefaultTransport(&client.config.TransportConfig)
 		transport.WithDefaultTransportLogger(client.logger)
 		client.transport = transport
@@ -452,12 +560,12 @@ func initClient(client *Client, endpoint string, options ...ClientOption) error 
 
 func buildUserAgent(productName string, softName string, softVersion string, customTag map[string]string) string {
 
-    if productName == "" && softName == "" && softVersion == "" {
-        return fmt.Sprintf("ve-tos-go-sdk/%s (%s/%s;%s)", Version, runtime.GOOS, runtime.GOARCH, runtime.Version())
-    }
-    if productName == "" {
-        productName = unknowUserAgentField
-    }
+	if productName == "" && softName == "" && softVersion == "" {
+		return fmt.Sprintf("ve-tos-go-sdk/%s (%s/%s;%s)", Version, runtime.GOOS, runtime.GOARCH, runtime.Version())
+	}
+	if productName == "" {
+		productName = unknowUserAgentField
+	}
 
 	if softName == "" {
 		softName = unknowUserAgentField
@@ -555,10 +663,13 @@ func NewClientV2(endpoint string, options ...ClientOption) (*ClientV2, error) {
 		return nil, err
 	}
 	client.baseClient = newBaseClient(&client.Client)
+	client.userAgent = buildUserAgent(client.userAgentProductName, client.userAgentSoftName, client.userAgentSoftVersion, client.userAgentCustomizedKeyValues)
 	return &client, nil
 }
 
 func (cli *Client) newBuilder(bucket, object string, options ...Option) *requestBuilder {
+	cli.mu.RLock()
+	defer cli.mu.RUnlock()
 	rb := &requestBuilder{
 		Signer:              cli.signer,
 		Scheme:              cli.scheme,
@@ -585,6 +696,8 @@ func (cli *Client) newBuilder(bucket, object string, options ...Option) *request
 }
 
 func (cli *Client) newControlBuilder(accountId string, options ...Option) *requestBuilder {
+	cli.mu.RLock()
+	defer cli.mu.RUnlock()
 	rb := &requestBuilder{
 		Signer:     cli.signer,
 		Scheme:     cli.controlScheme,
@@ -646,7 +759,7 @@ func (cli *Client) roundTripper(expectedCode int, expectedCodes ...int) roundTri
 func (cli *Client) PreSignedURL(httpMethod string, bucket, objectKey string, ttl time.Duration, options ...Option) (string, error) {
 
 	return cli.newBuilder(bucket, objectKey, options...).
-		PreSignedURL(httpMethod, ttl)
+		PreSignedURL(httpMethod, ttl, nil)
 }
 
 // PreSignedURL return pre-signed url
@@ -669,8 +782,12 @@ func (cli *ClientV2) PreSignedURL(input *PreSignedURLInput) (*PreSignedURLOutput
 	if input.Expires == 0 {
 		input.Expires = defaultPreSignedURLExpires
 	}
+	var extraHeader map[string]string
+	if input.IsSignedAllHeaders {
+		extraHeader = input.Header
+	}
 
-	signedURL, err := rb.PreSignedURL(string(input.HTTPMethod), time.Second*time.Duration(input.Expires))
+	signedURL, err := rb.PreSignedURL(string(input.HTTPMethod), time.Second*time.Duration(input.Expires), extraHeader)
 	if err != nil {
 		return nil, err
 	}
@@ -688,8 +805,10 @@ func (cli *ClientV2) PreSignedURL(input *PreSignedURLInput) (*PreSignedURLOutput
 func (cli *ClientV2) PreSignedPostSignature(ctx context.Context, input *PreSingedPostSignatureInput) (*PreSingedPostSignatureOutput, error) {
 	algorithm := signPrefix
 	postPolicy := make(map[string]interface{})
+	cli.mu.RLock()
 	cred := cli.credentials.Credential()
 	region := cli.config.Region
+	cli.mu.RUnlock()
 	date := UTCNow()
 	if input.Expires == 0 {
 		input.Expires = defaultSignExpires
@@ -726,6 +845,13 @@ func (cli *ClientV2) PreSignedPostSignature(ctx context.Context, input *PreSinge
 	if input.ContentLengthRange != nil {
 		cond = append(cond, []interface{}{signConditionContentLengthRange, input.ContentLengthRange.RangeStart, input.ContentLengthRange.RangeEnd})
 	}
+
+	for _, condition := range input.MultiValuesConditions {
+		cond = append(cond, []interface{}{
+			condition.Operator, condition.Key, condition.Values,
+		})
+	}
+
 	postPolicy[signConditions] = cond
 	originPolicy, err := json.Marshal(postPolicy)
 	if err != nil {
@@ -870,6 +996,7 @@ func (cli *ClientV2) PreSignedPolicyURL(ctx context.Context, input *PreSingedPol
 	if input.Expires == 0 {
 		input.Expires = defaultSignExpires
 	}
+	cli.mu.RLock()
 	resScheme := cli.scheme
 	resHost := cli.host
 	if input.AlternativeEndpoint != "" {
@@ -877,6 +1004,7 @@ func (cli *ClientV2) PreSignedPolicyURL(ctx context.Context, input *PreSingedPol
 	}
 
 	if cli.credentials == nil {
+		cli.mu.RUnlock()
 		return &PreSingedPolicyURLOutput{
 			bucket:         input.Bucket,
 			scheme:         resScheme,
@@ -888,6 +1016,7 @@ func (cli *ClientV2) PreSignedPolicyURL(ctx context.Context, input *PreSingedPol
 	policyConditions := make(map[string]interface{})
 	cred := cli.credentials.Credential()
 	region := cli.config.Region
+	cli.mu.RUnlock()
 
 	query := make(url.Values)
 	date := UTCNow()
