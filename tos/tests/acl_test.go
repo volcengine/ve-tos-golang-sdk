@@ -209,6 +209,9 @@ func TestBucketACLGrantsBody(t *testing.T) {
 	}, {
 		GranteeV2:  tos.GranteeV2{Type: enum.GranteeGroup, Canned: enum.CannedAuthenticatedUsers},
 		Permission: enum.PermissionWriteAcp,
+	}, {
+		GranteeV2:  tos.GranteeV2{Type: enum.GranteeGroup, Canned: enum.CannedAuthenticatedUsers},
+		Permission: enum.PermissionReadNonList,
 	}}
 
 	_, err = client.PutBucketACL(ctx, &tos.PutBucketACLInput{

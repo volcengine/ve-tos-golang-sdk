@@ -2,13 +2,14 @@ package tests
 
 import (
 	"context"
-	"github.com/stretchr/testify/require"
-	"github.com/volcengine/ve-tos-golang-sdk/v2/tos"
 	"io/ioutil"
 	"net/http"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
+	"github.com/volcengine/ve-tos-golang-sdk/v2/tos"
 )
 
 func TestBucketRename(t *testing.T) {
@@ -44,7 +45,23 @@ func TestBucketRename(t *testing.T) {
 	require.Equal(t, putObj.StatusCode, http.StatusOK)
 
 	newKey := randomString(8)
+	putObj, err = client.PutObjectV2(ctx, &tos.PutObjectV2Input{
+		PutObjectBasicInput: tos.PutObjectBasicInput{
+			Bucket: bucket,
+			Key:    newKey,
+		},
+		Content: strings.NewReader(rawData + "newkey"),
+	})
+	require.Nil(t, err)
+	require.Equal(t, putObj.StatusCode, http.StatusOK)
 	renameObj, err := client.RenameObject(ctx, &tos.RenameObjectInput{
+		Bucket:          bucket,
+		Key:             key,
+		NewKey:          newKey,
+		ForbidOverwrite: true,
+	})
+	require.NotNil(t, err)
+	renameObj, err = client.RenameObject(ctx, &tos.RenameObjectInput{
 		Bucket: bucket,
 		Key:    key,
 		NewKey: newKey,
