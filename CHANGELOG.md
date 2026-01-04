@@ -1,4 +1,13 @@
 # ChangeLog of TOS SDK for Go
+## 版本号 v2.9.0 日期：2025-12-10
+- 默认开启 DNS 缓存
+- PreSignedURLInput 支持签名输入 header
+- 新增 SetObjectTime 接口
+- 新增 GetBucketInfo 接口
+- UploadFile 接口支持上传回调
+- 新增快速判断桶 DoesBucketExist 是否存在接口
+- 新增快速判断对象 DoesObjectExist 是否存在的接口
+
 ## 版本号 v2.8.0 日期：2025-12-03
 - 新增 GetFetchTaskV2 接口
 - 新增 CredentialsProvider 鉴权方式

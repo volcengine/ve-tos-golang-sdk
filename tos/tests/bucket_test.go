@@ -55,8 +55,16 @@ func TestAllParamsV2(t *testing.T) {
 		StorageClass: enum.StorageClassStandard,
 		AzRedundancy: enum.AzRedundancySingleAz,
 		ProjectName:  "default",
+		Tagging:      "key1=value1&key2=value2",
 	})
 	checkSuccess(t, created, err, 200)
+	resp, err := client.GetBucketTagging(context.Background(), &tos.GetBucketTaggingInput{Bucket: bucket})
+	require.Nil(t, err)
+	require.Equal(t, len(resp.TagSet.Tags), 2)
+	require.Equal(t, resp.TagSet.Tags[0].Key, "key1")
+	require.Equal(t, resp.TagSet.Tags[0].Value, "value1")
+	require.Equal(t, resp.TagSet.Tags[1].Key, "key2")
+	require.Equal(t, resp.TagSet.Tags[1].Value, "value2")
 	defer func() {
 		cleanBucket(t, client, bucket)
 	}()
@@ -370,4 +378,24 @@ func TestEnableBucketVersion(t *testing.T) {
 	require.Nil(t, err)
 	t.Log(getoutput.RequestID)
 	require.Equal(t, getoutput.Status, enum.VersioningStatusSuspended)
+}
+
+func TestDoesBucketExist(t *testing.T) {
+	var (
+		env    = newTestEnv(t)
+		bucket = generateBucketName("bucket-exist")
+		client = env.prepareClient(bucket)
+	)
+
+	defer func() {
+		cleanBucket(t, client, bucket)
+	}()
+
+	res, err := client.DoesBucketExist(context.Background(), &tos.DoesBucketExistInput{Bucket: bucket})
+	require.Nil(t, err)
+	require.True(t, res)
+
+	res, err = client.DoesBucketExist(context.Background(), &tos.DoesBucketExistInput{Bucket: generateBucketName("bucket-not-exist")})
+	require.Nil(t, err)
+	require.False(t, res)
 }

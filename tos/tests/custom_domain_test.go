@@ -2,12 +2,13 @@ package tests
 
 import (
 	"context"
-	"github.com/stretchr/testify/require"
-	"github.com/volcengine/ve-tos-golang-sdk/v2/tos"
-	"github.com/volcengine/ve-tos-golang-sdk/v2/tos/enum"
 	"net/http"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/require"
+	"github.com/volcengine/ve-tos-golang-sdk/v2/tos"
+	"github.com/volcengine/ve-tos-golang-sdk/v2/tos/enum"
 )
 
 func TestBucketCustomDomain(t *testing.T) {
@@ -23,7 +24,8 @@ func TestBucketCustomDomain(t *testing.T) {
 	input := &tos.PutBucketCustomDomainInput{
 		Bucket: bucket,
 		Rule: tos.CustomDomainRule{
-			Domain: bucket + ".volcengine.com",
+			Domain:   bucket + ".volcengine.com",
+			Protocol: enum.AuthProtocolS3,
 		},
 	}
 	output, err := client.PutBucketCustomDomain(ctx, input)
@@ -34,6 +36,7 @@ func TestBucketCustomDomain(t *testing.T) {
 	require.Equal(t, len(listOutput.Rules), 1)
 	rule := listOutput.Rules[0]
 	require.Equal(t, rule.Domain, bucket+".volcengine.com")
+	require.Equal(t, rule.Protocol, enum.AuthProtocolS3)
 	_, err = client.DeleteBucketCustomDomain(ctx, &tos.DeleteBucketCustomDomainInput{Bucket: bucket, Domain: bucket + ".volcengine.com"})
 	require.Nil(t, err)
 

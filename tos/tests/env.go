@@ -28,6 +28,8 @@ type testEnv struct {
 	kafkaEndpoint   string
 	topEndpoint     string
 	roleName        string
+	testBucketName  string
+	testVideoKey    string
 	t               *testing.T
 }
 
@@ -49,6 +51,8 @@ func newTestEnv(t *testing.T) *testEnv {
 		kafkaEndpoint:   os.Getenv("TOS_GO_SDK_KAFKA_ENDPOINT"),
 		topEndpoint:     os.Getenv("TOS_GO_SDK_TOP_ENDPOINT"),
 		roleName:        os.Getenv("TOS_GO_SDK_ROLE_NAME"),
+		testBucketName:  os.Getenv("TOS_GO_SDK_TEST_BUCKET_NAME"),
+		testVideoKey:    os.Getenv("TOS_GO_SDK_TEST_VIDEO_KEY"),
 		t:               t,
 	}
 }
@@ -64,6 +68,10 @@ func (e testEnv) prepareClient(bucketName string, extraOptions ...tos.ClientOpti
 		tos.WithLogger(log),
 		tos.WithMaxRetryCount(10),
 		tos.WithControlEndpoint(e.controlEndpoint),
+		tos.WithUserAgentProductName("demo"), tos.WithUserAgentSoftName("go-sdk"), tos.WithUserAgentSoftVersion("v1.0.0"), tos.WithUserAgentCustomizedKeyValues(map[string]string{
+			"test-key":  "test-value",
+			"test-key2": "test-value2",
+		}),
 	}
 	options = append(options, extraOptions...)
 	client, err := tos.NewClientV2(e.endpoint, options...)
@@ -78,25 +86,25 @@ func (e testEnv) prepareClient(bucketName string, extraOptions ...tos.ClientOpti
 }
 
 func (e testEnv) prepareClientWithProvider(bucketName string, provider tos.CredentialsProvider, extraOptions ...tos.ClientOption) *tos.ClientV2 {
-    log := logrus.New()
-    log.Level = logrus.DebugLevel
-    log.Formatter = &logrus.TextFormatter{DisableQuote: true}
-    options := []tos.ClientOption{
-        tos.WithRegion(e.region),
-        tos.WithCredentialsProvider(provider),
-        tos.WithEnableVerifySSL(false),
-        tos.WithLogger(log),
-        tos.WithMaxRetryCount(10),
-        tos.WithControlEndpoint(e.controlEndpoint),
-    }
-    options = append(options, extraOptions...)
-    client, err := tos.NewClientV2(e.endpoint, options...)
-    require.Nil(e.t, err)
-    if bucketName != "" {
-        create, err := client.CreateBucketV2(context.Background(), &tos.CreateBucketV2Input{
-            Bucket: bucketName,
-        })
-        checkSuccess(e.t, create, err, 200)
-    }
-    return client
+	log := logrus.New()
+	log.Level = logrus.DebugLevel
+	log.Formatter = &logrus.TextFormatter{DisableQuote: true}
+	options := []tos.ClientOption{
+		tos.WithRegion(e.region),
+		tos.WithCredentialsProvider(provider),
+		tos.WithEnableVerifySSL(false),
+		tos.WithLogger(log),
+		tos.WithMaxRetryCount(10),
+		tos.WithControlEndpoint(e.controlEndpoint),
+	}
+	options = append(options, extraOptions...)
+	client, err := tos.NewClientV2(e.endpoint, options...)
+	require.Nil(e.t, err)
+	if bucketName != "" {
+		create, err := client.CreateBucketV2(context.Background(), &tos.CreateBucketV2Input{
+			Bucket: bucketName,
+		})
+		checkSuccess(e.t, create, err, 200)
+	}
+	return client
 }

@@ -3,6 +3,7 @@ package tests
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"hash"
@@ -77,6 +78,18 @@ func TestUploadFile(t *testing.T) {
 	require.Equal(t, len(value1), n)
 	defer file.Close()
 	transferListener := &dataTransferListenerTest{}
+	originInput := `
+	{
+		"callbackUrl" : "` + env.callbackUrl + `", 
+		"callbackBody" : "{\"bucket\": ${bucket}, \"object\": ${object}, \"key1\": ${x:key1}}", 
+		"callbackBodyType" : "application/json"                
+	}`
+
+	originVarInput := `
+	{
+		"x:key1" : "ceshi"
+	}`
+
 	upload, err := client.UploadFile(context.Background(), &tos.UploadFileInput{
 		CreateMultipartUploadV2Input: tos.CreateMultipartUploadV2Input{
 			Bucket:               bucket,
@@ -88,11 +101,15 @@ func TestUploadFile(t *testing.T) {
 		TaskNum:              4,
 		EnableCheckpoint:     false,
 		DataTransferListener: transferListener,
+		Callback:             base64.StdEncoding.EncodeToString([]byte(originInput)),
+		CallbackVar:          base64.StdEncoding.EncodeToString([]byte(originVarInput)),
 	})
 	checkDataListener(t, transferListener)
 	checkSuccess(t, upload, err, 200)
 	require.Equal(t, transferListener.StartedTime, int64(1))
 	require.Equal(t, transferListener.TotalBytes, transferListener.CurBytes)
+	require.Contains(t, upload.CallbackResult, "ok")
+
 	get, err := client.GetObjectV2(context.Background(), &tos.GetObjectV2Input{
 		Bucket: bucket,
 		Key:    key,

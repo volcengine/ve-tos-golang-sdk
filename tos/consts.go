@@ -7,7 +7,7 @@ import (
 
 const (
 	// Version tos-go-sdk version
-	Version = "v2.8.0"
+	Version = "v2.9.0"
 )
 
 const TempFileSuffix = ".temp"
@@ -193,4 +193,7 @@ const (
 	HeaderTaggingCount                 = "X-Tos-Tagging-Count"
 	HeaderTrashPath                    = "X-Tos-Trash-Path"
 	HeaderRawContentLength             = "X-Tos-Raw-Content-Length"
+	HeaderLastModifiedNs               = "X-Tos-Last-Modified-Ns"
+	HeaderTosModifyTimestamp           = "X-Tos-Modify-Timestamp"
+	HeaderTosModifyTimestampNs         = "X-Tos-Modify-Timestamp-Ns"
 )
