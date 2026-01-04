@@ -1,6 +1,7 @@
 package tos
 
 import (
+	"math"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -218,7 +219,7 @@ func (om *ObjectMetaV2) fromResponseV2(res *Response, disableEncodingMeta bool) 
 		om.LastModifyTimestamp = lastModified
 	} else {
 		ns, err := strconv.ParseUint(ns, 10, 64)
-		if err == nil {
+		if err == nil && ns <= math.MaxInt64 {
 			om.LastModifyTimestamp = lastModified.Add(time.Duration(ns))
 		} else {
 			om.LastModifyTimestamp = lastModified
