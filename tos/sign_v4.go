@@ -254,7 +254,6 @@ func (sv *SignV4) SignHeader(req *Request) http.Header {
 
 	signedHeader := sv.signedHeader(req.Header, false, nil)
 	signedHeader = append(signedHeader, KV{Key: strings.ToLower(v4Date), Values: []string{date}})
-	signedHeader = append(signedHeader, KV{Key: "date", Values: []string{date}})
 	signedHeader = append(signedHeader, KV{Key: "host", Values: []string{host}})
 	// if len(contentSha256) == 0 {
 	//	signedHeader = append(signedHeader, KV{Key: strings.ToLower(v4ContentSHA256), Values: []string{unsignedPayload}})
@@ -277,7 +276,6 @@ func (sv *SignV4) SignHeader(req *Request) http.Header {
 
 	signed.Set(authorization, auth)
 	signed.Set(v4Date, date)
-	signed.Set("Date", date)
 	if sv.logger != nil {
 		sv.logger.Debug("[tos] CanonicalString:" + "\n" + signRes.CanonicalString + "\n")
 		sv.logger.Debug("[tos] StringToSign:" + "\n" + signRes.StringToSign + "\n")
