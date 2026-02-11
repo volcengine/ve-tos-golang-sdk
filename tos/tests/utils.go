@@ -335,6 +335,35 @@ func cleanHNSBucket(t *testing.T, client *tos.ClientV2, bucket string) {
 	require.Equal(t, http.StatusOK, tos.StatusCode(err))
 }
 
+func deleteVectorBucket(client *tos.TosVectorsClient, vectorBucketName, accountID string) {
+	ctx := context.Background()
+	nextToken := ""
+	for {
+		listOutput, _ := client.ListIndexes(ctx, &tos.ListIndexesInput{
+			VectorBucketName: vectorBucketName,
+			AccountID:        accountID,
+			MaxResults:       100,
+			NextToken:        nextToken,
+		})
+		for _, idx := range listOutput.Indexes {
+			client.DeleteIndex(ctx, &tos.DeleteIndexInput{
+				VectorBucketName: vectorBucketName,
+				AccountID:        accountID,
+				IndexName:        idx.IndexName,
+			})
+		}
+		if listOutput.NextToken == "" {
+			break
+		}
+		nextToken = listOutput.NextToken
+	}
+
+	client.DeleteVectorBucket(ctx, &tos.DeleteVectorBucketInput{
+		VectorBucketName: vectorBucketName,
+		AccountID:        accountID,
+	})
+}
+
 func checkBucketMeta(t *testing.T, client *tos.ClientV2, bucket string, expect *tos.HeadBucketOutput) {
 	head, err := client.HeadBucket(context.Background(), &tos.HeadBucketInput{Bucket: bucket})
 	require.Nil(t, err)

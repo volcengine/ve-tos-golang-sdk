@@ -197,3 +197,5 @@ const (
 	HeaderTosModifyTimestamp           = "X-Tos-Modify-Timestamp"
 	HeaderTosModifyTimestampNs         = "X-Tos-Modify-Timestamp-Ns"
 )
+
+const VectorServiceName = "tosvectors"

@@ -512,6 +512,70 @@ func (rb *requestBuilder) RequestControl(ctx context.Context, method string,
 	return res, err
 }
 
+func (rb *requestBuilder) RequestVectors(ctx context.Context, method string,
+	content io.Reader, path string, roundTripper roundTripper) (*Response, error) {
+
+	var (
+		res *Response
+		err error
+	)
+	retryAfterSec := int64(-1)
+
+	req := &Request{
+		Scheme:      rb.Scheme,
+		Method:      method,
+		Host:        rb.Host,
+		Path:        path,
+		Content:     content,
+		Query:       rb.Query,
+		Header:      rb.Header,
+		RequestHost: rb.RequestHost,
+		RequestDate: rb.RequestDate,
+	}
+
+	if rb.Host == "" {
+		return nil, newTosClientError("vectors endpoint host is empty.", nil)
+	}
+
+	if rb.Signer != nil {
+		signed := rb.Signer.SignHeader(req)
+		for key, values := range signed {
+			req.Header[key] = values
+		}
+	}
+
+	if rb.Retry != nil {
+		work := func(retryCount int) (retrySec int64, err error) {
+			if retryCount > 0 {
+				req.Header.Set("x-sdk-retry-count", "attempt="+strconv.Itoa(retryCount)+"; max="+strconv.Itoa(len(rb.Retry.backoff)))
+				req.Header.Del(v4Date)
+				err = rb.OnRetry(req)
+				if err != nil {
+					return -1, err
+				}
+				rb.buildSign(req)
+			}
+			res, err = roundTripper(ctx, req)
+			if res != nil {
+				if retryAfter := res.Header.Get("Retry-After"); retryAfter != "" {
+					retryAfterInt, ierr := strconv.ParseInt(retryAfter, 10, 64)
+					if ierr == nil {
+						retryAfterSec = retryAfterInt
+					}
+				}
+			}
+			return retryAfterSec, err
+		}
+		err = rb.Retry.Run(ctx, work, rb.Classifier)
+		if err != nil {
+			return nil, err
+		}
+		return res, err
+	}
+	res, err = roundTripper(ctx, req)
+	return res, err
+}
+
 func (rb *requestBuilder) PreSignedURL(method string, ttl time.Duration, extraHeader map[string]string) (string, error) {
 	req := rb.build(method, nil)
 	if rb.Signer == nil {
