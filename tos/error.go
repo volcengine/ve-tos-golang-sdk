@@ -45,6 +45,10 @@ var (
 	InvalidCompleteAllPartsLength     = newTosClientError("Should not specify both complete all and Parts", nil)
 	InvalidPartsLength                = newTosClientError("You must specify at least one part", nil)
 	InvlidDeleteMultiObjectsLength    = newTosClientError("You must specify at least one object", nil)
+	InvalidVectorsBucketNameLength    = newTosClientError("invalid vectors bucket name, the length must be [3, 32]", nil)
+	InvalidVectorsBucketNameCharacter = newTosClientError("invalid vectors bucket name, the character set is illegal", nil)
+	InvalidVectorsBucketNameStartingOrEnding = newTosClientError("invalid vectors bucket name, the vectors bucket name can be neither starting with '-' nor ending with '-'", nil)
+	InvalidAccountID = newTosClientError("invalid account id, the account id must be a number", nil)
 )
 
 type TosError struct {

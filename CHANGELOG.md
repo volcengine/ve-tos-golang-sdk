@@ -1,4 +1,8 @@
 # ChangeLog of TOS SDK for Go
+## 版本号 v2.9.1 日期：2026-02-25
+- 新增 object set 相关接口
+- 计算签名时移除对 date 字段的依赖
+
 ## 版本号 v2.9.0 日期：2025-12-10
 - 默认开启 DNS 缓存
 - PreSignedURLInput 支持签名输入 header
