@@ -7,7 +7,7 @@ import (
 
 const (
 	// Version tos-go-sdk version
-	Version = "v2.9.0"
+	Version = "v2.9.1"
 )
 
 const TempFileSuffix = ".temp"
@@ -197,3 +197,5 @@ const (
 	HeaderTosModifyTimestamp           = "X-Tos-Modify-Timestamp"
 	HeaderTosModifyTimestampNs         = "X-Tos-Modify-Timestamp-Ns"
 )
+
+const VectorServiceName = "tosvectors"

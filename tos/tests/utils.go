@@ -335,6 +335,35 @@ func cleanHNSBucket(t *testing.T, client *tos.ClientV2, bucket string) {
 	require.Equal(t, http.StatusOK, tos.StatusCode(err))
 }
 
+func deleteVectorBucket(client *tos.TosVectorsClient, vectorBucketName, accountID string) {
+	ctx := context.Background()
+	nextToken := ""
+	for {
+		listOutput, _ := client.ListIndexes(ctx, &tos.ListIndexesInput{
+			VectorBucketName: vectorBucketName,
+			AccountID:        accountID,
+			MaxResults:       100,
+			NextToken:        nextToken,
+		})
+		for _, idx := range listOutput.Indexes {
+			client.DeleteIndex(ctx, &tos.DeleteIndexInput{
+				VectorBucketName: vectorBucketName,
+				AccountID:        accountID,
+				IndexName:        idx.IndexName,
+			})
+		}
+		if listOutput.NextToken == "" {
+			break
+		}
+		nextToken = listOutput.NextToken
+	}
+
+	client.DeleteVectorBucket(ctx, &tos.DeleteVectorBucketInput{
+		VectorBucketName: vectorBucketName,
+		AccountID:        accountID,
+	})
+}
+
 func checkBucketMeta(t *testing.T, client *tos.ClientV2, bucket string, expect *tos.HeadBucketOutput) {
 	head, err := client.HeadBucket(context.Background(), &tos.HeadBucketInput{Bucket: bucket})
 	require.Nil(t, err)
@@ -422,4 +451,30 @@ func checkFail(t *testing.T, data interface{}, err error, expectCode int) {
 	require.NotNil(t, err)
 	require.Nil(t, data)
 	require.Equal(t, expectCode, tos.StatusCode(err))
+}
+
+func waitUntilObjectSetReady(t *testing.T, bucket string, client *tos.ClientV2) {
+	var (
+		err         error
+		now         = time.Now()
+		duration    = 3 * time.Second
+		maxWaitTime = 120 * time.Second
+		ctx         = context.Background()
+	)
+	for {
+		_, err := client.ListObjectSet(ctx, &tos.ListObjectSetInput{
+			Bucket:  bucket,
+			MaxKeys: 2,
+		})
+		if err == nil {
+			break
+		}
+		if time.Now().After(now.Add(maxWaitTime)) {
+			err = errors.New("wait until objectSet ready timeout")
+			break
+		}
+		t.Log("wait until objectSet ready: ", err)
+		time.Sleep(duration)
+	}
+	require.Nil(t, err)
 }

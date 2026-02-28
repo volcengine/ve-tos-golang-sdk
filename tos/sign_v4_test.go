@@ -36,6 +36,7 @@ func TestAlgV4(t *testing.T) {
 		signingQuery:  defaultSigningQueryV4,
 		now:           func() time.Time { return date.UTC() },
 		signingKey:    SigningKey,
+		serviceName:   defaultServiceName,
 	}
 
 	uri, err := url.Parse("https://test.tos.com:8080/test.txt")
@@ -61,10 +62,9 @@ func TestAlgV4(t *testing.T) {
 	require.Equal(t, "decc75e2b2d453117f81e53954eb2cd3a2f56db2951e9b2257863db4c4921111", query.Get(v4Signature))
 
 	header := sv.SignHeader(req)
-	require.Equal(t, 3, len(header))
-	require.Equal(t, "TOS4-HMAC-SHA256 Credential=AKIAIOSFODNN7EXAMPLE/20210721/cn-north-1/tos/request,SignedHeaders=date;host;x-tos-date,Signature=8851df83fd33af6fb4a28addbe938d88139715dca85bbb43ee739c3eb58eddf2",
+	require.Equal(t, 2, len(header))
+	require.Equal(t, "TOS4-HMAC-SHA256 Credential=AKIAIOSFODNN7EXAMPLE/20210721/cn-north-1/tos/request,SignedHeaders=host;x-tos-date,Signature=3453b54ecfc50e6ed3fc15cbdb82f8a18d644063302080fb18ee10daa4f1a23f",
 		header.Get(authorization))
 	require.Equal(t, "20210721T104454Z", header.Get(v4Date))
-	require.Equal(t, "20210721T104454Z", header.Get("Date"))
 	require.Equal(t, "", header.Get(v4ContentSHA256))
 }

@@ -125,3 +125,27 @@ func isValidSSECAlgorithm(algorithm string) error {
 	}
 	return InvalidSSECAlgorithm
 }
+
+func IsValidVectorsBucketName(name string) error {
+	if length := len(name); length < 3 || length > 32 {
+		return InvalidVectorsBucketNameLength
+	}
+	for i := range name {
+		if char := name[i]; !(('a' <= char && char <= 'z') || ('0' <= char && char <= '9') || char == '-') {
+			return InvalidVectorsBucketNameCharacter
+		}
+	}
+	if name[0] == '-' || name[len(name)-1] == '-' {
+		return InvalidBucketNameStartingOrEnding
+	}
+	return nil
+}
+
+func IsValidAccountID(accountID string) error {
+	for i := range accountID {
+		if char := accountID[i]; !('0' <= char && char <= '9') {
+			return InvalidAccountID
+		}
+	}
+	return nil
+}

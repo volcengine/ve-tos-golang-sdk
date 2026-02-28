@@ -317,6 +317,19 @@ const (
 	NetworkOriginInternet NetworkOriginType = "internet"
 )
 
+type DataType string
+
+const (
+	DataTypeFloat32 DataType = "float32"
+)
+
+type DistanceMetricType string
+
+const (
+	DistanceMetricEuclidean DistanceMetricType = "euclidean"
+	DistanceMetricCosine   DistanceMetricType = "cosine"
+)
+
 type AuthProtocolType string
 
 const (

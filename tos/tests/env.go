@@ -14,6 +14,7 @@ import (
 type testEnv struct {
 	endpoint        string
 	region          string
+	vectorsEndpoint string
 	endpoint2       string
 	region2         string
 	accessKey       string
@@ -37,6 +38,7 @@ func newTestEnv(t *testing.T) *testEnv {
 	return &testEnv{
 		endpoint:        os.Getenv("TOS_GO_SDK_ENDPOINT"),
 		region:          os.Getenv("TOS_GO_SDK_REGION"),
+		vectorsEndpoint: os.Getenv("TOS_GO_SDK_VECTORS_ENDPOINT"),
 		accessKey:       os.Getenv("TOS_GO_SDK_AK"),
 		secretKey:       os.Getenv("TOS_GO_SDK_SK"),
 		endpoint2:       os.Getenv("TOS_GO_SDK_ENDPOINT2"),
@@ -103,6 +105,30 @@ func (e testEnv) prepareClientWithProvider(bucketName string, provider tos.Crede
 	if bucketName != "" {
 		create, err := client.CreateBucketV2(context.Background(), &tos.CreateBucketV2Input{
 			Bucket: bucketName,
+		})
+		checkSuccess(e.t, create, err, 200)
+	}
+	return client
+}
+
+func (e testEnv) prepareVectorsClient(bucketName string, extraOptions ...tos.TosVectorsClientOption) *tos.TosVectorsClient {
+	log := logrus.New()
+	log.Level = logrus.DebugLevel
+	log.Formatter = &logrus.TextFormatter{DisableQuote: true}
+	options := []tos.TosVectorsClientOption{
+		tos.WithVectorsRegion(e.region),
+		tos.WithVectorsCredentials(tos.NewStaticCredentials(e.accessKey, e.secretKey)),
+		tos.WithVectorsEnableVerifySSL(false),
+		tos.WithVectorsLogger(log),
+		tos.WithVectorsMaxRetryCount(10),
+		tos.WithVectorsEndpoint(e.vectorsEndpoint),
+	}
+	options = append(options, extraOptions...)
+	client, err := tos.NewTosVectorsClient(options...)
+	require.Nil(e.t, err)
+	if bucketName != "" {
+		create, err := client.CreateVectorBucket(context.Background(), &tos.CreateVectorBucketInput{
+			VectorBucketName: bucketName,
 		})
 		checkSuccess(e.t, create, err, 200)
 	}

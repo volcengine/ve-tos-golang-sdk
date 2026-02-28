@@ -2600,6 +2600,105 @@ type DeleteBucketTaggingOutput struct {
 	RequestInfo
 }
 
+type PutObjectSetTaggingInput struct {
+	Bucket        string `json:"-"`
+	ObjectSetName string `json:"ObjectSetName"`
+	TagSet        TagSet `json:"TagSet,omitempty"`
+	GenericInput  `json:"-"`
+}
+
+type PutObjectSetTaggingOutput struct {
+	RequestInfo
+}
+
+type PutObjectSetInput struct {
+	Bucket        string `json:"-"`
+	ObjectSetName string `json:"ObjectSetName"`
+	TagSet        TagSet `json:"TagSet,omitempty"`
+	GenericInput  `json:"-"`
+}
+
+type PutObjectSetOutput struct {
+	RequestInfo
+}
+
+type DeleteObjectSetInput struct {
+	Bucket        string `json:"-"`
+	ObjectSetName string `location:"query" locationName:"ObjectSetName"`
+	GenericInput  `json:"-"`
+}
+
+type DeleteObjectSetOutput struct {
+	RequestInfo
+}
+
+type ListObjectSetInput struct {
+	Bucket       string `json:"-"`
+	Prefix       string `location:"query" locationName:"prefix"`
+	Tags         string `location:"query" locationName:"tags"`
+	MaxKeys      int    `location:"query" locationName:"max-keys"`
+	Marker       string `location:"query" locationName:"marker"`
+	GenericInput `json:"-"`
+}
+
+type ListObjectSetOutput struct {
+	RequestInfo
+	IsTruncated bool        `json:"IsTruncated"`
+	NextMarker  string      `json:"NextMarker"`
+	ObjectSets  []ObjectSet `json:"ObjectSets"`
+}
+
+type ObjectSet struct {
+	ObjectSetName string `json:"ObjectSetName"`
+	TagSet        TagSet `json:"TagSet"`
+}
+
+type GetObjectSetInput struct {
+	Bucket        string `json:"-"`
+	ObjectSetName string `location:"query" locationName:"ObjectSetName"`
+	GenericInput  `json:"-"`
+}
+
+type GetObjectSetOutput struct {
+	RequestInfo
+	ObjectSetName string `json:"ObjectSetName"`
+	TagSet        TagSet `json:"TagSet"`
+}
+
+type ObjectSetQuotaRule struct {
+	Tag Tag       `json:"Tag"`
+	Qos QosConfig `json:"Qos"`
+}
+
+type PutObjectSetQuotaByTagInput struct {
+	GenericInput `json:"-"`           // v2.8.0
+	Bucket       string               `json:"-"` // required
+	Rules        []ObjectSetQuotaRule `json:"Rules"`
+}
+
+type PutObjectSetQuotaByTagOutput struct {
+	RequestInfo
+}
+
+type GetObjectSetQuotaByTagInput struct {
+	GenericInput `json:"-"` // v2.8.0
+	Bucket       string     `json:"-"` // required
+}
+
+type GetObjectSetQuotaByTagOutput struct {
+	RequestInfo
+	Rules []ObjectSetQuotaRule `json:"Rules"`
+}
+
+type DeleteObjectSetQuotaByTagInput struct {
+	GenericInput `json:"-"` // v2.8.0
+	Bucket       string     `json:"-"` // required
+}
+
+type DeleteObjectSetQuotaByTagOutput struct {
+	RequestInfo
+}
+
 type RestoreJobParameters struct {
 	Tier enum.TierType `json:"Tier"`
 }
@@ -3279,27 +3378,27 @@ type SetObjectTimeOutput struct {
 
 // VideoDataProcessInput 视频数据处理请求参数
 type VideoDataProcessInput struct {
-	GenericInput  // v2.8.0
-	Bucket string  // required
-	Key string // required
-	Process string
+	GenericInput        // v2.8.0
+	Bucket       string // required
+	Key          string // required
+	Process      string
 }
 
 // VideoDataProcessOutput 视频数据处理响应参数
 type VideoDataProcessOutput struct {
 	RequestInfo
-	OutputBucket string
+	OutputBucket    string
 	TotalFrameCount int
-	SuccFrameCount int
-	FailFrameCount int
-	SuccFrameList []SuccFrame
-	FailFrameList []FailFrame
+	SuccFrameCount  int
+	FailFrameCount  int
+	SuccFrameList   []SuccFrame
+	FailFrameList   []FailFrame
 }
 
 // SuccFrame 成功的帧信息
 type SuccFrame struct {
 	FrameIndex int
-	Object string
+	Object     string
 }
 
 // FailFrame 失败的帧信息

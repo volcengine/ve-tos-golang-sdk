@@ -34,6 +34,8 @@ const (
 	v4SecurityToken  = "X-Tos-Security-Token"
 
 	v4Prefix = "x-tos"
+
+	defaultServiceName = "tos"
 )
 
 func defaultSigningQueryV4(key string) bool {
@@ -72,6 +74,7 @@ type SignV4 struct {
 	now           func() time.Time
 	signingKey    func(*SigningKeyInfo) []byte
 	logger        Logger
+	serviceName   string
 }
 
 type signedRes struct {
@@ -109,6 +112,7 @@ func NewSignV4(credentials Credentials, region string) *SignV4 {
 		signingQuery:  defaultSigningQueryV4,
 		now:           UTCNow,
 		signingKey:    SigningKey,
+		serviceName:   defaultServiceName,
 	}
 	return signV4
 }
@@ -116,6 +120,12 @@ func NewSignV4(credentials Credentials, region string) *SignV4 {
 // WithSigningKey for self-defined sign-key generator
 func (sv *SignV4) WithSigningKey(signingKey func(*SigningKeyInfo) []byte) {
 	sv.signingKey = signingKey
+}
+
+func (sv *SignV4) WithServiceName(serviceName string) {
+	if serviceName == defaultServiceName || serviceName == VectorServiceName {
+		sv.serviceName = serviceName
+	}
 }
 
 func (sv *SignV4) signedHeader(header http.Header, isSignedQuery bool, extraHeader map[string]string) KVs {
@@ -203,6 +213,13 @@ func SigningKey(info *SigningKeyInfo) []byte {
 	return hmacSHA256(service, []byte("request"))
 }
 
+func vectorsSigningKey(info *SigningKeyInfo) []byte {
+	date := hmacSHA256([]byte(info.Credential.AccessKeySecret), []byte(info.Date))
+	region := hmacSHA256(date, []byte(info.Region))
+	service := hmacSHA256(region, []byte("tosvectors"))
+	return hmacSHA256(service, []byte("request"))
+}
+
 func (sv *SignV4) doSign(method, path, contentSha256 string, header, query KVs, now time.Time, cred *Credential, region string) signedRes {
 	const split = byte('\n')
 
@@ -222,7 +239,7 @@ func (sv *SignV4) doSign(method, path, contentSha256 string, header, query KVs, 
 	buf.WriteByte('/')
 	buf.WriteString(region)
 
-	buf.WriteString("/tos/request")
+	buf.WriteString("/" + sv.serviceName + "/request")
 	buf.WriteByte(split)
 
 	sum := sha256.Sum256([]byte(canonicalStr))
@@ -254,7 +271,6 @@ func (sv *SignV4) SignHeader(req *Request) http.Header {
 
 	signedHeader := sv.signedHeader(req.Header, false, nil)
 	signedHeader = append(signedHeader, KV{Key: strings.ToLower(v4Date), Values: []string{date}})
-	signedHeader = append(signedHeader, KV{Key: "date", Values: []string{date}})
 	signedHeader = append(signedHeader, KV{Key: "host", Values: []string{host}})
 	// if len(contentSha256) == 0 {
 	//	signedHeader = append(signedHeader, KV{Key: strings.ToLower(v4ContentSHA256), Values: []string{unsignedPayload}})
@@ -272,12 +288,11 @@ func (sv *SignV4) SignHeader(req *Request) http.Header {
 	signedQuery := sv.signedQuery(req.Query, nil)
 
 	signRes := sv.doSign(req.Method, req.Path, contentSha256, signedHeader, signedQuery, now, &cred, region)
-	credential := fmt.Sprintf("%s/%s/%s/tos/request", cred.AccessKeyID, now.Format(yyMMdd), region)
+	credential := fmt.Sprintf("%s/%s/%s/%s/request", cred.AccessKeyID, now.Format(yyMMdd), region, sv.serviceName)
 	auth := fmt.Sprintf("TOS4-HMAC-SHA256 Credential=%s,SignedHeaders=%s,Signature=%s", credential, joinKeys(signedHeader), signRes.Sign)
 
 	signed.Set(authorization, auth)
 	signed.Set(v4Date, date)
-	signed.Set("Date", date)
 	if sv.logger != nil {
 		sv.logger.Debug("[tos] CanonicalString:" + "\n" + signRes.CanonicalString + "\n")
 		sv.logger.Debug("[tos] StringToSign:" + "\n" + signRes.StringToSign + "\n")
