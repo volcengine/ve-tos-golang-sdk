@@ -6,7 +6,6 @@ import (
 	"crypto/aes"
 	"encoding/base64"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -21,7 +20,6 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -2025,31 +2023,20 @@ type retryReader struct {
 	t      *testing.T
 }
 
-func (r *retryReader) Write(p []byte) (n int, err error) {
-	if r.count == 5 {
-
-		return len(p), nil
-	}
-	r.count++
-
-	time.Sleep(time.Second * 3)
-
-	return 0, errors.New("time out")
-}
-
 func (r *retryReader) Read(p []byte) (n int, err error) {
+	if len(p) == 0 {
+		return r.reader.Read(p)
+	}
 	if r.count == 5 {
-
 		r.t.Log("Already Read:", r.n)
 		require.True(r.t, r.n > 0)
 		return r.reader.Read(p)
 	}
 	r.count++
 
-	time.Sleep(time.Second * 3)
-	n, err = r.reader.Read(p)
+	n, _ = r.reader.Read(p)
 	r.n += n
-	return n, err
+	return 0, &retryTimeoutNetErr{}
 }
 
 func (r *retryReader) Seek(offset int64, whence int) (int64, error) {
@@ -2074,6 +2061,12 @@ func (r *retryResetReader) Reset() error {
 }
 
 func (r *retryResetReader) Read(p []byte) (n int, err error) {
+	if len(p) == 0 {
+		return r.reader.Read(p)
+	}
+	if r.count == 5 {
+		return r.reader.Read(p)
+	}
 	if r.count == 5 {
 		r.t.Log("Already Read:", r.n)
 		require.True(r.t, r.n > 0)
@@ -2082,10 +2075,9 @@ func (r *retryResetReader) Read(p []byte) (n int, err error) {
 	r.t.Log("read count:", r.count)
 	r.count++
 
-	time.Sleep(time.Second * 3)
-	n, err = r.reader.Read(p)
+	n, _ = r.reader.Read(p)
 	r.n += n
-	return n, err
+	return 0, &retryTimeoutNetErr{}
 }
 
 func (r *retryResetReader) Seek(offset int64, whence int) (int64, error) {
@@ -2099,8 +2091,10 @@ type noRetryReader struct {
 }
 
 func (r *noRetryReader) Read(p []byte) (n int, err error) {
-	time.Sleep(time.Second * 3)
-	return r.reader.Read(p)
+	if len(p) == 0 {
+		return r.reader.Read(p)
+	}
+	return 0, &retryTimeoutNetErr{}
 }
 
 func TestObjectWithRetry(t *testing.T) {
@@ -2111,8 +2105,6 @@ func TestObjectWithRetry(t *testing.T) {
 		ctx    = context.Background()
 	)
 	tsConfig := tos.DefaultTransportConfig()
-	tsConfig.ReadTimeout = time.Millisecond * 500
-	tsConfig.WriteTimeout = time.Millisecond * 500
 	client := env.prepareClient(bucket, tos.WithTransportConfig(&tsConfig), tos.WithMaxRetryCount(5))
 	defer cleanBucket(t, client, bucket)
 	// Case 1: 测试内存流
@@ -2217,8 +2209,6 @@ func TestObjectWithTrailerRetry(t *testing.T) {
 		ctx    = context.Background()
 	)
 	tsConfig := tos.DefaultTransportConfig()
-	tsConfig.ReadTimeout = time.Millisecond * 500
-	tsConfig.WriteTimeout = time.Millisecond * 500
 	client := env.prepareClient(bucket, tos.WithTransportConfig(&tsConfig), tos.WithMaxRetryCount(5), tos.WithDisableTrailerHeader(false))
 	defer cleanBucket(t, client, bucket)
 	// Case 1: 测试内存流

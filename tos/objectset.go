@@ -21,6 +21,7 @@ type PutBucketObjectSetConfigurationInput struct {
 	PathLevel              int       `json:"PathLevel"`
 	CustomDelimiter        string    `json:"CustomDelimiter,omitempty"`
 	EnableDefaultObjectSet bool      `json:"EnableDefaultObjectSet"`
+	StorageQuota           string    `json:"StorageQuota,omitempty"`
 	Qos                    QosConfig `json:"Qos,omitempty"`
 	GenericInput           `json:"-"`
 }
@@ -43,6 +44,7 @@ type GetBucketObjectSetConfigurationOutput struct {
 	CustomDelimiter        string    `json:"CustomDelimiter"`
 	EnableDefaultObjectSet bool      `json:"EnableDefaultObjectSet"`
 	Qos                    QosConfig `json:"Qos"`
+	StorageQuota           string    `json:"StorageQuota"`
 }
 
 // PutBucketObjectSetConfiguration sets ObjectSet configuration on a bucket.
@@ -178,6 +180,89 @@ func (cli *ClientV2) DeleteObjectSetQuotaByTag(ctx context.Context,
 	defer res.Close()
 
 	output := DeleteObjectSetQuotaByTagOutput{RequestInfo: res.RequestInfo()}
+	return &output, nil
+}
+
+// PutObjectSetQuota sets storage quota for a specified object set.
+func (cli *ClientV2) PutObjectSetQuota(ctx context.Context, input *PutObjectSetQuotaInput) (*PutObjectSetQuotaOutput, error) {
+	if input == nil {
+		return nil, InputIsNilClientError
+	}
+	if err := isValidBucketName(input.Bucket, cli.isCustomDomain); err != nil {
+		return nil, err
+	}
+
+	data, _, err := marshalInput("PutObjectSetQuota", input)
+	if err != nil {
+		return nil, err
+	}
+
+	res, err := cli.newBuilder(input.Bucket, "").
+		SetGeneric(input.GenericInput).
+		WithQuery("objectsetquota", "").
+		WithParams(*input).
+		WithRetry(OnRetryFromStart, ServerErrorClassifier{}).
+		Request(ctx, http.MethodPut, bytes.NewReader(data), cli.roundTripper(http.StatusOK))
+	if err != nil {
+		return nil, err
+	}
+	defer res.Close()
+
+	output := PutObjectSetQuotaOutput{RequestInfo: res.RequestInfo()}
+	return &output, nil
+}
+
+// GetObjectSetQuota gets storage quota of a specified object set.
+func (cli *ClientV2) GetObjectSetQuota(ctx context.Context, input *GetObjectSetQuotaInput) (*GetObjectSetQuotaOutput, error) {
+	if input == nil {
+		return nil, InputIsNilClientError
+	}
+	if err := isValidBucketName(input.Bucket, cli.isCustomDomain); err != nil {
+		return nil, err
+	}
+
+	res, err := cli.newBuilder(input.Bucket, "").
+		SetGeneric(input.GenericInput).
+		WithQuery("objectsetquota", "").
+		WithParams(*input).
+		WithRetry(OnRetryFromStart, ServerErrorClassifier{}).
+		Request(ctx, http.MethodGet, nil, cli.roundTripper(http.StatusOK))
+	if err != nil {
+		return nil, err
+	}
+	defer res.Close()
+
+	output := GetObjectSetQuotaOutput{RequestInfo: res.RequestInfo()}
+	if err = marshalOutput(res, &output); err != nil {
+		return nil, err
+	}
+	return &output, nil
+}
+
+// GetObjectSetStorage gets storage usage statistics of a specified object set.
+func (cli *ClientV2) GetObjectSetStorage(ctx context.Context, input *GetObjectSetStorageInput) (*GetObjectSetStorageOutput, error) {
+	if input == nil {
+		return nil, InputIsNilClientError
+	}
+	if err := isValidBucketName(input.Bucket, cli.isCustomDomain); err != nil {
+		return nil, err
+	}
+
+	res, err := cli.newBuilder(input.Bucket, "").
+		SetGeneric(input.GenericInput).
+		WithQuery("objectsetstorage", "").
+		WithParams(*input).
+		WithRetry(OnRetryFromStart, ServerErrorClassifier{}).
+		Request(ctx, http.MethodGet, nil, cli.roundTripper(http.StatusOK))
+	if err != nil {
+		return nil, err
+	}
+	defer res.Close()
+
+	output := GetObjectSetStorageOutput{RequestInfo: res.RequestInfo()}
+	if err = marshalOutput(res, &output); err != nil {
+		return nil, err
+	}
 	return &output, nil
 }
 

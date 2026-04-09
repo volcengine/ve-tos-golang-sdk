@@ -1,4 +1,7 @@
 # ChangeLog of TOS SDK for Go
+## 版本号 v2.9.2 日期：2026-04-08
+- SemanticQuery 增加 Caption、Description
+
 ## 版本号 v2.9.1 日期：2026-02-25
 - 新增 object set 相关接口
 - 计算签名时移除对 date 字段的依赖
