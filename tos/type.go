@@ -2666,12 +2666,13 @@ type GetObjectSetOutput struct {
 }
 
 type ObjectSetQuotaRule struct {
-	Tag Tag       `json:"Tag"`
-	Qos QosConfig `json:"Qos"`
+	Tag          Tag       `json:"Tag"`
+	Qos          QosConfig `json:"Qos"`
+	StorageQuota string    `json:"StorageQuota,omitempty"`
 }
 
 type PutObjectSetQuotaByTagInput struct {
-	GenericInput `json:"-"`           // v2.8.0
+	GenericInput `json:"-"`                      // v2.8.0
 	Bucket       string               `json:"-"` // required
 	Rules        []ObjectSetQuotaRule `json:"Rules"`
 }
@@ -2681,8 +2682,8 @@ type PutObjectSetQuotaByTagOutput struct {
 }
 
 type GetObjectSetQuotaByTagInput struct {
-	GenericInput `json:"-"` // v2.8.0
-	Bucket       string     `json:"-"` // required
+	GenericInput `json:"-"`        // v2.8.0
+	Bucket       string `json:"-"` // required
 }
 
 type GetObjectSetQuotaByTagOutput struct {
@@ -2691,12 +2692,63 @@ type GetObjectSetQuotaByTagOutput struct {
 }
 
 type DeleteObjectSetQuotaByTagInput struct {
-	GenericInput `json:"-"` // v2.8.0
-	Bucket       string     `json:"-"` // required
+	GenericInput `json:"-"`        // v2.8.0
+	Bucket       string `json:"-"` // required
 }
 
 type DeleteObjectSetQuotaByTagOutput struct {
 	RequestInfo
+}
+
+type PutObjectSetQuotaInput struct {
+	GenericInput  `json:"-"`        // v2.8.0
+	Bucket        string `json:"-"` // required
+	ObjectSetName string `location:"query" locationName:"ObjectSetName" json:"-"`
+	StorageQuota  string `json:"StorageQuota"`
+}
+
+type PutObjectSetQuotaOutput struct {
+	RequestInfo
+}
+
+type GetObjectSetQuotaInput struct {
+	GenericInput  `json:"-"`        // v2.8.0
+	Bucket        string `json:"-"` // required
+	ObjectSetName string `location:"query" locationName:"ObjectSetName" json:"-"`
+}
+
+type GetObjectSetQuotaOutput struct {
+	RequestInfo
+	StorageQuota string `json:"StorageQuota"`
+}
+
+type GetObjectSetStorageInput struct {
+	GenericInput  `json:"-"`        // v2.8.0
+	Bucket        string `json:"-"` // required
+	ObjectSetName string `location:"query" locationName:"ObjectSetName" json:"-"`
+}
+
+type StorageStat struct {
+	Storage     string `json:"Storage"`
+	ObjectCount int    `json:"ObjectCount"`
+}
+
+type IntelligentTieringStorageStats struct {
+	HighFreqStorageStat StorageStat `json:"HighFreqStorageStat"`
+	LowFreqStorageStat  StorageStat `json:"LowFreqStorageStat"`
+	ArchiveStorageStat  StorageStat `json:"ArchiveStorageStat"`
+}
+
+type GetObjectSetStorageOutput struct {
+	RequestInfo
+	TotalStorageStat               StorageStat                    `json:"TotalStorageStat"`
+	StandardStorageStat            StorageStat                    `json:"StandardStorageStat"`
+	IAStorageStat                  StorageStat                    `json:"IAStorageStat"`
+	ArchiveFrStorageStat           StorageStat                    `json:"ArchiveFrStorageStat"`
+	IntelligentTieringStorageStats IntelligentTieringStorageStats `json:"IntelligentTieringStorageStats"`
+	ArchiveStorageStat             StorageStat                    `json:"ArchiveStorageStat"`
+	ColdArchiveStat                StorageStat                    `json:"ColdArchiveStat"`
+	DeepColdArchiveStorageStat     StorageStat                    `json:"DeepColdArchiveStorageStat"`
 }
 
 type RestoreJobParameters struct {
@@ -3184,6 +3236,8 @@ type FileResponse struct {
 	TOSIsDeleteMarker                     bool
 	AccountID                             string
 	CreateTime                            time.Time
+	Caption                               string
+	Description                           string
 }
 
 type SemanticQueryInput struct {

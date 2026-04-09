@@ -49,10 +49,10 @@ func TestVectorBucketPolicyOperations(t *testing.T) {
 		"Version": "2012-10-17",
 		"Statement": []map[string]interface{}{
 			{
-				"Effect": "Allow",
+				"Effect":    "Allow",
 				"Principal": []string{accountID},
-				"Action":   "tosvectors:GetVectorBucket",
-				"Resource": "trn:tosvectors:" + e.region + ":" + accountID + ":bucket/" + vectorBucketName,
+				"Action":    "tosvectors:GetVectorBucket",
+				"Resource":  "trn:tosvectors:" + e.region + ":" + accountID + ":bucket/" + vectorBucketName,
 			},
 		},
 	}
@@ -118,7 +118,7 @@ func TestPutVectorBucketPolicyWithEmptyPolicy(t *testing.T) {
 	var (
 		e                = newTestEnv(t)
 		client           = e.prepareVectorsClient("")
-		vectorBucketName = "test-vector-policy-empty-" + randomString(8)
+		vectorBucketName = "test-vector-policy-empty-" + randomString(6)
 		accountID        = e.accountId
 		ctx              = context.Background()
 	)
@@ -158,7 +158,7 @@ func TestVectorBucketPolicyWithInvalidBucketName(t *testing.T) {
 
 	// 测试无效的bucket name
 	invalidBucketName := "invalid-bucket-name-!@#$%"
-	
+
 	putPolicyInput := &tos.PutVectorBucketPolicyInput{
 		VectorBucketName: invalidBucketName,
 		AccountID:        accountID,
@@ -187,9 +187,9 @@ func TestVectorBucketPolicyWithInvalidBucketName(t *testing.T) {
 
 func TestVectorBucketPolicyWithNilInput(t *testing.T) {
 	var (
-		e         = newTestEnv(t)
-		client    = e.prepareVectorsClient("")
-		ctx       = context.Background()
+		e      = newTestEnv(t)
+		client = e.prepareVectorsClient("")
+		ctx    = context.Background()
 	)
 
 	// 测试 nil input

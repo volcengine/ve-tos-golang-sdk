@@ -4,18 +4,15 @@ import (
 	"context"
 	"crypto/md5"
 	"encoding/base64"
-	"errors"
 	"io"
 	"io/ioutil"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/volcengine/ve-tos-golang-sdk/v2/tos"
 )
-
 // Test retry path when ContentMD5 is provided (trailers disabled), using Retryable reader.
 func TestObjectWithRetry_ContentMD5_Retryable(t *testing.T) {
 	var (
@@ -25,8 +22,6 @@ func TestObjectWithRetry_ContentMD5_Retryable(t *testing.T) {
 		ctx    = context.Background()
 	)
 	tsConfig := tos.DefaultTransportConfig()
-	tsConfig.ReadTimeout = time.Millisecond * 500
-	tsConfig.WriteTimeout = time.Millisecond * 500
 	client := env.prepareClient(bucket, tos.WithTransportConfig(&tsConfig), tos.WithMaxRetryCount(5))
 	defer cleanBucket(t, client, bucket)
 
@@ -78,8 +73,7 @@ func (r *nonSeekerRetryable) Read(p []byte) (n int, err error) {
 		return r.reader.Read(p)
 	}
 	r.count++
-	time.Sleep(3 * time.Second)
-	return r.reader.Read(p)
+	return 0, &retryTimeoutNetErr{}
 }
 
 // Test retry path with a non-seeker Retryable reader and explicit ContentLength.
@@ -91,8 +85,6 @@ func TestObjectWithRetry_RetryableNonSeeker(t *testing.T) {
 		ctx    = context.Background()
 	)
 	tsConfig := tos.DefaultTransportConfig()
-	tsConfig.ReadTimeout = time.Millisecond * 500
-	tsConfig.WriteTimeout = time.Millisecond * 500
 	client := env.prepareClient(bucket, tos.WithTransportConfig(&tsConfig), tos.WithMaxRetryCount(5))
 	defer cleanBucket(t, client, bucket)
 
@@ -131,8 +123,6 @@ func TestObjectWithRetry_MemoryOffset_Seeker(t *testing.T) {
 		ctx    = context.Background()
 	)
 	tsConfig := tos.DefaultTransportConfig()
-	tsConfig.ReadTimeout = time.Millisecond * 500
-	tsConfig.WriteTimeout = time.Millisecond * 500
 	// Enable trailer for unknown-length streaming
 	client := env.prepareClient(bucket, tos.WithTransportConfig(&tsConfig), tos.WithMaxRetryCount(5), tos.WithDisableTrailerHeader(false))
 	defer cleanBucket(t, client, bucket)
@@ -187,8 +177,7 @@ func (r *retryResetReaderWithOffset) Read(p []byte) (n int, err error) {
 		return r.reader.Read(p)
 	}
 	r.count++
-	time.Sleep(3 * time.Second)
-	return 0, errors.New("time out")
+	return 0, &retryTimeoutNetErr{}
 }
 
 func (r *retryResetReaderWithOffset) Seek(offset int64, whence int) (int64, error) {
@@ -203,8 +192,6 @@ func TestObjectWithRetry_RetryableMemoryOffset(t *testing.T) {
 		ctx    = context.Background()
 	)
 	tsConfig := tos.DefaultTransportConfig()
-	tsConfig.ReadTimeout = time.Millisecond * 500
-	tsConfig.WriteTimeout = time.Millisecond * 500
 	client := env.prepareClient(bucket, tos.WithTransportConfig(&tsConfig), tos.WithMaxRetryCount(5), tos.WithDisableTrailerHeader(false))
 	defer cleanBucket(t, client, bucket)
 
