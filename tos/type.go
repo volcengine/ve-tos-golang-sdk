@@ -2126,10 +2126,12 @@ type GetBucketNotificationType2Input struct {
 }
 
 type NotificationRule struct {
-	RuleID      string                  `json:"RuleId"`
-	Events      []string                `json:"Events"` // 支持的值在不断增加，不定义成枚举
-	Filter      NotificationFilter      `json:"Filter"`
-	Destination NotificationDestination `json:"Destination"`
+	RuleID           string                  `json:"RuleId"`
+	Events           []string                `json:"Events"` // 支持的值在不断增加，不定义成枚举
+	Filter           NotificationFilter      `json:"Filter"`
+	Destination      NotificationDestination `json:"Destination"`
+	ServiceManaged   bool                    `json:"ServiceManaged"`
+	ServiceManagedBy string                  `json:"ServiceManagedBy"`
 }
 
 type NotificationFilter struct {
@@ -2672,7 +2674,7 @@ type ObjectSetQuotaRule struct {
 }
 
 type PutObjectSetQuotaByTagInput struct {
-	GenericInput `json:"-"`                      // v2.8.0
+	GenericInput `json:"-"`           // v2.8.0
 	Bucket       string               `json:"-"` // required
 	Rules        []ObjectSetQuotaRule `json:"Rules"`
 }
@@ -2682,8 +2684,8 @@ type PutObjectSetQuotaByTagOutput struct {
 }
 
 type GetObjectSetQuotaByTagInput struct {
-	GenericInput `json:"-"`        // v2.8.0
-	Bucket       string `json:"-"` // required
+	GenericInput `json:"-"` // v2.8.0
+	Bucket       string     `json:"-"` // required
 }
 
 type GetObjectSetQuotaByTagOutput struct {
@@ -2692,8 +2694,8 @@ type GetObjectSetQuotaByTagOutput struct {
 }
 
 type DeleteObjectSetQuotaByTagInput struct {
-	GenericInput `json:"-"`        // v2.8.0
-	Bucket       string `json:"-"` // required
+	GenericInput `json:"-"` // v2.8.0
+	Bucket       string     `json:"-"` // required
 }
 
 type DeleteObjectSetQuotaByTagOutput struct {
@@ -2701,10 +2703,10 @@ type DeleteObjectSetQuotaByTagOutput struct {
 }
 
 type PutObjectSetQuotaInput struct {
-	GenericInput  `json:"-"`        // v2.8.0
-	Bucket        string `json:"-"` // required
-	ObjectSetName string `location:"query" locationName:"ObjectSetName" json:"-"`
-	StorageQuota  string `json:"StorageQuota"`
+	GenericInput  `json:"-"` // v2.8.0
+	Bucket        string     `json:"-"` // required
+	ObjectSetName string     `location:"query" locationName:"ObjectSetName" json:"-"`
+	StorageQuota  string     `json:"StorageQuota"`
 }
 
 type PutObjectSetQuotaOutput struct {
@@ -2712,9 +2714,9 @@ type PutObjectSetQuotaOutput struct {
 }
 
 type GetObjectSetQuotaInput struct {
-	GenericInput  `json:"-"`        // v2.8.0
-	Bucket        string `json:"-"` // required
-	ObjectSetName string `location:"query" locationName:"ObjectSetName" json:"-"`
+	GenericInput  `json:"-"` // v2.8.0
+	Bucket        string     `json:"-"` // required
+	ObjectSetName string     `location:"query" locationName:"ObjectSetName" json:"-"`
 }
 
 type GetObjectSetQuotaOutput struct {
@@ -2723,9 +2725,9 @@ type GetObjectSetQuotaOutput struct {
 }
 
 type GetObjectSetStorageInput struct {
-	GenericInput  `json:"-"`        // v2.8.0
-	Bucket        string `json:"-"` // required
-	ObjectSetName string `location:"query" locationName:"ObjectSetName" json:"-"`
+	GenericInput  `json:"-"` // v2.8.0
+	Bucket        string     `json:"-"` // required
+	ObjectSetName string     `location:"query" locationName:"ObjectSetName" json:"-"`
 }
 
 type StorageStat struct {
