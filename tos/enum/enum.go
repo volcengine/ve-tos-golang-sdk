@@ -327,7 +327,7 @@ type DistanceMetricType string
 
 const (
 	DistanceMetricEuclidean DistanceMetricType = "euclidean"
-	DistanceMetricCosine   DistanceMetricType = "cosine"
+	DistanceMetricCosine    DistanceMetricType = "cosine"
 )
 
 type AuthProtocolType string
