@@ -9,46 +9,46 @@ import (
 )
 
 var (
-	InputIsNilClientError             = newTosClientError("input is nil. ", nil)
-	InputInvalidClientError           = newTosClientError("input data is invalid. ", nil)
-	InvalidPartNumber                 = newTosClientError("input part number is invalid. ", nil)
-	InvalidUploadID                   = newTosClientError("input upload id is invalid. ", nil)
-	InvalidBucketNameLength           = newTosClientError("invalid bucket name, the length must be [3, 63]", nil)
-	InvalidBucketNameCharacter        = newTosClientError("invalid bucket name, the character set is illegal", nil)
-	InvalidBucketNameStartingOrEnding = newTosClientError("invalid bucket name, the bucket name can be neither starting with '-' nor ending with '-'", nil)
-	InvalidObjectNameLength           = newTosClientError("invalid object name, the length must be [1, 696]", nil)
-	InvalidObjectNameStartingOrEnding = newTosClientError("invalid object name, the object name can not start with '\\'", nil)
-	InvalidObjectNameCharacterSet     = newTosClientError("invalid object name, the character set is illegal", nil)
-	InvalidACL                        = newTosClientError("invalid acl type", nil)
-	InvalidStorageClass               = newTosClientError("invalid storage class", nil)
-	InvalidGrantee                    = newTosClientError("invalid grantee type", nil)
-	InvalidCanned                     = newTosClientError("invalid canned type", nil)
-	InvalidAzRedundancy               = newTosClientError("invalid az redundancy type", nil)
-	InvalidMetadataDirective          = newTosClientError("invalid metadata directive type", nil)
-	InvalidPermission                 = newTosClientError("invalid permission type", nil)
-	InvalidSSECAlgorithm              = newTosClientError("invalid encryption-decryption algorithm", nil)
-	InvalidPartSize                   = newTosClientError("invalid part size, the size must be [5242880, 5368709120]", nil)
-	InvalidSrcFilePath                = newTosClientError("invalid file path, the file does not exist", nil)
-	InvalidFilePartNum                = newTosClientError("unsupported part number, the maximum is 10000", nil)
-	InvalidMarshal                    = newTosClientError("unable to do serialization/deserialization", nil)
-	InvalidPreSignedURLExpires        = newTosClientError("invalid pre signed url expires, the time must be less 604800 seconds.", nil)
-	InvalidPreSignedConditions        = newTosClientError("invalid pre signed url conditions.", nil)
-	InvalidFilePath                   = newTosClientError("invalid file path", nil)
-	InvalidCheckpointFilePath         = newTosClientError("invalid checkpoint file path", nil)
-	CrcCheckFail                      = newTosClientError("crc check not equal", nil)
-	InvalidS3Endpoint                 = newTosClientError("do not support s3 endpoint, please use tos endpoint", nil)
-	NotSupportSeek                    = newTosClientError("reader not support seek", nil)
-	NotSupportSeekEnd                 = newTosClientError("reader not support seek end action", nil)
-	ProxyNotSupportHttps              = newTosClientError("proxy not support https", nil)
-	ProxyUrlInvalid                   = newTosClientError("proxy url invalid", nil)
-	NotificationConfigurationsInvalid = newTosClientError("Notification Configurations invalid", nil)
-	InvalidCompleteAllPartsLength     = newTosClientError("Should not specify both complete all and Parts", nil)
-	InvalidPartsLength                = newTosClientError("You must specify at least one part", nil)
-	InvlidDeleteMultiObjectsLength    = newTosClientError("You must specify at least one object", nil)
-	InvalidVectorsBucketNameLength    = newTosClientError("invalid vectors bucket name, the length must be [3, 32]", nil)
-	InvalidVectorsBucketNameCharacter = newTosClientError("invalid vectors bucket name, the character set is illegal", nil)
+	InputIsNilClientError                    = newTosClientError("input is nil. ", nil)
+	InputInvalidClientError                  = newTosClientError("input data is invalid. ", nil)
+	InvalidPartNumber                        = newTosClientError("input part number is invalid. ", nil)
+	InvalidUploadID                          = newTosClientError("input upload id is invalid. ", nil)
+	InvalidBucketNameLength                  = newTosClientError("invalid bucket name, the length must be [3, 63]", nil)
+	InvalidBucketNameCharacter               = newTosClientError("invalid bucket name, the character set is illegal", nil)
+	InvalidBucketNameStartingOrEnding        = newTosClientError("invalid bucket name, the bucket name can be neither starting with '-' nor ending with '-'", nil)
+	InvalidObjectNameLength                  = newTosClientError("invalid object name, the length must be [1, 696]", nil)
+	InvalidObjectNameStartingOrEnding        = newTosClientError("invalid object name, the object name can not start with '\\'", nil)
+	InvalidObjectNameCharacterSet            = newTosClientError("invalid object name, the character set is illegal", nil)
+	InvalidACL                               = newTosClientError("invalid acl type", nil)
+	InvalidStorageClass                      = newTosClientError("invalid storage class", nil)
+	InvalidGrantee                           = newTosClientError("invalid grantee type", nil)
+	InvalidCanned                            = newTosClientError("invalid canned type", nil)
+	InvalidAzRedundancy                      = newTosClientError("invalid az redundancy type", nil)
+	InvalidMetadataDirective                 = newTosClientError("invalid metadata directive type", nil)
+	InvalidPermission                        = newTosClientError("invalid permission type", nil)
+	InvalidSSECAlgorithm                     = newTosClientError("invalid encryption-decryption algorithm", nil)
+	InvalidPartSize                          = newTosClientError("invalid part size, the size must be [5242880, 5368709120]", nil)
+	InvalidSrcFilePath                       = newTosClientError("invalid file path, the file does not exist", nil)
+	InvalidFilePartNum                       = newTosClientError("unsupported part number, the maximum is 10000", nil)
+	InvalidMarshal                           = newTosClientError("unable to do serialization/deserialization", nil)
+	InvalidPreSignedURLExpires               = newTosClientError("invalid pre signed url expires, the time must be less 604800 seconds.", nil)
+	InvalidPreSignedConditions               = newTosClientError("invalid pre signed url conditions.", nil)
+	InvalidFilePath                          = newTosClientError("invalid file path", nil)
+	InvalidCheckpointFilePath                = newTosClientError("invalid checkpoint file path", nil)
+	CrcCheckFail                             = newTosClientError("crc check not equal", nil)
+	InvalidS3Endpoint                        = newTosClientError("do not support s3 endpoint, please use tos endpoint", nil)
+	NotSupportSeek                           = newTosClientError("reader not support seek", nil)
+	NotSupportSeekEnd                        = newTosClientError("reader not support seek end action", nil)
+	ProxyNotSupportHttps                     = newTosClientError("proxy not support https", nil)
+	ProxyUrlInvalid                          = newTosClientError("proxy url invalid", nil)
+	NotificationConfigurationsInvalid        = newTosClientError("Notification Configurations invalid", nil)
+	InvalidCompleteAllPartsLength            = newTosClientError("Should not specify both complete all and Parts", nil)
+	InvalidPartsLength                       = newTosClientError("You must specify at least one part", nil)
+	InvlidDeleteMultiObjectsLength           = newTosClientError("You must specify at least one object", nil)
+	InvalidVectorsBucketNameLength           = newTosClientError("invalid vectors bucket name, the length must be [3, 32]", nil)
+	InvalidVectorsBucketNameCharacter        = newTosClientError("invalid vectors bucket name, the character set is illegal", nil)
 	InvalidVectorsBucketNameStartingOrEnding = newTosClientError("invalid vectors bucket name, the vectors bucket name can be neither starting with '-' nor ending with '-'", nil)
-	InvalidAccountID = newTosClientError("invalid account id, the account id must be a number", nil)
+	InvalidAccountID                         = newTosClientError("invalid account id, the account id must be a number", nil)
 )
 
 type TosError struct {
@@ -352,6 +352,29 @@ func (classifier ServerErrorClassifier) Classify(err error) retryAction {
 	e, ok := err.(*TosServerError)
 	if ok {
 		if e.StatusCode >= 500 || e.StatusCode == 429 || e.StatusCode == 408 {
+			return Retry
+		}
+	}
+	return NoRetry
+}
+
+type PartServerErrorClassifier struct{}
+
+// Classify implements the classifier interface.
+func (classifier PartServerErrorClassifier) Classify(err error) retryAction {
+	if err == nil {
+		return NoRetry
+	}
+	e, ok := err.(*TosServerError)
+	if ok {
+		if e.StatusCode >= 500 || e.StatusCode == 429 || e.StatusCode == 408 || e.StatusCode == 400 {
+			return Retry
+		}
+	}
+	cErr, ok := err.(*TosClientError)
+	if ok {
+		_, ok = cErr.Cause.(interface{ Timeout() bool })
+		if ok {
 			return Retry
 		}
 	}
