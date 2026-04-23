@@ -312,7 +312,7 @@ func (d *TimeoutDialer) DialContext(ctx context.Context, network, address string
 			return nil, err
 		}
 
-		// 随机打乱 IP List
+		// 随机打乱 IP List（cache.Get 已返回拷贝，可安全原地打乱）
 		rand.Shuffle(len(ipList), func(i, j int) {
 			ipList[i], ipList[j] = ipList[j], ipList[i]
 		})

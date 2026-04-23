@@ -2672,7 +2672,7 @@ type ObjectSetQuotaRule struct {
 }
 
 type PutObjectSetQuotaByTagInput struct {
-	GenericInput `json:"-"`                      // v2.8.0
+	GenericInput `json:"-"`           // v2.8.0
 	Bucket       string               `json:"-"` // required
 	Rules        []ObjectSetQuotaRule `json:"Rules"`
 }
@@ -2682,8 +2682,8 @@ type PutObjectSetQuotaByTagOutput struct {
 }
 
 type GetObjectSetQuotaByTagInput struct {
-	GenericInput `json:"-"`        // v2.8.0
-	Bucket       string `json:"-"` // required
+	GenericInput `json:"-"` // v2.8.0
+	Bucket       string     `json:"-"` // required
 }
 
 type GetObjectSetQuotaByTagOutput struct {
@@ -2692,8 +2692,8 @@ type GetObjectSetQuotaByTagOutput struct {
 }
 
 type DeleteObjectSetQuotaByTagInput struct {
-	GenericInput `json:"-"`        // v2.8.0
-	Bucket       string `json:"-"` // required
+	GenericInput `json:"-"` // v2.8.0
+	Bucket       string     `json:"-"` // required
 }
 
 type DeleteObjectSetQuotaByTagOutput struct {
@@ -2701,10 +2701,10 @@ type DeleteObjectSetQuotaByTagOutput struct {
 }
 
 type PutObjectSetQuotaInput struct {
-	GenericInput  `json:"-"`        // v2.8.0
-	Bucket        string `json:"-"` // required
-	ObjectSetName string `location:"query" locationName:"ObjectSetName" json:"-"`
-	StorageQuota  string `json:"StorageQuota"`
+	GenericInput  `json:"-"` // v2.8.0
+	Bucket        string     `json:"-"` // required
+	ObjectSetName string     `location:"query" locationName:"ObjectSetName" json:"-"`
+	StorageQuota  string     `json:"StorageQuota"`
 }
 
 type PutObjectSetQuotaOutput struct {
@@ -2712,9 +2712,9 @@ type PutObjectSetQuotaOutput struct {
 }
 
 type GetObjectSetQuotaInput struct {
-	GenericInput  `json:"-"`        // v2.8.0
-	Bucket        string `json:"-"` // required
-	ObjectSetName string `location:"query" locationName:"ObjectSetName" json:"-"`
+	GenericInput  `json:"-"` // v2.8.0
+	Bucket        string     `json:"-"` // required
+	ObjectSetName string     `location:"query" locationName:"ObjectSetName" json:"-"`
 }
 
 type GetObjectSetQuotaOutput struct {
@@ -2723,9 +2723,9 @@ type GetObjectSetQuotaOutput struct {
 }
 
 type GetObjectSetStorageInput struct {
-	GenericInput  `json:"-"`        // v2.8.0
-	Bucket        string `json:"-"` // required
-	ObjectSetName string `location:"query" locationName:"ObjectSetName" json:"-"`
+	GenericInput  `json:"-"` // v2.8.0
+	Bucket        string     `json:"-"` // required
+	ObjectSetName string     `location:"query" locationName:"ObjectSetName" json:"-"`
 }
 
 type StorageStat struct {
@@ -3441,12 +3441,25 @@ type VideoDataProcessInput struct {
 // VideoDataProcessOutput 视频数据处理响应参数
 type VideoDataProcessOutput struct {
 	RequestInfo
+	VideoSnapshotsOutput
+	PcmDataProcessOutput
+}
+
+// VideoSnapshotsOutput 视频快照（video/snapshots）处理返回字段
+type VideoSnapshotsOutput struct {
 	OutputBucket    string
 	TotalFrameCount int
 	SuccFrameCount  int
 	FailFrameCount  int
 	SuccFrameList   []SuccFrame
 	FailFrameList   []FailFrame
+}
+
+// PcmDataProcessOutput 音频 PCM 转码（audio/pcm）处理返回字段
+type PcmDataProcessOutput struct {
+	PcmBucket string `json:"bucket,omitempty"`
+	PcmObject string `json:"object,omitempty"`
+	PcmStatus string `json:"status,omitempty"`
 }
 
 // SuccFrame 成功的帧信息

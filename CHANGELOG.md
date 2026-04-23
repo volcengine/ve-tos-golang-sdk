@@ -1,4 +1,7 @@
 # ChangeLog of TOS SDK for Go
+## 版本号 v2.9.3 日期：2026-04-23
+- VideoDataProcess 增加 PCM 处理
+
 ## 版本号 v2.9.2 日期：2026-04-08
 - SemanticQuery 增加 Caption、Description
 

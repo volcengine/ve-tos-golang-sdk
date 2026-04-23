@@ -1595,10 +1595,9 @@ func (cli *ClientV2) VideoDataProcess(ctx context.Context, input *VideoDataProce
 
 	process := input.Process
 
-	if !strings.HasPrefix(process, "x-tos-post-process=video/snapshots,") {
+	if !strings.HasPrefix(process, "x-tos-post-process=") {
 		process = "x-tos-post-process=video/snapshots," + process
 	}
-
 
 	res, err := cli.newBuilder(input.Bucket, input.Key).
 		SetGeneric(input.GenericInput).

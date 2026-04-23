@@ -129,7 +129,11 @@ func (c *cache) Get(key string) ([]string, bool) {
 	if !data.keepAlive && data.expireAt.Before(time.Now()) {
 		return nil, false
 	}
-	return data.ipList, true
+	// 返回拷贝，避免调用方对 cache 内部切片做原地修改（例如 rand.Shuffle）
+	// 造成多 goroutine 间的 data race。
+	ipList := make([]string, len(data.ipList))
+	copy(ipList, data.ipList)
+	return ipList, true
 }
 
 func (c *cache) cleanCache() {
