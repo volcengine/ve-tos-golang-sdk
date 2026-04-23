@@ -84,7 +84,7 @@ func (cli *ClientV2) CreateMultipartUploadV2(
 		SetGeneric(input.GenericInput).
 		WithQuery("uploads", "").
 		WithParams(*input).
-		WithRetry(nil, ServerErrorClassifier{}).
+		WithRetry(nil, PartServerErrorClassifier{}).
 		Request(ctx, http.MethodPost, nil, cli.roundTripper(http.StatusOK))
 	if err != nil {
 		return nil, err
@@ -222,7 +222,7 @@ func (cli *ClientV2) UploadPartV2(ctx context.Context, input *UploadPartV2Input)
 			}
 			return nil
 		}
-		cf = StatusCodeClassifier{}
+		cf = PartServerErrorClassifier{}
 	} else if seeker, ok := input.Content.(io.Seeker); ok {
 		start, err := seeker.Seek(0, io.SeekCurrent)
 		if err == nil {
@@ -240,7 +240,7 @@ func (cli *ClientV2) UploadPartV2(ctx context.Context, input *UploadPartV2Input)
 				}
 				return nil
 			}
-			cf = StatusCodeClassifier{}
+			cf = PartServerErrorClassifier{}
 		} else {
 			return nil, err
 		}
@@ -325,7 +325,7 @@ func (bkt *Bucket) CompleteMultipartUpload(ctx context.Context, input *CompleteM
 
 	res, err := bkt.client.newBuilder(bkt.name, input.Key, options...).
 		WithQuery("uploadId", input.UploadID).
-		WithRetry(OnRetryFromStart, ServerErrorClassifier{}).
+		WithRetry(OnRetryFromStart, PartServerErrorClassifier{}).
 		Request(ctx, http.MethodPost, bytes.NewReader(data), bkt.client.roundTripper(http.StatusOK))
 	if err != nil {
 		return nil, err
