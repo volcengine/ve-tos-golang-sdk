@@ -160,8 +160,14 @@ func (c *cache) cleanCache() {
 func (c *cache) Put(key string, ipList []string) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
+
+	// Defensive copy: callers may mutate the returned slice (e.g. rand.Shuffle in dialer).
+	// If we store the caller-provided slice directly, the cache's internal slice can be
+	// modified concurrently and cause data races.
+	stored := make([]string, len(ipList))
+	copy(stored, ipList)
 	item := cacheItem{
-		ipList:   ipList,
+		ipList:   stored,
 		expireAt: time.Now().Add(c.expiration),
 		host:     key,
 	}

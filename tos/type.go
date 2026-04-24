@@ -3457,9 +3457,10 @@ type VideoSnapshotsOutput struct {
 
 // PcmDataProcessOutput 音频 PCM 转码（audio/pcm）处理返回字段
 type PcmDataProcessOutput struct {
-	PcmBucket string `json:"bucket,omitempty"`
-	PcmObject string `json:"object,omitempty"`
-	PcmStatus string `json:"status,omitempty"`
+	PcmBucket     string                      `json:"bucket,omitempty"`
+	PcmObject     string                      `json:"object,omitempty"`
+	PcmObjectSize int64                       `json:"object_size,string,omitempty"`
+	PcmStatus     enum.VideoDataProcessStatus `json:"status,omitempty"`
 }
 
 // SuccFrame 成功的帧信息
