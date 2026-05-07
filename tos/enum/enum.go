@@ -343,3 +343,17 @@ const (
 	ImageModeSingle ImageModeType = 0
 	ImageModeBatch  ImageModeType = 1
 )
+
+type OpenModeType int
+
+const (
+	OpenCreate OpenModeType = 0
+	OpenWrite  OpenModeType = 1
+)
+
+type CloseType int
+
+const (
+	TemporaryClose CloseType = 0
+	PermanentClose CloseType = 1
+)

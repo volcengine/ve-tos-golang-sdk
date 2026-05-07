@@ -631,6 +631,94 @@ type AppendObjectV2Output struct {
 	HashCrc64ecma    uint64 `json:"HashCrc64Ecma,omitempty"`
 }
 
+type OpenTurboInput struct {
+	Bucket                  string
+	Key                     string
+	Mode                    enum.OpenModeType `location:"query" locationName:"mode"`
+	Content                 io.Reader
+	ContentLength           int64                 `location:"header" locationName:"Content-Length"`
+	ContentMD5              string                `location:"header" locationName:"Content-MD5"`
+	ContentSHA256           string                `location:"header" locationName:"X-Tos-Content-Sha256"`
+	CacheControl            string                `location:"header" locationName:"Cache-Control"`
+	ContentDisposition      string                `location:"header" locationName:"Content-Disposition" encodeChinese:"true"`
+	ContentEncoding         string                `location:"header" locationName:"Content-Encoding"`
+	ContentLanguage         string                `location:"header" locationName:"Content-Language"`
+	ContentType             string                `location:"header" locationName:"Content-Type"`
+	Expires                 time.Time             `location:"header" locationName:"Expires"`
+	ACL                     enum.ACLType          `location:"header" locationName:"X-Tos-Acl"`
+	GrantFullControl        string                `location:"header" locationName:"X-Tos-Grant-Full-Control"`
+	GrantRead               string                `location:"header" locationName:"X-Tos-Grant-Read"`
+	GrantReadAcp            string                `location:"header" locationName:"X-Tos-Grant-Read-Acp"`
+	GrantWriteAcp           string                `location:"header" locationName:"X-Tos-Grant-Write-Acp"`
+	WebsiteRedirectLocation string                `location:"header" locationName:"X-Tos-Website-Redirect-Location"`
+	StorageClass            enum.StorageClassType `location:"header" locationName:"X-Tos-Storage-Class"`
+	TrafficLimit            int64                 `location:"header" locationName:"X-Tos-Traffic-Limit"`
+	IfMatch                 string                `location:"header" locationName:"X-Tos-If-Match"`
+	ObjectExpires           int64                 `location:"header" locationName:"X-Tos-Object-Expires"`
+	Meta                    map[string]string     `location:"headers"`
+	DataTransferListener    DataTransferListener
+	RateLimiter             RateLimiter
+	GenericInput
+}
+type OpenTurboOutput struct {
+	RequestInfo     `json:"-"`
+	NextTurboOffset int64  `json:"NextTurboOffset,omitempty"`
+	TurboToken      string `json:"TurboToken,omitempty"`
+	OpenedCount     int64  `json:"OpenedCount,omitempty"`
+}
+
+type AppendTurboInput struct {
+	Bucket               string
+	Key                  string
+	TurboToken           string `location:"header" locationName:"X-Tos-Turbo-Token"`
+	Content              io.Reader
+	ContentLength        int64 `location:"header" locationName:"Content-Length"`
+	DataTransferListener DataTransferListener
+	RateLimiter          RateLimiter
+	GenericInput
+}
+type AppendTurboOutput struct {
+	RequestInfo     `json:"-"`
+	NextTurboOffset int64  `json:"NextTurboOffset,omitempty"`
+	TurboToken      string `json:"TurboToken,omitempty"`
+}
+
+type CloseTurboInput struct {
+	Bucket string
+	Key    string
+	Mode   enum.CloseType `location:"query" locationName:"mode"`
+	GenericInput
+}
+type CloseTurboOutput struct {
+	RequestInfo `json:"-"`
+	OpenedCount int64 `json:"OpenedCount,omitempty"`
+}
+
+type OpenedTurboObject struct {
+	Key        string `json:"Key,omitempty"`
+	CreateTime string `json:"CreateTime,omitempty"`
+	Size       int64  `json:"Size,omitempty"`
+}
+type ListOpenedTurboInput struct {
+	Bucket            string
+	ContinuationToken string `location:"query" locationName:"continuation-token"`
+	Prefix            string `location:"query" locationName:"prefix"`
+	MaxKeys           int    `location:"query" locationName:"max-keys"`
+	EncodingType      string `location:"query" locationName:"encoding-type"`
+	GenericInput
+}
+type ListOpenedTurboOutput struct {
+	RequestInfo           `json:"-"`
+	Name                  string              `json:"Name,omitempty"`
+	Prefix                string              `json:"Prefix,omitempty"`
+	ContinuationToken     string              `json:"ContinuationToken,omitempty"`
+	MaxKeys               int64               `json:"MaxKeys,omitempty"`
+	NextContinuationToken string              `json:"NextContinuationToken,omitempty"`
+	IsTruncated           bool                `json:"IsTruncated,omitempty"`
+	EncodingType          string              `json:"EncodingType,omitempty"`
+	Contents              []OpenedTurboObject `json:"Contents,omitempty"`
+}
+
 type SetObjectMetaInput struct {
 	Bucket    string
 	Key       string
