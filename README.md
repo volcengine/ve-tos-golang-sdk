@@ -44,3 +44,7 @@ Following code shows how to migrate to v2 automatically with it.
    tos.WithCredentials(tos.NewStaticCredentials(accessKey, secretKey)))
   ```
 * More example, see example/ folder
+
+## Security and privacy
+This project takes security seriously.
+For vulnerability reporting and supported versions, see [SECURITY.md](SECURITY.md)

@@ -2126,10 +2126,12 @@ type GetBucketNotificationType2Input struct {
 }
 
 type NotificationRule struct {
-	RuleID      string                  `json:"RuleId"`
-	Events      []string                `json:"Events"` // 支持的值在不断增加，不定义成枚举
-	Filter      NotificationFilter      `json:"Filter"`
-	Destination NotificationDestination `json:"Destination"`
+	RuleID           string                  `json:"RuleId"`
+	Events           []string                `json:"Events"` // 支持的值在不断增加，不定义成枚举
+	Filter           NotificationFilter      `json:"Filter"`
+	Destination      NotificationDestination `json:"Destination"`
+	ServiceManaged   *bool                   `json:"ServiceManaged,omitempty"`
+	ServiceManagedBy *string                 `json:"ServiceManagedBy,omitempty"`
 }
 
 type NotificationFilter struct {
@@ -2665,6 +2667,89 @@ type GetObjectSetOutput struct {
 	TagSet        TagSet `json:"TagSet"`
 }
 
+type GetObjectSetEndpointInput struct {
+	Bucket        string `json:"-"`
+	ObjectSetName string `location:"query" locationName:"ObjectSetName" json:"-"`
+	GenericInput  `json:"-"`
+}
+
+type ObjectSetEndpoint struct {
+	CapName    string   `json:"capname"`
+	Endpoint   []string `json:"endpoint"`
+	S3Endpoint []string `json:"s3endpoint"`
+}
+
+type GetObjectSetEndpointOutput struct {
+	RequestInfo
+	Endpoints []ObjectSetEndpoint `json:"-"`
+}
+
+type PutObjectSetLifecycleInput struct {
+	Bucket        string          `json:"-"`
+	ObjectSetName string          `location:"query" locationName:"ObjectSetName" json:"-"`
+	Rules         []LifecycleRule `json:"Rules"`
+	GenericInput  `json:"-"`
+}
+
+type PutObjectSetLifecycleOutput struct {
+	RequestInfo
+}
+
+type GetObjectSetLifecycleInput struct {
+	Bucket        string `json:"-"`
+	ObjectSetName string `location:"query" locationName:"ObjectSetName" json:"-"`
+	GenericInput  `json:"-"`
+}
+
+type GetObjectSetLifecycleOutput struct {
+	RequestInfo
+	Rules []LifecycleRule `json:"Rules"`
+}
+
+type DeleteObjectSetLifecycleInput struct {
+	Bucket        string `json:"-"`
+	ObjectSetName string `location:"query" locationName:"ObjectSetName" json:"-"`
+	GenericInput  `json:"-"`
+}
+
+type DeleteObjectSetLifecycleOutput struct {
+	RequestInfo
+}
+
+type ObjectSetTagLifecycleRule struct {
+	Tag   Tag             `json:"Tag"`
+	Rules []LifecycleRule `json:"Rules"`
+}
+
+type PutObjectSetLifecycleByTagInput struct {
+	Bucket            string                      `json:"-"`
+	ObjectSetTagRules []ObjectSetTagLifecycleRule `json:"ObjectSetTagRules"`
+	GenericInput      `json:"-"`
+}
+
+type PutObjectSetLifecycleByTagOutput struct {
+	RequestInfo
+}
+
+type GetObjectSetLifecycleByTagInput struct {
+	Bucket       string `json:"-"`
+	GenericInput `json:"-"`
+}
+
+type GetObjectSetLifecycleByTagOutput struct {
+	RequestInfo
+	ObjectSetTagRules []ObjectSetTagLifecycleRule `json:"ObjectSetTagRules"`
+}
+
+type DeleteObjectSetLifecycleByTagInput struct {
+	Bucket       string `json:"-"`
+	GenericInput `json:"-"`
+}
+
+type DeleteObjectSetLifecycleByTagOutput struct {
+	RequestInfo
+}
+
 type ObjectSetQuotaRule struct {
 	Tag          Tag       `json:"Tag"`
 	Qos          QosConfig `json:"Qos"`
@@ -2672,7 +2757,7 @@ type ObjectSetQuotaRule struct {
 }
 
 type PutObjectSetQuotaByTagInput struct {
-	GenericInput `json:"-"`           // v2.8.0
+	GenericInput `json:"-"`                      // v2.8.0
 	Bucket       string               `json:"-"` // required
 	Rules        []ObjectSetQuotaRule `json:"Rules"`
 }
@@ -2682,8 +2767,8 @@ type PutObjectSetQuotaByTagOutput struct {
 }
 
 type GetObjectSetQuotaByTagInput struct {
-	GenericInput `json:"-"` // v2.8.0
-	Bucket       string     `json:"-"` // required
+	GenericInput `json:"-"`        // v2.8.0
+	Bucket       string `json:"-"` // required
 }
 
 type GetObjectSetQuotaByTagOutput struct {
@@ -2692,8 +2777,8 @@ type GetObjectSetQuotaByTagOutput struct {
 }
 
 type DeleteObjectSetQuotaByTagInput struct {
-	GenericInput `json:"-"` // v2.8.0
-	Bucket       string     `json:"-"` // required
+	GenericInput `json:"-"`        // v2.8.0
+	Bucket       string `json:"-"` // required
 }
 
 type DeleteObjectSetQuotaByTagOutput struct {
@@ -2701,10 +2786,10 @@ type DeleteObjectSetQuotaByTagOutput struct {
 }
 
 type PutObjectSetQuotaInput struct {
-	GenericInput  `json:"-"` // v2.8.0
-	Bucket        string     `json:"-"` // required
-	ObjectSetName string     `location:"query" locationName:"ObjectSetName" json:"-"`
-	StorageQuota  string     `json:"StorageQuota"`
+	GenericInput  `json:"-"`        // v2.8.0
+	Bucket        string `json:"-"` // required
+	ObjectSetName string `location:"query" locationName:"ObjectSetName" json:"-"`
+	StorageQuota  string `json:"StorageQuota"`
 }
 
 type PutObjectSetQuotaOutput struct {
@@ -2712,9 +2797,9 @@ type PutObjectSetQuotaOutput struct {
 }
 
 type GetObjectSetQuotaInput struct {
-	GenericInput  `json:"-"` // v2.8.0
-	Bucket        string     `json:"-"` // required
-	ObjectSetName string     `location:"query" locationName:"ObjectSetName" json:"-"`
+	GenericInput  `json:"-"`        // v2.8.0
+	Bucket        string `json:"-"` // required
+	ObjectSetName string `location:"query" locationName:"ObjectSetName" json:"-"`
 }
 
 type GetObjectSetQuotaOutput struct {
@@ -2723,9 +2808,9 @@ type GetObjectSetQuotaOutput struct {
 }
 
 type GetObjectSetStorageInput struct {
-	GenericInput  `json:"-"` // v2.8.0
-	Bucket        string     `json:"-"` // required
-	ObjectSetName string     `location:"query" locationName:"ObjectSetName" json:"-"`
+	GenericInput  `json:"-"`        // v2.8.0
+	Bucket        string `json:"-"` // required
+	ObjectSetName string `location:"query" locationName:"ObjectSetName" json:"-"`
 }
 
 type StorageStat struct {
@@ -3457,9 +3542,10 @@ type VideoSnapshotsOutput struct {
 
 // PcmDataProcessOutput 音频 PCM 转码（audio/pcm）处理返回字段
 type PcmDataProcessOutput struct {
-	PcmBucket string `json:"bucket,omitempty"`
-	PcmObject string `json:"object,omitempty"`
-	PcmStatus string `json:"status,omitempty"`
+	PcmBucket     string                      `json:"bucket,omitempty"`
+	PcmObject     string                      `json:"object,omitempty"`
+	PcmObjectSize int64                       `json:"object_size,string,omitempty"`
+	PcmStatus     enum.VideoDataProcessStatus `json:"status,omitempty"`
 }
 
 // SuccFrame 成功的帧信息

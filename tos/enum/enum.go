@@ -343,3 +343,9 @@ const (
 	ImageModeSingle ImageModeType = 0
 	ImageModeBatch  ImageModeType = 1
 )
+
+type VideoDataProcessStatus string
+
+const (
+	VideoDataProcessStatusOK VideoDataProcessStatus = "OK"
+)
