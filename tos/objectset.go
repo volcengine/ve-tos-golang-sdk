@@ -428,3 +428,216 @@ func (cli *ClientV2) GetObjectSetTagging(ctx context.Context,
 	}
 	return &output, nil
 }
+
+// GetObjectSetEndpoint gets endpoints for a specified object set.
+func (cli *ClientV2) GetObjectSetEndpoint(ctx context.Context,
+	input *GetObjectSetEndpointInput) (*GetObjectSetEndpointOutput, error) {
+	if input == nil {
+		return nil, InputIsNilClientError
+	}
+	if err := isValidBucketName(input.Bucket, cli.isCustomDomain); err != nil {
+		return nil, err
+	}
+
+	res, err := cli.newBuilder(input.Bucket, "").
+		SetGeneric(input.GenericInput).
+		WithQuery("objectsetendpoint", "").
+		WithParams(*input).
+		WithRetry(OnRetryFromStart, ServerErrorClassifier{}).
+		Request(ctx, http.MethodGet, nil, cli.roundTripper(http.StatusOK))
+	if err != nil {
+		return nil, err
+	}
+	defer res.Close()
+
+	output := GetObjectSetEndpointOutput{RequestInfo: res.RequestInfo()}
+	if err = marshalOutput(res, &output.Endpoints); err != nil {
+		return nil, err
+	}
+	return &output, nil
+}
+
+// PutObjectSetLifecycle sets or updates lifecycle rules for a specified object set.
+func (cli *ClientV2) PutObjectSetLifecycle(ctx context.Context,
+	input *PutObjectSetLifecycleInput) (*PutObjectSetLifecycleOutput, error) {
+	if input == nil {
+		return nil, InputIsNilClientError
+	}
+	if err := isValidBucketName(input.Bucket, cli.isCustomDomain); err != nil {
+		return nil, err
+	}
+
+	data, contentMD5, err := marshalInput("PutObjectSetLifecycleInput", putBucketLifecycleInput{Rules: cli.parseLifecycleRules(input.Rules)})
+	if err != nil {
+		return nil, err
+	}
+
+	res, err := cli.newBuilder(input.Bucket, "").
+		SetGeneric(input.GenericInput).
+		WithQuery("objectset-lifecycle", "").
+		WithQuery("ObjectSetName", input.ObjectSetName).
+		WithParams(*input).
+		WithHeader(HeaderContentMD5, contentMD5).
+		WithRetry(OnRetryFromStart, StatusCodeClassifier{}).
+		Request(ctx, http.MethodPut, bytes.NewReader(data), cli.roundTripper(http.StatusOK))
+	if err != nil {
+		return nil, err
+	}
+	defer res.Close()
+
+	output := PutObjectSetLifecycleOutput{RequestInfo: res.RequestInfo()}
+	return &output, nil
+}
+
+// GetObjectSetLifecycle gets lifecycle rules of a specified object set.
+func (cli *ClientV2) GetObjectSetLifecycle(ctx context.Context,
+	input *GetObjectSetLifecycleInput) (*GetObjectSetLifecycleOutput, error) {
+	if input == nil {
+		return nil, InputIsNilClientError
+	}
+	if err := isValidBucketName(input.Bucket, cli.isCustomDomain); err != nil {
+		return nil, err
+	}
+
+	res, err := cli.newBuilder(input.Bucket, "").
+		SetGeneric(input.GenericInput).
+		WithQuery("objectset-lifecycle", "").
+		WithQuery("ObjectSetName", input.ObjectSetName).
+		WithParams(*input).
+		WithRetry(nil, StatusCodeClassifier{}).
+		Request(ctx, http.MethodGet, nil, cli.roundTripper(http.StatusOK))
+	if err != nil {
+		return nil, err
+	}
+	defer res.Close()
+
+	output := GetObjectSetLifecycleOutput{RequestInfo: res.RequestInfo()}
+	if err = marshalOutput(res, &output); err != nil {
+		return nil, err
+	}
+	return &output, nil
+}
+
+// DeleteObjectSetLifecycle deletes lifecycle rules of a specified object set.
+func (cli *ClientV2) DeleteObjectSetLifecycle(ctx context.Context,
+	input *DeleteObjectSetLifecycleInput) (*DeleteObjectSetLifecycleOutput, error) {
+	if input == nil {
+		return nil, InputIsNilClientError
+	}
+	if err := isValidBucketName(input.Bucket, cli.isCustomDomain); err != nil {
+		return nil, err
+	}
+
+	res, err := cli.newBuilder(input.Bucket, "").
+		SetGeneric(input.GenericInput).
+		WithQuery("objectset-lifecycle", "").
+		WithQuery("ObjectSetName", input.ObjectSetName).
+		WithParams(*input).
+		WithRetry(nil, StatusCodeClassifier{}).
+		Request(ctx, http.MethodDelete, nil, cli.roundTripper(http.StatusNoContent))
+	if err != nil {
+		return nil, err
+	}
+	defer res.Close()
+
+	output := DeleteObjectSetLifecycleOutput{RequestInfo: res.RequestInfo()}
+	return &output, nil
+}
+
+type putObjectSetLifecycleByTagInput struct {
+	ObjectSetTagRules []objectSetLifecycleTagRule `json:"ObjectSetTagRules,omitempty"`
+}
+
+type objectSetLifecycleTagRule struct {
+	Tag   Tag             `json:"Tag"`
+	Rules []lifecycleRule `json:"Rules"`
+}
+
+// PutObjectSetLifecycleByTag sets or updates lifecycle rules based on object set tags.
+func (cli *ClientV2) PutObjectSetLifecycleByTag(ctx context.Context,
+	input *PutObjectSetLifecycleByTagInput) (*PutObjectSetLifecycleByTagOutput, error) {
+	if input == nil {
+		return nil, InputIsNilClientError
+	}
+	if err := isValidBucketName(input.Bucket, cli.isCustomDomain); err != nil {
+		return nil, err
+	}
+
+	reqInput := putObjectSetLifecycleByTagInput{ObjectSetTagRules: make([]objectSetLifecycleTagRule, 0, len(input.ObjectSetTagRules))}
+	for _, tagRule := range input.ObjectSetTagRules {
+		reqInput.ObjectSetTagRules = append(reqInput.ObjectSetTagRules, objectSetLifecycleTagRule{
+			Tag:   tagRule.Tag,
+			Rules: cli.parseLifecycleRules(tagRule.Rules),
+		})
+	}
+
+	data, contentMD5, err := marshalInput("PutObjectSetLifecycleByTagInput", reqInput)
+	if err != nil {
+		return nil, err
+	}
+
+	res, err := cli.newBuilder(input.Bucket, "").
+		SetGeneric(input.GenericInput).
+		WithQuery("objectset-lifecycle-bytag", "").
+		WithHeader(HeaderContentMD5, contentMD5).
+		WithRetry(OnRetryFromStart, StatusCodeClassifier{}).
+		Request(ctx, http.MethodPut, bytes.NewReader(data), cli.roundTripper(http.StatusOK))
+	if err != nil {
+		return nil, err
+	}
+	defer res.Close()
+
+	output := PutObjectSetLifecycleByTagOutput{RequestInfo: res.RequestInfo()}
+	return &output, nil
+}
+
+// GetObjectSetLifecycleByTag gets lifecycle rules based on object set tags.
+func (cli *ClientV2) GetObjectSetLifecycleByTag(ctx context.Context,
+	input *GetObjectSetLifecycleByTagInput) (*GetObjectSetLifecycleByTagOutput, error) {
+	if input == nil {
+		return nil, InputIsNilClientError
+	}
+	if err := isValidBucketName(input.Bucket, cli.isCustomDomain); err != nil {
+		return nil, err
+	}
+
+	res, err := cli.newBuilder(input.Bucket, "").
+		SetGeneric(input.GenericInput).
+		WithQuery("objectset-lifecycle-bytag", "").
+		WithRetry(nil, StatusCodeClassifier{}).
+		Request(ctx, http.MethodGet, nil, cli.roundTripper(http.StatusOK))
+	if err != nil {
+		return nil, err
+	}
+	defer res.Close()
+
+	output := GetObjectSetLifecycleByTagOutput{RequestInfo: res.RequestInfo()}
+	if err = marshalOutput(res, &output); err != nil {
+		return nil, err
+	}
+	return &output, nil
+}
+
+// DeleteObjectSetLifecycleByTag deletes lifecycle rules based on object set tags.
+func (cli *ClientV2) DeleteObjectSetLifecycleByTag(ctx context.Context,
+	input *DeleteObjectSetLifecycleByTagInput) (*DeleteObjectSetLifecycleByTagOutput, error) {
+	if input == nil {
+		return nil, InputIsNilClientError
+	}
+	if err := isValidBucketName(input.Bucket, cli.isCustomDomain); err != nil {
+		return nil, err
+	}
+
+	res, err := cli.newBuilder(input.Bucket, "").
+		SetGeneric(input.GenericInput).
+		WithQuery("objectset-lifecycle-bytag", "").
+		WithRetry(nil, StatusCodeClassifier{}).
+		Request(ctx, http.MethodDelete, nil, cli.roundTripper(http.StatusNoContent))
+	if err != nil {
+		return nil, err
+	}
+	defer res.Close()
+
+	output := DeleteObjectSetLifecycleByTagOutput{RequestInfo: res.RequestInfo()}
+	return &output, nil
+}

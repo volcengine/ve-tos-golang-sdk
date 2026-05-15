@@ -7,9 +7,9 @@ import (
 	"time"
 )
 
-func (cli *ClientV2) parseLifecycleInput(input *PutBucketLifecycleInput) putBucketLifecycleInput {
-	lifecycleInput := make([]lifecycleRule, 0, len(input.Rules))
-	for _, lifecycle := range input.Rules {
+func (cli *ClientV2) parseLifecycleRules(rules []LifecycleRule) []lifecycleRule {
+	lifecycleInput := make([]lifecycleRule, 0, len(rules))
+	for _, lifecycle := range rules {
 		var exp *expiration
 		if lifecycle.Expiration != nil {
 			exp = &expiration{
@@ -21,7 +21,6 @@ func (cli *ClientV2) parseLifecycleInput(input *PutBucketLifecycleInput) putBuck
 		}
 
 		transitionList := make([]transition, 0, len(lifecycle.Transitions))
-
 		for _, trans := range lifecycle.Transitions {
 			t := transition{
 				Days:         trans.Days,
@@ -47,9 +46,12 @@ func (cli *ClientV2) parseLifecycleInput(input *PutBucketLifecycleInput) putBuck
 			AccessTimeTransitions:                  lifecycle.AccessTimeTransitions,
 			NonCurrentVersionAccessTimeTransitions: lifecycle.NonCurrentVersionAccessTimeTransitions,
 		})
-
 	}
-	return putBucketLifecycleInput{Rules: lifecycleInput}
+	return lifecycleInput
+}
+
+func (cli *ClientV2) parseLifecycleInput(input *PutBucketLifecycleInput) putBucketLifecycleInput {
+	return putBucketLifecycleInput{Rules: cli.parseLifecycleRules(input.Rules)}
 }
 func (cli *ClientV2) PutBucketLifecycle(ctx context.Context, input *PutBucketLifecycleInput) (*PutLifecycleOutput, error) {
 	if input == nil {

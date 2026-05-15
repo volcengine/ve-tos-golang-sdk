@@ -160,8 +160,10 @@ func (c *cache) cleanCache() {
 func (c *cache) Put(key string, ipList []string) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
+	stored := make([]string, len(ipList))
+	copy(stored, ipList)
 	item := cacheItem{
-		ipList:   ipList,
+		ipList:   stored,
 		expireAt: time.Now().Add(c.expiration),
 		host:     key,
 	}
