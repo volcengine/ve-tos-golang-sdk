@@ -1,6 +1,8 @@
 package tos
 
 import (
+	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -12,6 +14,12 @@ import (
 
 	"github.com/stretchr/testify/require"
 )
+
+type requestRoundTripperFunc func(*http.Request) (*http.Response, error)
+
+func (f requestRoundTripperFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req)
+}
 
 func TestRequestURL(t *testing.T) {
 	req := Request{
@@ -26,6 +34,217 @@ func TestRequestURL(t *testing.T) {
 
 	u := req.URL()
 	require.Equal(t, "https://localhost/abc/%F0%9F%98%8A%3F/%F0%9F%98%AD%23~%21.txt?versionId=abc123", u)
+}
+
+func TestPutObjectV2EmptyBodySkipsTosChunked(t *testing.T) {
+	for _, test := range []struct {
+		name    string
+		options []ClientOption
+	}{
+		{name: "default"},
+		{name: "trailer enabled", options: []ClientOption{WithDisableTrailerHeader(false)}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			options := append([]ClientOption{}, test.options...)
+			options = append(options, WithHTTPTransport(requestRoundTripperFunc(func(req *http.Request) (*http.Response, error) {
+				require.Equal(t, int64(0), req.ContentLength)
+				require.Empty(t, req.TransferEncoding)
+				require.Empty(t, req.Header.Get(HeaderContentEncoding))
+				require.NotContains(t, req.Header.Get(HeaderContentEncoding), tosChunkedContentEncodingHeaderValue)
+				require.Empty(t, req.Header.Get(tosTrailerHeaderName))
+				return &http.Response{
+					StatusCode: http.StatusOK,
+					Header:     make(http.Header),
+					Body:       ioutil.NopCloser(bytes.NewReader(nil)),
+					Request:    req,
+				}, nil
+			})))
+
+			cli, err := NewClientV2("tos-cn-beijing.volces.com", options...)
+			require.Nil(t, err)
+
+			_, err = cli.PutObjectV2(context.Background(), &PutObjectV2Input{
+				PutObjectBasicInput: PutObjectBasicInput{
+					Bucket: "bucket",
+					Key:    "key",
+				},
+				Content: bytes.NewReader(nil),
+			})
+			require.Nil(t, err)
+		})
+	}
+}
+
+func TestPutObjectFromFileLimitsFileGrowth(t *testing.T) {
+	original := []byte("0123456789-original-file-content")
+	extra := []byte("-appended-after-request-build")
+	file := mustCreateTempFile(t, original)
+	defer os.Remove(file)
+
+	cli, err := NewClientV2("tos-cn-beijing.volces.com", WithHTTPTransport(requestRoundTripperFunc(func(req *http.Request) (*http.Response, error) {
+		appendToFile(t, file, extra)
+		body, err := ioutil.ReadAll(req.Body)
+		require.Nil(t, err)
+		require.Equal(t, int64(len(original)), req.ContentLength)
+		require.Equal(t, original, body)
+		requireCurrentFileContent(t, file, append(append([]byte{}, original...), extra...))
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     make(http.Header),
+			Body:       ioutil.NopCloser(bytes.NewReader(nil)),
+			Request:    req,
+		}, nil
+	})))
+	require.Nil(t, err)
+
+	_, err = cli.PutObjectFromFile(context.Background(), &PutObjectFromFileInput{
+		PutObjectBasicInput: PutObjectBasicInput{
+			Bucket: "bucket",
+			Key:    "key",
+		},
+		FilePath: file,
+	})
+	require.Nil(t, err)
+}
+
+func TestUploadPartFromFileLimitsFileGrowth(t *testing.T) {
+	original := []byte("prefix-expected-part-suffix")
+	offset := uint64(len("prefix-"))
+	expected := []byte("expected-part")
+	extra := []byte("-appended-after-request-build")
+	file := mustCreateTempFile(t, original)
+	defer os.Remove(file)
+
+	cli, err := NewClientV2("tos-cn-beijing.volces.com", WithHTTPTransport(requestRoundTripperFunc(func(req *http.Request) (*http.Response, error) {
+		appendToFile(t, file, extra)
+		body, err := ioutil.ReadAll(req.Body)
+		require.Nil(t, err)
+		require.Equal(t, int64(len(expected)), req.ContentLength)
+		require.Equal(t, expected, body)
+		requireCurrentFileContent(t, file, append(append([]byte{}, original...), extra...))
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     make(http.Header),
+			Body:       ioutil.NopCloser(bytes.NewReader(nil)),
+			Request:    req,
+		}, nil
+	})))
+	require.Nil(t, err)
+
+	_, err = cli.UploadPartFromFile(context.Background(), &UploadPartFromFileInput{
+		UploadPartBasicInput: UploadPartBasicInput{
+			Bucket:     "bucket",
+			Key:        "key",
+			UploadID:   "upload-id",
+			PartNumber: 1,
+		},
+		FilePath: file,
+		Offset:   offset,
+		PartSize: int64(len(expected)),
+	})
+	require.Nil(t, err)
+}
+
+func TestUploadPartFromFileWithZeroPartSizeLimitsResolvedFileGrowth(t *testing.T) {
+	original := []byte("head-rest-of-file")
+	offset := uint64(len("head-"))
+	expected := []byte("rest-of-file")
+	extra := []byte("-appended-after-request-build")
+	file := mustCreateTempFile(t, original)
+	defer os.Remove(file)
+
+	cli, err := NewClientV2("tos-cn-beijing.volces.com", WithHTTPTransport(requestRoundTripperFunc(func(req *http.Request) (*http.Response, error) {
+		appendToFile(t, file, extra)
+		body, err := ioutil.ReadAll(req.Body)
+		require.Nil(t, err)
+		require.Equal(t, int64(len(expected)), req.ContentLength)
+		require.Equal(t, expected, body)
+		requireCurrentFileContent(t, file, append(append([]byte{}, original...), extra...))
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     make(http.Header),
+			Body:       ioutil.NopCloser(bytes.NewReader(nil)),
+			Request:    req,
+		}, nil
+	})))
+	require.Nil(t, err)
+
+	_, err = cli.UploadPartFromFile(context.Background(), &UploadPartFromFileInput{
+		UploadPartBasicInput: UploadPartBasicInput{
+			Bucket:     "bucket",
+			Key:        "key",
+			UploadID:   "upload-id",
+			PartNumber: 1,
+		},
+		FilePath: file,
+		Offset:   offset,
+	})
+	require.Nil(t, err)
+}
+
+func TestUploadPartV2UsesResolvedContentLength(t *testing.T) {
+	content := []byte("part content")
+	cli, err := NewClientV2("tos-cn-beijing.volces.com", WithHTTPTransport(requestRoundTripperFunc(func(req *http.Request) (*http.Response, error) {
+		body, err := ioutil.ReadAll(req.Body)
+		require.Nil(t, err)
+		require.Equal(t, int64(len(content)), req.ContentLength)
+		require.Equal(t, content, body)
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     make(http.Header),
+			Body:       ioutil.NopCloser(bytes.NewReader(nil)),
+			Request:    req,
+		}, nil
+	})))
+	require.Nil(t, err)
+
+	_, err = cli.UploadPartV2(context.Background(), &UploadPartV2Input{
+		UploadPartBasicInput: UploadPartBasicInput{
+			Bucket:     "bucket",
+			Key:        "key",
+			UploadID:   "upload-id",
+			PartNumber: 1,
+		},
+		Content: bytes.NewReader(content),
+	})
+	require.Nil(t, err)
+}
+
+func TestUploadPartV2LimitsFileGrowth(t *testing.T) {
+	original := []byte("upload-part-v2-file-content")
+	extra := []byte("-appended-after-request-build")
+	fileName := mustCreateTempFile(t, original)
+	defer os.Remove(fileName)
+	file, err := os.Open(fileName)
+	require.Nil(t, err)
+	defer file.Close()
+
+	cli, err := NewClientV2("tos-cn-beijing.volces.com", WithHTTPTransport(requestRoundTripperFunc(func(req *http.Request) (*http.Response, error) {
+		appendToFile(t, fileName, extra)
+		body, err := ioutil.ReadAll(req.Body)
+		require.Nil(t, err)
+		require.Equal(t, int64(len(original)), req.ContentLength)
+		require.Equal(t, original, body)
+		requireCurrentFileContent(t, fileName, append(append([]byte{}, original...), extra...))
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     make(http.Header),
+			Body:       ioutil.NopCloser(bytes.NewReader(nil)),
+			Request:    req,
+		}, nil
+	})))
+	require.Nil(t, err)
+
+	_, err = cli.UploadPartV2(context.Background(), &UploadPartV2Input{
+		UploadPartBasicInput: UploadPartBasicInput{
+			Bucket:     "bucket",
+			Key:        "key",
+			UploadID:   "upload-id",
+			PartNumber: 1,
+		},
+		Content: file,
+	})
+	require.Nil(t, err)
 }
 
 func TestNotMarshalInfo(t *testing.T) {
@@ -135,4 +354,30 @@ func TestEncodingContentDisposition(t *testing.T) {
 
 	res = encodeContentDisposition("attachment; filename*=UTF-8''%E6%96%87%E4%BB%B6%E5%90%8D%E5%AD%97.txt")
 	require.Equal(t, res, "attachment; filename*=UTF-8''%E6%96%87%E4%BB%B6%E5%90%8D%E5%AD%97.txt")
+}
+
+func mustCreateTempFile(t *testing.T, content []byte) string {
+	t.Helper()
+	file, err := ioutil.TempFile("", "tos-sdk-test-*")
+	require.Nil(t, err)
+	_, err = file.Write(content)
+	require.Nil(t, err)
+	require.Nil(t, file.Close())
+	return file.Name()
+}
+
+func appendToFile(t *testing.T, fileName string, content []byte) {
+	t.Helper()
+	file, err := os.OpenFile(fileName, os.O_WRONLY|os.O_APPEND, 0)
+	require.Nil(t, err)
+	_, err = file.Write(content)
+	require.Nil(t, err)
+	require.Nil(t, file.Close())
+}
+
+func requireCurrentFileContent(t *testing.T, fileName string, expected []byte) {
+	t.Helper()
+	actual, err := ioutil.ReadFile(fileName)
+	require.Nil(t, err)
+	require.Equal(t, expected, actual)
 }

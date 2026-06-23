@@ -179,6 +179,26 @@ func TestGetBucketLocation(t *testing.T) {
 	require.Equal(t, res.ExtranetEndpoint, env.endpoint)
 }
 
+func TestGetBucketStat(t *testing.T) {
+	var (
+		env    = newTestEnv(t)
+		bucket = generateBucketName("bucket-stat")
+		client = env.prepareClient(bucket)
+		ctx    = context.Background()
+	)
+	defer func() {
+		cleanBucket(t, client, bucket)
+	}()
+
+	output, err := client.GetBucketStat(ctx, &tos.GetBucketStatInput{
+		Bucket: bucket,
+	})
+	require.Nil(t, err)
+	require.NotNil(t, output)
+	require.Equal(t, 200, output.StatusCode)
+	t.Log(output.RequestID)
+}
+
 func tryToGetBucketStorage(t *testing.T, bucket string, client *tos.ClientV2, storageClass enum.StorageClassType) {
 	start := time.Now()
 	for {

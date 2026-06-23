@@ -121,21 +121,19 @@ func (cli *ClientV2) GetObjectV2(ctx context.Context, input *GetObjectV2Input) (
 		if input.RangeEnd < input.RangeStart {
 			return nil, errors.New("tos: invalid range")
 		}
-		// set rb.Range will change expected code
 		rb.Range = &Range{Start: input.RangeStart, End: input.RangeEnd}
 		rb.WithHeader(HeaderRange, rb.Range.String())
 		isRange = true
 	}
 
+	// Deprecated: 保留文档处理兼容逻辑，新代码请使用 GetDataProcess
 	if input.Process == "doc-preview" {
 		if input.StartPage != nil {
 			rb.WithQuery("start-page", strconv.Itoa(*input.StartPage))
 		}
-
 		if input.EndPage != nil {
 			rb.WithQuery("end-page", strconv.Itoa(*input.EndPage))
 		}
-
 		if input.ImageMode != nil {
 			rb.WithQuery("image-mode", strconv.Itoa(int(*input.ImageMode)))
 		}
@@ -523,6 +521,16 @@ func wrapCloser(reader io.Reader) io.ReadCloser {
 	return &nopCloser{base: reader}
 }
 
+func wrapFileReader(reader io.Reader, contentLength int64) io.Reader {
+	if _, ok := reader.(*os.File); !ok {
+		return reader
+	}
+	if contentLength >= 0 {
+		return newWrapLimiterReader(reader, contentLength)
+	}
+	return wrapCloser(reader)
+}
+
 func (n2 nopCloser) Seek(offset int64, whence int) (int64, error) {
 	seeker, ok := n2.base.(io.Seeker)
 	if !ok {
@@ -626,9 +634,7 @@ func (cli *ClientV2) PutObjectV2(ctx context.Context, input *PutObjectV2Input) (
 	)
 
 	if content != nil {
-		if _, ok := content.(*os.File); ok {
-			content = wrapCloser(content)
-		}
+		content = wrapFileReader(content, contentLength)
 		content = wrapReader(content, contentLength, input.DataTransferListener, input.RateLimiter, &crcChecker{checker: checker})
 	}
 
@@ -674,6 +680,8 @@ func (cli *ClientV2) PutObjectV2(ctx context.Context, input *PutObjectV2Input) (
 		WithParams(*input).
 		WithEnableTrailer(input.ContentMD5 == "" && !cli.disableTrailerHeader).
 		WithRetry(onRetry, classifier)
+
+	setPutProcessHeaders(rb, input.ProcessType, input.Process)
 
 	cli.setExpectHeader(rb, contentLength)
 	res, err := rb.Request(ctx, http.MethodPut, content, cli.roundTripperWithSlowLog(http.StatusOK))

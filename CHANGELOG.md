@@ -1,4 +1,8 @@
 # ChangeLog of TOS SDK for Go
+## 版本号 v2.9.6 日期：2026-06-22
+- 新增 CreateBucketCustomDomainToken 和 GetBucketCustomDomainToken 接口
+- 修复 PutObjectFromFile、UploadPartFromFile、UploadPartV2 等文件上传场景中文件变长可能读取超出预期长度的问题
+
 ## 版本号 v2.9.5 日期：2026-05-14
 - 增加 security 说明
 
