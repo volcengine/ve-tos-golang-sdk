@@ -133,7 +133,9 @@ func (cli *ClientV2) getBucketType(ctx context.Context, bucketName string) (enum
 
 }
 
-func (cli *ClientV2) Close() {
+// Close releases resources held by the client, including idle connections,
+// background DNS resolver goroutines, and credential refreshers.
+func (cli *Client) Close() {
 	cli.mu.Lock()
 	defer cli.mu.Unlock()
 
@@ -151,6 +153,10 @@ func (cli *ClientV2) Close() {
 		pc.Stop()
 	}
 
+}
+
+func (cli *ClientV2) Close() {
+	cli.Client.Close()
 }
 
 func (cli *ClientV2) SetHTTPTransport(transport http.RoundTripper) {

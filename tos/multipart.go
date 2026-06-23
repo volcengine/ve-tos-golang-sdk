@@ -206,9 +206,7 @@ func (cli *ClientV2) UploadPartV2(ctx context.Context, input *UploadPartV2Input)
 	)
 
 	if content != nil {
-		if _, ok := content.(*os.File); ok {
-			content = wrapCloser(content)
-		}
+		content = wrapFileReader(content, contentLength)
 		content = wrapReader(content, contentLength, input.DataTransferListener, input.RateLimiter, &crcChecker{checker: checker})
 	}
 
@@ -248,7 +246,7 @@ func (cli *ClientV2) UploadPartV2(ctx context.Context, input *UploadPartV2Input)
 	rb := cli.newBuilder(input.Bucket, input.Key).
 		SetGeneric(input.GenericInput).
 		WithParams(*input).
-		WithContentLength(input.ContentLength).
+		WithContentLength(contentLength).
 		WithEnableTrailer(input.ContentMD5 == "" && !cli.disableTrailerHeader).
 		WithRetry(onRetry, cf)
 	cli.setExpectHeader(rb, contentLength)

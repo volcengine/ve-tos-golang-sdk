@@ -171,8 +171,16 @@ type Vector struct {
 	Metadata map[string]interface{} `json:"metadata,omitempty"` // json format
 }
 
+// VectorMeta 用于读取响应（GetVectors / ListVectors）。
+// 服务端已不再返回 vector data，因此该类型只暴露 Key / Metadata。
+type VectorMeta struct {
+	Key      string                 `json:"key"`
+	Metadata map[string]interface{} `json:"metadata,omitempty"` // json format
+}
+
 type VectorData struct {
-	Value []float32 `json:"float32"`
+	Value []float32 `json:"float32,omitempty"`
+	Int8  []int8    `json:"int8,omitempty"`
 }
 
 // Response
@@ -187,14 +195,13 @@ type GetVectorsInput struct {
 	AccountID        string   `json:"-"`                // required
 	IndexName        string   `json:"indexName"`        // required
 	Keys             []string `json:"keys"`             // required
-	ReturnData       bool     `json:"returnData,omitempty"`
 	ReturnMetadata   bool     `json:"returnMetadata,omitempty"`
 }
 
 // Response
 type GetVectorsOutput struct {
 	RequestInfo
-	Vectors []Vector `json:"vectors"`
+	Vectors []VectorMeta `json:"vectors"`
 }
 
 // Request
@@ -244,15 +251,14 @@ type ListVectorsInput struct {
 	IndexName        string `json:"indexName"`        // required
 	MaxResults       int    `json:"maxResults,omitempty"`
 	NextToken        string `json:"nextToken,omitempty"`
-	ReturnData       bool   `json:"returnData,omitempty"`
 	ReturnMetadata   bool   `json:"returnMetadata,omitempty"`
 }
 
 // Response
 type ListVectorsOutput struct {
 	RequestInfo
-	NextToken string   `json:"nextToken,omitempty"`
-	Vectors   []Vector `json:"vectors"`
+	NextToken string       `json:"nextToken,omitempty"`
+	Vectors   []VectorMeta `json:"vectors"`
 }
 
 // Request

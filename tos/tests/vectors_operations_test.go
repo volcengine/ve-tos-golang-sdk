@@ -21,7 +21,6 @@ func waitForVectorsCount(t *testing.T, client *tos.TosVectorsClient, vectorBucke
 			AccountID:        accountID,
 			IndexName:        indexName,
 			Keys:             keys,
-			ReturnData:       false,
 			ReturnMetadata:   false,
 		})
 		if err == nil && out != nil {
@@ -142,7 +141,7 @@ func TestVectorsOperations(t *testing.T) {
 	require.Equal(t, len(getVectorsOutput.Vectors), 2)
 
 	// 验证返回的向量基本信息
-	vectorMap := make(map[string]tos.Vector)
+	vectorMap := make(map[string]tos.VectorMeta)
 	for _, vec := range getVectorsOutput.Vectors {
 		vectorMap[vec.Key] = vec
 	}
@@ -155,7 +154,6 @@ func TestVectorsOperations(t *testing.T) {
 		AccountID:        accountID,
 		IndexName:        indexName,
 		Keys:             []string{"vector-key-1", "vector-key-2", "vector-key-3"},
-		ReturnData:       true,
 		ReturnMetadata:   true,
 	}
 	getVectorsWithDataOutput, err := client.GetVectors(ctx, getVectorsWithDataInput)
@@ -166,29 +164,26 @@ func TestVectorsOperations(t *testing.T) {
 	require.Equal(t, len(getVectorsWithDataOutput.Vectors), 3)
 
 	// 验证返回的向量数据和元数据
-	vectorWithDataMap := make(map[string]tos.Vector)
+	vectorWithDataMap := make(map[string]tos.VectorMeta)
 	for _, vec := range getVectorsWithDataOutput.Vectors {
 		vectorWithDataMap[vec.Key] = vec
 	}
 
-	// 验证 vector-key-1
+	// 验证 vector-key-1（服务端不再返回 data，仅校验 metadata）
 	vec1, exists := vectorWithDataMap["vector-key-1"]
 	require.True(t, exists)
-	require.Equal(t, len(vec1.Data.Value), 128)
 	require.Equal(t, vec1.Metadata["category"], "electronics")
 	require.Equal(t, vec1.Metadata["source"], "user-upload")
 
 	// 验证 vector-key-2
 	vec2, exists := vectorWithDataMap["vector-key-2"]
 	require.True(t, exists)
-	require.Equal(t, len(vec2.Data.Value), 128)
 	require.Equal(t, vec2.Metadata["category"], "clothing")
 	require.Equal(t, vec2.Metadata["source"], "batch-import")
 
 	// 验证 vector-key-3
 	vec3, exists := vectorWithDataMap["vector-key-3"]
 	require.True(t, exists)
-	require.Equal(t, len(vec3.Data.Value), 128)
 	require.Equal(t, vec3.Metadata["category"], "books")
 	require.Equal(t, vec3.Metadata["source"], "api-call")
 
@@ -213,7 +208,6 @@ func TestVectorsOperations(t *testing.T) {
 		AccountID:        accountID,
 		IndexName:        indexName,
 		Keys:             []string{"vector-key-1", "vector-key-2", "vector-key-3"},
-		ReturnData:       true,
 		ReturnMetadata:   true,
 	}
 	getVectorsAfterDeleteOutput, err := client.GetVectors(ctx, getVectorsAfterDeleteInput)
@@ -555,7 +549,7 @@ func TestListVectors(t *testing.T) {
 	require.Equal(t, len(listOutput.Vectors), testVectorsCount, "Should have at least %d vectors", testVectorsCount)
 	vector := listOutput.Vectors[0]
 	require.NotEmpty(t, vector.Key, "Vector key should not be empty")
-	require.Zero(t, vector.Data.Value)
+	// 服务端不再返回 vector data，VectorMeta 没有 Data 字段；此处仅校验 Metadata 默认为空
 	require.Zero(t, vector.Metadata)
 
 	// 6. 测试分页功能
@@ -567,7 +561,6 @@ func TestListVectors(t *testing.T) {
 		AccountID:        accountID,
 		IndexName:        indexName,
 		MaxResults:       pageSize,
-		ReturnData:       true,
 		ReturnMetadata:   true,
 	}
 	page1Output, err := client.ListVectors(ctx, page1Input)
@@ -577,11 +570,9 @@ func TestListVectors(t *testing.T) {
 	require.Equal(t, len(page1Output.Vectors), pageSize, "First page should have exactly %d vectors", pageSize)
 	require.NotEmpty(t, page1Output.NextToken, "NextToken should be present for pagination")
 
-	// 验证第一页的数据完整性
+	// 验证第一页的数据完整性（服务端不再返回 data，仅校验 key/metadata）
 	for _, vector := range page1Output.Vectors {
 		require.NotEmpty(t, vector.Key, "Vector key should not be empty")
-		require.NotNil(t, vector.Data.Value, "Vector data should not be nil when ReturnData=true")
-		require.Equal(t, len(vector.Data.Value), 128, "Vector dimension should be 128")
 		require.NotNil(t, vector.Metadata, "Vector metadata should not be nil when ReturnMetadata=true")
 		require.Contains(t, vector.Metadata, "index")
 		require.Contains(t, vector.Metadata, "category")
@@ -595,7 +586,6 @@ func TestListVectors(t *testing.T) {
 		IndexName:        indexName,
 		MaxResults:       pageSize,
 		NextToken:        page1Output.NextToken,
-		ReturnData:       true,
 		ReturnMetadata:   true,
 	}
 	page2Output, err := client.ListVectors(ctx, page2Input)
@@ -621,7 +611,6 @@ func TestListVectors(t *testing.T) {
 		IndexName:        indexName,
 		MaxResults:       pageSize,
 		NextToken:        page2Output.NextToken,
-		ReturnData:       true,
 		ReturnMetadata:   true,
 	}
 	page3Output, err := client.ListVectors(ctx, page3Input)

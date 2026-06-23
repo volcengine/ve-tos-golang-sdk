@@ -310,6 +310,10 @@ func (rb *requestBuilder) buildSign(req *Request) {
 	}
 }
 func (rb *requestBuilder) buildTrailers(req *Request) {
+	if req.ContentLength != nil && *req.ContentLength == 0 {
+		return
+	}
+
 	ioCloser, ok := req.Content.(io.ReadCloser)
 	if !ok {
 		return

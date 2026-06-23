@@ -7,7 +7,7 @@ import (
 
 const (
 	// Version tos-go-sdk version
-	Version = "v2.9.5"
+	Version = "v2.9.6"
 )
 
 const TempFileSuffix = ".temp"
@@ -199,3 +199,15 @@ const (
 )
 
 const VectorServiceName = "tosvectors"
+
+// data process 相关常量
+const (
+	HeaderProcess         = "X-Tos-Process"
+	HeaderImageOperations = "X-Tos-Image-Operations"
+	HeaderVideoOperations = "X-Tos-Video-Operations"
+
+	QueryProcess     = "x-tos-process"
+	QueryPostProcess = "x-tos-post-process"
+	QuerySaveBucket  = "x-tos-save-bucket"
+	QuerySaveObject  = "x-tos-save-object"
+)

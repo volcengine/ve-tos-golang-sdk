@@ -198,6 +198,7 @@ type DocPreviewSrcType string
 const (
 	DocPreviewSrcTypeDoc  DocPreviewSrcType = "doc"
 	DocPreviewSrcTypeDocx DocPreviewSrcType = "docx"
+	DocPreviewSrcTypePdf  DocPreviewSrcType = "pdf"
 	DocPreviewSrcTypePpt  DocPreviewSrcType = "ppt"
 	DocPreviewSrcTypePptx DocPreviewSrcType = "pptx"
 	DocPreviewSrcTypeXls  DocPreviewSrcType = "xls"
@@ -321,6 +322,7 @@ type DataType string
 
 const (
 	DataTypeFloat32 DataType = "float32"
+	DataTypeInt8    DataType = "int8"
 )
 
 type DistanceMetricType string
@@ -342,6 +344,94 @@ type ImageModeType int
 const (
 	ImageModeSingle ImageModeType = 0
 	ImageModeBatch  ImageModeType = 1
+)
+
+type GetProcessType string
+
+const (
+	GetProcessTypeImage      GetProcessType = "image"
+	GetProcessTypeVideo      GetProcessType = "video"
+	GetProcessTypeDoc        GetProcessType = "doc"
+	GetProcessTypeHls        GetProcessType = "hls"
+	GetProcessTypeFile       GetProcessType = "file"
+	GetProcessTypePointCloud GetProcessType = "pointcloud"
+)
+
+type PutProcessType string
+
+const (
+	PutProcessTypeImage PutProcessType = "image"
+	PutProcessTypeVideo PutProcessType = "video"
+	PutProcessTypeDoc   PutProcessType = "doc"
+)
+
+type PostProcessType string
+
+const (
+	PostProcessTypeImage PostProcessType = "image"
+	PostProcessTypeVideo PostProcessType = "video"
+	PostProcessTypeDoc   PostProcessType = "doc"
+)
+
+type PostProcessAsyncType string
+
+const (
+	PostProcessAsyncTypeImage PostProcessAsyncType = "image"
+	PostProcessAsyncTypeVideo PostProcessAsyncType = "video"
+	PostProcessAsyncTypeDoc   PostProcessAsyncType = "doc"
+	PostProcessAsyncTypeAudio PostProcessAsyncType = "audio"
+)
+
+type ImageOperation string
+
+const (
+	ImageOperationResize             ImageOperation = "resize"
+	ImageOperationWatermark          ImageOperation = "watermark"
+	ImageOperationBlindWatermark     ImageOperation = "blindwatermark"
+	ImageOperationDeBlindWatermark   ImageOperation = "deblindwatermark"
+	ImageOperationSetAIGCMetadata    ImageOperation = "setaigcmetadata"
+	ImageOperationGetAIGCMetadata    ImageOperation = "getaigcmetadata"
+	ImageOperationSetC2PAMetadata    ImageOperation = "setc2pametadata"
+	ImageOperationGetC2PAMetadata    ImageOperation = "getc2pametadata"
+	ImageOperationCrop               ImageOperation = "crop"
+	ImageOperationCircle             ImageOperation = "circle"
+	ImageOperationIndexcrop          ImageOperation = "indexcrop"
+	ImageOperationClip               ImageOperation = "clip"
+	ImageOperationRoundedCorners     ImageOperation = "rounded-corners"
+	ImageOperationAverageHue         ImageOperation = "average-hue"
+	ImageOperationAutoOrient         ImageOperation = "auto-orient"
+	ImageOperationAutoOrientInternal ImageOperation = "auto-orient-internal"
+	ImageOperationBlur               ImageOperation = "blur"
+	ImageOperationRotate             ImageOperation = "rotate"
+	ImageOperationBright             ImageOperation = "bright"
+	ImageOperationSharpen            ImageOperation = "sharpen"
+	ImageOperationContrast           ImageOperation = "contrast"
+	ImageOperationGrayscale          ImageOperation = "grayscale"
+	ImageOperationColorspace         ImageOperation = "colorspace"
+	ImageOperationDraw               ImageOperation = "draw"
+	ImageOperationMosaic             ImageOperation = "mosaic"
+	ImageOperationQuality            ImageOperation = "quality"
+	ImageOperationInterlace          ImageOperation = "interlace"
+	ImageOperationFormat             ImageOperation = "format"
+	ImageOperationSlim               ImageOperation = "slim"
+	ImageOperationAiTag              ImageOperation = "aitag"
+	ImageOperationEmbedding          ImageOperation = "embedding"
+	ImageOperationUnderstanding      ImageOperation = "understanding"
+	ImageOperationOCR                ImageOperation = "ocr"
+	ImageOperationStrip              ImageOperation = "strip"
+	ImageOperationInfo               ImageOperation = "info"
+	ImageOperationInspect            ImageOperation = "inspect"
+)
+
+type VideoOperation string
+
+const (
+	VideoOperationInfo          VideoOperation = "info"
+	VideoOperationPm3u8         VideoOperation = "pm3u8"
+	VideoOperationAIGCMetadata  VideoOperation = "aigcmetadata"
+	VideoOperationC2PAMetadata  VideoOperation = "c2pametadata"
+	VideoOperationEmbedding     VideoOperation = "embedding"
+	VideoOperationUnderstanding VideoOperation = "understanding"
 )
 
 type VideoDataProcessStatus string

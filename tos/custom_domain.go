@@ -77,3 +77,63 @@ func (cli *ClientV2) DeleteBucketCustomDomain(ctx context.Context, input *Delete
 	output := DeleteBucketCustomDomainOutput{RequestInfo: res.RequestInfo()}
 	return &output, nil
 }
+
+func (cli *ClientV2) CreateBucketCustomDomainToken(ctx context.Context, input *CreateBucketCustomDomainTokenInput) (*CreateBucketCustomDomainTokenOutput, error) {
+	if input == nil {
+		return nil, InputIsNilClientError
+	}
+	if err := isValidBucketName(input.Bucket, cli.isCustomDomain); err != nil {
+		return nil, err
+	}
+
+	body := createBucketCustomDomainTokenInput{
+		Rule: input.Rule,
+	}
+	data, contentMD5, err := marshalInput("CreateBucketCustomDomainTokenInput", body)
+	if err != nil {
+		return nil, err
+	}
+
+	res, err := cli.newBuilder(input.Bucket, "custom-domain").
+		SetGeneric(input.GenericInput).
+		WithQuery("token", "").
+		WithHeader(HeaderContentMD5, contentMD5).
+		WithRetry(OnRetryFromStart, StatusCodeClassifier{}).
+		Request(ctx, http.MethodPut, bytes.NewReader(data), cli.roundTripper(http.StatusOK))
+	if err != nil {
+		return nil, err
+	}
+	defer res.Close()
+
+	output := CreateBucketCustomDomainTokenOutput{RequestInfo: res.RequestInfo()}
+	if err = marshalOutput(res, &output); err != nil {
+		return nil, err
+	}
+	return &output, nil
+}
+
+func (cli *ClientV2) GetBucketCustomDomainToken(ctx context.Context, input *GetBucketCustomDomainTokenInput) (*GetBucketCustomDomainTokenOutput, error) {
+	if input == nil {
+		return nil, InputIsNilClientError
+	}
+	if err := isValidBucketName(input.Bucket, cli.isCustomDomain); err != nil {
+		return nil, err
+	}
+
+	res, err := cli.newBuilder(input.Bucket, "custom-domain").
+		SetGeneric(input.GenericInput).
+		WithQuery("token", "").
+		WithQuery("domain", input.Domain).
+		WithRetry(nil, StatusCodeClassifier{}).
+		Request(ctx, http.MethodGet, nil, cli.roundTripper(http.StatusOK))
+	if err != nil {
+		return nil, err
+	}
+	defer res.Close()
+
+	output := GetBucketCustomDomainTokenOutput{RequestInfo: res.RequestInfo()}
+	if err = marshalOutput(res, &output); err != nil {
+		return nil, err
+	}
+	return &output, nil
+}

@@ -514,8 +514,11 @@ type PutObjectBasicInput struct {
 	IfMatch                   string                `location:"header" locationName:"X-Tos-If-Match"`
 	Tagging                   string                `location:"header" locationName:"X-Tos-Tagging"`
 	ObjectExpires             int64                 `location:"header" locationName:"X-Tos-Object-Expires"`
-	VideoOperations           string                `location:"header" locationName:"X-Tos-Video-Operations"`
 	Meta                      map[string]string     `location:"headers"`
+	// Deprecated: 请使用 ProcessType + Process 替代
+	VideoOperations           string                `location:"header" locationName:"X-Tos-Video-Operations"`
+	ProcessType               enum.PutProcessType
+	Process                   string
 	DataTransferListener      DataTransferListener
 	RateLimiter               RateLimiter
 }
@@ -1012,18 +1015,23 @@ type GetObjectV2Input struct {
 	SSECKeyMD5    string `location:"header" locationName:"X-Tos-Server-Side-Encryption-Customer-Key-MD5"`
 	TrafficLimit  int64  `location:"header" locationName:"X-Tos-Traffic-Limit"`
 
-	ResponseCacheControl       string                 `location:"query" locationName:"response-cache-control"`
-	ResponseContentDisposition string                 `location:"query" locationName:"response-content-disposition"`
-	ResponseContentEncoding    string                 `location:"query" locationName:"response-content-encoding"`
-	ResponseContentLanguage    string                 `location:"query" locationName:"response-content-language"`
-	ResponseContentType        string                 `location:"query" locationName:"response-content-type"`
-	ResponseExpires            time.Time              `location:"query" locationName:"response-expires"`
-	Process                    string                 `location:"query" locationName:"x-tos-process"`
-	SaveBucket                 string                 `location:"query" locationName:"x-tos-save-bucket"`
-	SaveObject                 string                 `location:"query" locationName:"x-tos-save-object"`
-	DocPage                    int                    `location:"query" locationName:"x-tos-doc-page"`
-	SrcType                    enum.DocPreviewSrcType `location:"query" locationName:"x-tos-doc-src-type"`
-	DstType                    enum.DocPreviewDstType `location:"query" locationName:"x-tos-doc-dst-type"`
+	ResponseCacheControl       string    `location:"query" locationName:"response-cache-control"`
+	ResponseContentDisposition string    `location:"query" locationName:"response-content-disposition"`
+	ResponseContentEncoding    string    `location:"query" locationName:"response-content-encoding"`
+	ResponseContentLanguage    string    `location:"query" locationName:"response-content-language"`
+	ResponseContentType        string    `location:"query" locationName:"response-content-type"`
+	ResponseExpires            time.Time `location:"query" locationName:"response-expires"`
+	Process                    string    `location:"query" locationName:"x-tos-process"`
+	SaveBucket                 string    `location:"query" locationName:"x-tos-save-bucket"`
+	SaveObject                 string    `location:"query" locationName:"x-tos-save-object"`
+	GetProcessType             enum.GetProcessType
+
+	// Deprecated: 文档处理请使用 GetDataProcess + GetDataProcessHelper，此字段仅保留兼容性
+	DocPage int `location:"query" locationName:"x-tos-doc-page"`
+	// Deprecated: 文档处理请使用 GetDataProcess + GetDataProcessHelper，此字段仅保留兼容性
+	SrcType enum.DocPreviewSrcType `location:"query" locationName:"x-tos-doc-src-type"`
+	// Deprecated: 文档处理请使用 GetDataProcess + GetDataProcessHelper，此字段仅保留兼容性
+	DstType enum.DocPreviewDstType `location:"query" locationName:"x-tos-doc-dst-type"`
 
 	RangeStart int64
 	RangeEnd   int64
@@ -1031,9 +1039,12 @@ type GetObjectV2Input struct {
 
 	DataTransferListener DataTransferListener
 	RateLimiter          RateLimiter
-	StartPage            *int
-	EndPage              *int
-	ImageMode            *enum.ImageModeType
+	// Deprecated: 文档处理请使用 GetDataProcess + GetDataProcessHelper，此字段仅保留兼容性
+	StartPage *int
+	// Deprecated: 文档处理请使用 GetDataProcess + GetDataProcessHelper，此字段仅保留兼容性
+	EndPage *int
+	// Deprecated: 文档处理请使用 GetDataProcess + GetDataProcessHelper，此字段仅保留兼容性
+	ImageMode *enum.ImageModeType
 	// Deprecated Not Use
 	PartNumber int
 	GenericInput
@@ -2217,6 +2228,35 @@ type GetBucketVersioningOutputV2 struct {
 	Status enum.VersioningStatusType `json:"Status"`
 }
 
+type GetBucketStatInput struct {
+	Bucket string
+	GenericInput
+}
+
+type GetBucketStatOutput struct {
+	RequestInfo
+	TotalStorageStat               *BasicStorageStat        `json:"TotalStorageStat"`
+	StandardStorageStat            *BasicStorageStat        `json:"StandardStorageStat"`
+	IAStorageStat                  *BasicStorageStat        `json:"IAStorageStat"`
+	ArchiveFrStorageStat           *BasicStorageStat        `json:"ArchiveFrStorageStat"`
+	ArchiveStorageStat             *BasicStorageStat        `json:"ArchiveStorageStat"`
+	ColdArchiveStorageStat         *BasicStorageStat        `json:"ColdArchiveStorageStat"`
+	DeepColdArchiveStorageStat     *BasicStorageStat        `json:"DeepColdArchiveStorageStat"`
+	IntelligentTieringStorageStats *IntelligentTieringStats `json:"IntelligentTieringStorageStats"`
+}
+
+type BasicStorageStat struct {
+	Storage       string `json:"Storage"`
+	ChargeStorage string `json:"ChargeStorage"`
+	ObjectCount   int64  `json:"ObjectCount"`
+}
+
+type IntelligentTieringStats struct {
+	HighFreqStorageStat  *BasicStorageStat `json:"HighFreqStorageStat"`
+	LowFreqStorageStat   *BasicStorageStat `json:"LowFreqStorageStat"`
+	ArchiveFrStorageStat *BasicStorageStat `json:"ArchiveFrStorageStat"`
+}
+
 type putBucketWebsiteInput struct {
 	RedirectAllRequestsTo *RedirectAllRequestsTo `json:"RedirectAllRequestsTo,omitempty"`
 	IndexDocument         *IndexDocument         `json:"IndexDocument,omitempty"`
@@ -2446,6 +2486,43 @@ type DeleteBucketCustomDomainInput struct {
 
 type DeleteBucketCustomDomainOutput struct {
 	RequestInfo
+}
+
+type createBucketCustomDomainTokenInput struct {
+	Rule CustomDomainTokenRule `json:"CustomDomainRule,omitempty"`
+}
+
+type CustomDomainTokenRule struct {
+	Domain string `json:"Domain"`
+}
+
+type CreateBucketCustomDomainTokenInput struct {
+	Bucket       string
+	Rule         CustomDomainTokenRule
+	GenericInput `json:"-"`
+}
+
+type CustomDomainToken struct {
+	Domain     string `json:"Domain,omitempty"`
+	Token      string `json:"Token,omitempty"`
+	ExpireTime int64  `json:"ExpireTime,omitempty"`
+	Verified   bool   `json:"Verified,omitempty"`
+}
+
+type CreateBucketCustomDomainTokenOutput struct {
+	RequestInfo
+	Token CustomDomainToken `json:"CustomDomainToken"`
+}
+
+type GetBucketCustomDomainTokenInput struct {
+	Bucket       string
+	Domain       string
+	GenericInput `json:"-"`
+}
+
+type GetBucketCustomDomainTokenOutput struct {
+	RequestInfo
+	Token CustomDomainToken `json:"CustomDomainToken"`
 }
 
 type GetBucketEncryptionInput struct {
