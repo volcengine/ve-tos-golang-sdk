@@ -719,6 +719,15 @@ type ListOpenedTurboOutput struct {
 	Contents              []OpenedTurboObject `json:"Contents,omitempty"`
 }
 
+type GetOpenedTurboCountInput struct {
+	Bucket string
+	GenericInput
+}
+type GetOpenedTurboCountOutput struct {
+	RequestInfo `json:"-"`
+	OpenedCount int64 `json:"OpenedCount,omitempty"`
+}
+
 type SetObjectMetaInput struct {
 	Bucket    string
 	Key       string

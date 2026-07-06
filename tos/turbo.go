@@ -130,3 +130,26 @@ func (cli *ClientV2) ListOpenedTurbo(ctx context.Context, input *ListOpenedTurbo
 	}
 	return &output, nil
 }
+
+// GetOpenedTurboCount gets opened turbo object count in a bucket.
+func (cli *ClientV2) GetOpenedTurboCount(ctx context.Context, input *GetOpenedTurboCountInput) (*GetOpenedTurboCountOutput, error) {
+	if err := isValidBucketName(input.Bucket, cli.isCustomDomain); err != nil {
+		return nil, err
+	}
+	rb := cli.newBuilder(input.Bucket, "").
+		SetGeneric(input.GenericInput).
+		WithQuery("getopenedturbocount", "").
+		WithParams(*input).
+		WithRetry(nil, StatusCodeClassifier{})
+	res, err := rb.Request(ctx, http.MethodGet, nil, cli.roundTripper(http.StatusOK))
+	if err != nil {
+		return nil, err
+	}
+	defer res.Close()
+	opened := res.Header.Get(HeaderTurboOpenedCount)
+	turboOpened, _ := strconv.ParseInt(opened, 10, 64)
+	return &GetOpenedTurboCountOutput{
+		RequestInfo: res.RequestInfo(),
+		OpenedCount: turboOpened,
+	}, nil
+}
