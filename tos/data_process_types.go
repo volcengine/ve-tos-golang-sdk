@@ -2,6 +2,7 @@ package tos
 
 import (
 	"encoding/json"
+	"io"
 	"strconv"
 
 	"github.com/volcengine/ve-tos-golang-sdk/v2/tos/enum"
@@ -245,9 +246,9 @@ type ImageSlimParams struct {
 
 // ==================== 视频处理参数 ====================
 
-// VideoProcessParams 描述视频处理操作，同一时刻只能指定一个操作分支。
+// VideoProcessParams 描述统一视频处理操作，同一时刻只能指定一个操作分支。
 // Get 路径支持：Info/Snapshot/PM3U8/Embedding/Understanding/AIGCMetadata/C2PAMetadata。
-// Post 路径额外支持：Snapshots/Transcode/PCM。
+// Put 路径支持 Transcode；Post 同步路径额外支持 Snapshots/PCM/Convert/Remux。
 type VideoProcessParams struct {
 	InfoParams          *VideoInfoParams
 	SnapshotParams      *VideoSnapshotParams
@@ -259,6 +260,8 @@ type VideoProcessParams struct {
 	SnapshotsParams     *VideoSnapshotsParams
 	TranscodeParams     *VideoTranscodeParams
 	PCMParams           *VideoPCMParams
+	ConvertParams       *VideoConvertParams
+	RemuxParams         *VideoRemuxParams
 }
 
 type VideoInfoParams struct{}
@@ -305,12 +308,52 @@ type VideoSnapshotsParams struct {
 	DHashThreshold *int
 }
 
-// VideoTranscodeParams 视频转码参数，通过 JSON 序列化后传递（区别于其他视频操作的 query-string 风格）。
+// VideoTranscodeParams 描述 Put 视频处理及旧版同步 Post 使用的 JSON 转码参数。
+// 新版同步 Post 请使用 VideoConvertParams，异步 Post 请使用 TranscodeJobBody。
 type VideoTranscodeParams struct {
 	Tag             string               `json:"Tag"`
 	Name            string               `json:"Name"`
 	TranscodeConfig VideoTranscodeConfig `json:"TranscodeConfig"`
 	Output          *ProcessJobOutput    `json:"Output,omitempty"`
+}
+
+// VideoConvertParams 描述 Post 视频转码（video/convert）参数。
+// 参数最终会按 Post 视频接口要求拼接为逗号分隔的处理流水线，而不是 JSON。
+type VideoConvertParams struct {
+	Format             string
+	StartTime          *int // ss，截取开始时间，毫秒
+	Duration           *int // t，截取时长，毫秒
+	HLSSegmentDuration *int // st，HLS 分片时长，毫秒
+	RemoveVideo        *int // vn，0 保留视频流，1 移除视频流
+	VideoCodec         string
+	FPS                *int
+	PixelFormat        string
+	Width              *int
+	Height             *int
+	VideoBitRate       *int
+	MaxRate            *int
+	BufferSize         *int
+	CRF                *int
+	RemoveAudio        *int // an，0 保留音频流，1 移除音频流
+	AudioCodec         string
+	SampleRate         *int
+	Channels           *int
+	AudioBitRate       *int
+	SampleFormat       string
+	AIGCMetadata       *AIGCMetadata
+	C2PAMetadata       *C2PAMetadata
+	Watermarks         []VideoWatermark
+	BlindWatermark     *VideoDigitalWatermark
+}
+
+// VideoRemuxParams 描述 Post 视频转封装（video/remux）参数。
+// video/remux 不重新编码，也不支持可见水印和暗水印。
+type VideoRemuxParams struct {
+	Format             string
+	HLSSegmentDuration *int // st，HLS 分片时长，毫秒
+	StreamIndex        *int // ti，保留的输入流索引
+	AIGCMetadata       *AIGCMetadata
+	C2PAMetadata       *C2PAMetadata
 }
 
 type VideoTranscodeConfig struct {
@@ -375,6 +418,13 @@ type AIGCMetadata struct {
 	ReservedCode2     string `json:"ReservedCode2,omitempty"`
 }
 
+// C2PAMetadata 描述 Post 视频接口使用的 C2PA 元数据。
+// Manifest 使用 interface{} 保留 C2PA Manifest 的扩展性，调用方可传入结构体或 map。
+type C2PAMetadata struct {
+	AppID    string      `json:"AppID,omitempty"`
+	Manifest interface{} `json:"Manifest,omitempty"`
+}
+
 type VideoWatermark struct {
 	Type      string `json:"Type,omitempty"`
 	Pos       string `json:"Pos,omitempty"`
@@ -402,12 +452,14 @@ type VideoWatermarkImage struct {
 	Width        *int   `json:"Width,omitempty"`
 	Height       *int   `json:"Height,omitempty"`
 	Transparency *int   `json:"Transparency,omitempty"`
+	Background   *bool  `json:"Background,omitempty"`
 }
 
 type VideoDigitalWatermark struct {
-	Type    string `json:"Type,omitempty"`
-	Version string `json:"Version,omitempty"`
-	Message string `json:"Message,omitempty"`
+	Type          string `json:"Type,omitempty"`
+	Version       string `json:"Version,omitempty"`
+	Message       string `json:"Message,omitempty"`
+	FrameInterval *int   `json:"FrameInterval,omitempty"`
 }
 
 // ==================== 文档处理参数 ====================
@@ -629,8 +681,8 @@ func (p *PointCloudCompressParams) QueryParams() map[string]string {
 
 // ==================== 另存为参数 ====================
 
-// SaveAsParams 描述另存为目标位置。Get 路径下不拼入 x-tos-process，而是通过 x-tos-save-bucket/x-tos-save-object query 传递；
-// Post 路径下拼入 process 字符串末尾（|sys/saveas,...）。
+// SaveAsParams 描述另存为目标位置。Get 路径通过 x-tos-save-* query 传递；
+// Post 图片及视频 convert/remux 通过请求体中的 x-tos-save-* 参数传递，旧协议仍使用 sys/saveas。
 type SaveAsParams struct {
 	SaveBucket string // 传原始字符串，SDK 内部编码
 	SaveObject string // 传原始字符串，SDK 内部编码
@@ -681,7 +733,8 @@ type PutImageOperationsRule struct {
 
 // ==================== Post 同步接口类型 ====================
 
-// PostDPInput 是 PostDataProcess 的入参。PostProcess 支持 x-tos-process 风格字符串或 JSON 格式。
+// PostDPInput 是 PostDataProcess 的入参。PostProcess 支持 Post 处理流水线字符串，
+// 同时兼容旧版 JSON body。
 type PostDPInput struct {
 	GenericInput
 	Bucket      string
@@ -689,9 +742,24 @@ type PostDPInput struct {
 	PostProcess string
 }
 
+// PostDPOutput 按请求类型填充图片或视频响应；同一次请求最多只有一个分支非 nil。
 type PostDPOutput struct {
 	RequestInfo
+	ImageProcessOutput *ImageProcessOutput
 	VideoProcessOutput *VideoProcessOutput
+}
+
+// ImageProcessOutput 描述 Post 图片处理响应。SaveAs 响应填充对象字段；
+// 非 SaveAs 响应无论 Content-Type 为何，均由调用方读取并关闭 Content。
+type ImageProcessOutput struct {
+	Bucket   string `json:"bucket,omitempty"`
+	Object   string `json:"object,omitempty"`
+	FileSize int64  `json:"fileSize,string,omitempty"`
+	Status   string `json:"status,omitempty"`
+
+	Content       io.ReadCloser `json:"-"`
+	ContentType   string        `json:"-"`
+	ContentLength int64         `json:"-"`
 }
 
 func (o *PostDPOutput) UnmarshalJSON(data []byte) error {
@@ -699,6 +767,8 @@ func (o *PostDPOutput) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, &video); err != nil {
 		return err
 	}
+	o.ImageProcessOutput = nil
+	o.VideoProcessOutput = nil
 	if video.OutputBucket != "" ||
 		video.TotalFrameCount != 0 ||
 		video.SuccFrameCount != 0 ||
@@ -730,11 +800,18 @@ type VideoProcessOutput struct {
 	SuccFrameList   []SuccFrame
 	FailFrameList   []FailFrame
 	PcmDataProcessOutput
+
+	// Convert/Remux SaveAs 与 PCM 使用相同的响应字段，由请求类型决定映射位置。
+	SaveAsBucket     string
+	SaveAsObject     string
+	SaveAsObjectSize int64
+	SaveAsStatus     enum.VideoDataProcessStatus
 }
 
 // ==================== 音频异步接口类型 ====================
 
-// AudioConvertParams 描述音频转码参数，同时用于 x-tos-async-process 路径和 Job 模式请求体。
+// AudioConvertParams 描述工作流及旧版 x-tos-async-process 路径中的音频转码参数。
+// 新版 Post 异步请求请使用 AudioConvertJobConfig。
 type AudioConvertParams struct {
 	ContainerFormat string
 	TimeInterval    *TimeInterval
@@ -766,14 +843,17 @@ type AudioConcatParams struct {
 
 // ==================== Post 异步接口类型 ====================
 
-// PostDPAsyncInput 是 PostDataProcessAsync 的入参，支持 Job 模式和 async-process 模式两种异步路径。
+// PostDPAsyncInput 是 PostDataProcessAsync 的入参。新调用应通过 JobType + JobBody 提交 JSON Job。
 type PostDPAsyncInput struct {
 	GenericInput
-	Bucket      string
-	Key         string
+	Bucket string
+	// Deprecated: 仅用于兼容旧版 x-tos-async-process query-string 请求。
+	Key string
+	// Deprecated: 仅用于兼容旧版 x-tos-async-process query-string 请求。
 	PostProcess string
 	JobType     ProcessJobType
-	JobBody     interface{}
+	// JobBody 可传结构化 Job 类型，或 PostDataProcessAsyncHelper 返回的 JSON 字符串。
+	JobBody interface{}
 }
 
 type PostDPAsyncOutput struct {
@@ -784,12 +864,11 @@ type PostDPAsyncOutput struct {
 	Status  string `json:"status,omitempty"` // Deprecated: async-process 路径已改为走 CommitJob，不再返回 status 字段，请使用 Code 判断成功
 }
 
-// PostDataProcessAsyncParams 是 PostDataProcessAsyncHelper 的入参，按 PostProcessAsyncType 选择对应的处理参数分支。
+// PostDataProcessAsyncParams 是 PostDataProcessAsyncHelper 的入参，JobBody 将被序列化为 JSON。
 type PostDataProcessAsyncParams struct {
+	// Deprecated: 请使用 JobType + JobBody。
 	PostProcessAsyncType enum.PostProcessAsyncType
-
-	// 当前后端源码仅保留 audio 的 x-tos-async-process 路径。
-	// 其他异步能力统一走 JobType/JobBody 模式。
+	// Deprecated: 请使用 AudioConvertJobBody 或 AudioConcatJobBody。
 	AudioProcessAsyncParams *AudioProcessAsyncParams
 	JobType                 ProcessJobType
 	JobBody                 interface{}
@@ -812,6 +891,8 @@ type DPAsyncResult struct {
 	Message  *string         `json:"Message,omitempty"`
 }
 
+// AudioProcessAsyncParams 描述旧版 x-tos-async-process 音频参数。
+// Deprecated: 请使用 AudioConvertJobBody 或 AudioConcatJobBody。
 type AudioProcessAsyncParams struct {
 	Bucket        string
 	Region        string
@@ -973,6 +1054,27 @@ type AudioConvertJobBody struct {
 	Input              ProcessJobInput       `json:"Input"`
 	Output             ProcessJobOutput      `json:"Output"`
 	AudioConvertConfig AudioConvertJobConfig `json:"AudioConvertConfig"`
+}
+
+// AudioConcatInput 音频异步拼接 Job 输入。
+type AudioConcatInput struct {
+	Object       string                   `json:"Object"`
+	PreFragments []AudioConcatPreFragment `json:"PreFragments,omitempty"`
+}
+
+type AudioConcatPreFragment struct {
+	Object string `json:"Object"`
+}
+
+type AudioConcatConfig struct {
+	ContainerFormat string `json:"ContainerFormat"`
+}
+
+// AudioConcatJobBody 音频异步拼接 Job 请求体。
+type AudioConcatJobBody struct {
+	Input             AudioConcatInput  `json:"Input"`
+	Output            ProcessJobOutput  `json:"Output"`
+	AudioConcatConfig AudioConcatConfig `json:"AudioConcatConfig"`
 }
 
 // ==================== Put 接口返回类型 ====================

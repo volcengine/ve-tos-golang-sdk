@@ -31,6 +31,7 @@ type testEnv struct {
 	roleName        string
 	testBucketName  string
 	testVideoKey    string
+	acceleratorAZ   string
 	t               *testing.T
 }
 
@@ -55,6 +56,7 @@ func newTestEnv(t *testing.T) *testEnv {
 		roleName:        os.Getenv("TOS_GO_SDK_ROLE_NAME"),
 		testBucketName:  os.Getenv("TOS_GO_SDK_TEST_BUCKET_NAME"),
 		testVideoKey:    os.Getenv("TOS_GO_SDK_TEST_VIDEO_KEY"),
+		acceleratorAZ:   os.Getenv("TOS_GO_SDK_ACCELERATOR_AZ"),
 		t:               t,
 	}
 }

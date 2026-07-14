@@ -53,8 +53,9 @@ func TestWorkflowConfigJSONShape(t *testing.T) {
 		Topology: [][]string{{"op-1"}},
 		Operations: WorkflowOperations{
 			Transcode: []WorkflowOperationTranscode{{
-				OperationID: "op-1",
-				TemplateID:  "tpl-1",
+				OperationID:         "op-1",
+				TemplateID:          "tpl-1",
+				WatermarkTemplateID: []string{"wm-tpl-1", "wm-tpl-2"},
 				Output: WorkflowJobOutput{
 					Bucket: "target-bucket",
 					Object: "out/${Number}.mp4",
@@ -82,6 +83,7 @@ func TestWorkflowConfigJSONShape(t *testing.T) {
 		`"VideoExts":["mp4"]`,
 		`"Topology":[["op-1"]]`,
 		`"TemplateID":"tpl-1"`,
+		`"WatermarkTemplateID":["wm-tpl-1","wm-tpl-2"]`,
 	) {
 		t.Fatalf("unexpected workflow config json: %s", got)
 	}
