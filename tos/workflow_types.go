@@ -75,7 +75,7 @@ type WorkflowOperationAudioTranscode struct {
 type WorkflowOperationTranscode struct {
 	OperationID         string            `json:"OperationID,omitempty"`
 	TemplateID          string            `json:"TemplateID,omitempty"`
-	WatermarkTemplateID string            `json:"WatermarkTemplateID,omitempty"`
+	WatermarkTemplateID []string          `json:"WatermarkTemplateID,omitempty"`
 	Output              WorkflowJobOutput `json:"Output,omitempty"`
 }
 

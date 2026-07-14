@@ -318,6 +318,27 @@ const (
 	NetworkOriginInternet NetworkOriginType = "internet"
 )
 
+type AccessPointType string
+
+const (
+	AccessPointTypeRegular AccessPointType = "Regular"
+)
+
+type AccessPointStatusType string
+
+const (
+	AccessPointStatusEnable   AccessPointStatusType = "enable"
+	AccessPointStatusDisable  AccessPointStatusType = "disable"
+	AccessPointStatusCreating AccessPointStatusType = "creating"
+	AccessPointStatusDeleting AccessPointStatusType = "deleting"
+)
+
+type AcceleratorType string
+
+const (
+	AcceleratorTypeRO AcceleratorType = "RO"
+)
+
 type DataType string
 
 const (

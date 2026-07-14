@@ -2143,65 +2143,6 @@ func TestDP_PostAsyncAudioConvertAndQuery(t *testing.T) {
 			queryOutput.JobResult.JobID, queryOutput.JobResult.State, queryOutput.JobResult.Code, queryOutput.JobResult.Message)
 	})
 
-	t.Run("async-process", func(t *testing.T) {
-		saveKey := "dp-test/audio/async_convert_output.wav"
-		postProcess, err := tos.PostDataProcessAsyncHelper(ctx, tos.PostDataProcessAsyncParams{
-			PostProcessAsyncType: enum.PostProcessAsyncTypeAudio,
-			AudioProcessAsyncParams: &tos.AudioProcessAsyncParams{
-				Bucket:       env.bucket,
-				Region:       env.region,
-				TargetObject: env.audioKey,
-				SaveAsParams: &tos.SaveAsParams{
-					SaveBucket: env.bucket,
-					SaveObject: saveKey,
-				},
-				ConvertParams: &tos.AudioConvertParams{
-					ContainerFormat: "wav",
-				},
-			},
-		})
-		if err != nil {
-			t.Logf("PostDataProcessAsyncHelper(AudioConvert) 返回错误: %v", err)
-			t.Skip("音频异步转码 Helper 失败")
-			return
-		}
-
-		asyncOut, err := client.PostDataProcessAsync(ctx, &tos.PostDPAsyncInput{
-			Bucket:      env.bucket,
-			Key:         env.audioKey,
-			PostProcess: postProcess,
-		})
-		if err != nil {
-			t.Logf("PostDataProcessAsync(AudioConvert,async-process) 返回错误: %v", err)
-			t.Skip("async-process 模式音频转码提交失败")
-			return
-		}
-		require.NotNil(t, asyncOut)
-		t.Logf("async-process 模式音频转码响应: Status=%s, JobId=%s, Code=%s, Message=%s",
-			asyncOut.Status, asyncOut.JobId, asyncOut.Code, asyncOut.Message)
-
-		require.Equal(t, "OK", asyncOut.Code)
-
-		// async-process 音频转码是异步落桶，需要等待
-		var headOutput *tos.HeadObjectV2Output
-		for i := 0; i < 10; i++ {
-			headOutput, err = client.HeadObjectV2(ctx, &tos.HeadObjectV2Input{
-				Bucket: env.bucket,
-				Key:    saveKey,
-			})
-			if err == nil {
-				break
-			}
-			time.Sleep(3 * time.Second)
-		}
-		if err != nil {
-			t.Logf("async-process 输出文件未在等待时间内落桶: %v", err)
-			t.Skip("异步任务已提交成功(Code=OK)，但后端处理未完成，跳过输出验证")
-			return
-		}
-		require.NotNil(t, headOutput)
-		t.Logf("async-process 输出对象校验成功: key=%s size=%d", saveKey, headOutput.ContentLength)
-	})
 }
 
 func TestDP_PostAsyncAudioConcat(t *testing.T) {
@@ -2211,46 +2152,27 @@ func TestDP_PostAsyncAudioConcat(t *testing.T) {
 	ctx := context.Background()
 
 	saveKey := "dp-test/audio/concat_output.mp3"
-	postProcess, err := tos.PostDataProcessAsyncHelper(ctx, tos.PostDataProcessAsyncParams{
-		PostProcessAsyncType: enum.PostProcessAsyncTypeAudio,
-		AudioProcessAsyncParams: &tos.AudioProcessAsyncParams{
-			Bucket:       env.bucket,
-			Region:       env.region,
-			TargetObject: env.audioKey,
-			SaveAsParams: &tos.SaveAsParams{
-				SaveBucket: env.bucket,
-				SaveObject: saveKey,
+	asyncOut, err := client.PostDataProcessAsync(ctx, &tos.PostDPAsyncInput{
+		Bucket:  env.bucket,
+		JobType: tos.ProcessJobTypeAudioConcat,
+		JobBody: &tos.AudioConcatJobBody{
+			Input: tos.AudioConcatInput{
+				Object:       env.audioKey,
+				PreFragments: []tos.AudioConcatPreFragment{{Object: env.audioKey2}},
 			},
-			ConcatParams: &tos.AudioConcatParams{
-				ContainerFormat: "mp3",
-				PreFragments: []tos.AudioConcatFragment{
-					{Object: env.audioKey},
-				},
-				SurFragments: []tos.AudioConcatFragment{
-					{Object: env.audioKey2},
-				},
-			},
+			Output:            tos.ProcessJobOutput{Region: env.region, Bucket: env.bucket, Object: saveKey},
+			AudioConcatConfig: tos.AudioConcatConfig{ContainerFormat: "mp3"},
 		},
 	})
 	if err != nil {
-		t.Fatalf("PostDataProcessAsyncHelper(AudioConcat) 返回错误: %v", err)
-	}
-	t.Logf("AudioConcat process string: %s", postProcess)
-
-	asyncOut, err := client.PostDataProcessAsync(ctx, &tos.PostDPAsyncInput{
-		Bucket:      env.bucket,
-		Key:         env.audioKey,
-		PostProcess: postProcess,
-	})
-	if err != nil {
-		t.Fatalf("PostDataProcessAsync(AudioConcat,async-process) 返回错误: %v", err)
+		t.Fatalf("PostDataProcessAsync(AudioConcat,Job) 返回错误: %v", err)
 	}
 	require.NotNil(t, asyncOut)
-	t.Logf("async-process 模式音频拼接响应: Status=%s, JobId=%s, Code=%s, Message=%s",
-		asyncOut.Status, asyncOut.JobId, asyncOut.Code, asyncOut.Message)
+	t.Logf("Job 模式音频拼接响应: JobId=%s, Code=%s, Message=%s",
+		asyncOut.JobId, asyncOut.Code, asyncOut.Message)
 
 	require.Equal(t, "OK", asyncOut.Code)
-	// async-process 走 CommitJob，异步落桶需要等待
+	// Job 模式音频拼接异步落桶，需要等待。
 	var headOutput *tos.HeadObjectV2Output
 	for i := 0; i < 15; i++ {
 		headOutput, err = client.HeadObjectV2(ctx, &tos.HeadObjectV2Input{
@@ -3157,4 +3079,149 @@ func TestDP_WorkflowEventTriggerVideoTranscode(t *testing.T) {
 	}, 120*time.Second, 10*time.Second, "120 秒内未观察到 WorkflowExecution 完成")
 
 	t.Log("✅ 事件触发视频转码 Workflow 链路验证成功")
+}
+
+// TestDP_WorkflowEventTriggerVideoTranscodeWithWatermarkTemplate 验证
+// WorkflowOperationTranscode.WatermarkTemplateID 字段为 []string 时
+// CreateWorkflow 不会被服务端以 schema 类型错误（cannot unmarshal string into []string）拒绝。
+// 历史 bug：该字段曾被声明为 string，导致服务端反序列化失败。
+// 同时跑通完整事件触发链路，HeadObject 确认带水印产物对象落桶。
+func TestDP_WorkflowEventTriggerVideoTranscodeWithWatermarkTemplate(t *testing.T) {
+	env := newDPTestEnv()
+	env.skipWorkflowJob(t)
+	client := env.newClient(t)
+	ctx := context.Background()
+
+	wmOut, err := client.PutProcessTemplate(ctx, &tos.PutProcessTemplateInput{
+		Bucket: env.bucket,
+		Tag:    "Watermark",
+		TemplateConfig: map[string]interface{}{
+			"Tag": "Watermark", "Name": "sdk-test-watermark-tpl",
+			"WatermarkConfig": map[string]interface{}{
+				"Type": "Text", "Pos": "BottomLeft", "LocMode": "Relative",
+				"Dx": 10, "Dy": 10,
+				"Text": map[string]interface{}{
+					"FontSize": 30, "FontType": "wqy-zenhei",
+					"FontColor": "white", "Transparency": 50,
+					"Text": "sdk-test-watermark",
+				},
+			},
+		},
+	})
+	require.NoError(t, err, "PutProcessTemplate(Watermark) 失败")
+	watermarkTemplateID := wmOut.TemplateID
+	t.Logf("创建 Watermark 模板: %s", watermarkTemplateID)
+	defer client.DeleteProcessTemplate(ctx, &tos.DeleteProcessTemplateInput{Bucket: env.bucket, ID: watermarkTemplateID})
+
+	tcOut, err := client.PutProcessTemplate(ctx, &tos.PutProcessTemplateInput{
+		Bucket: env.bucket,
+		Tag:    "Transcode",
+		TemplateConfig: map[string]interface{}{
+			"Tag": "Transcode", "Name": "sdk-test-transcode-with-wm",
+			"TranscodeConfig": map[string]interface{}{
+				"TimeInterval": map[string]interface{}{"Start": 0, "Duration": 0},
+				"Container":    map[string]interface{}{"Format": "mp4"},
+				"Video": map[string]interface{}{
+					"Codec": "h264", "Width": 0, "Height": 720, "Crf": 23, "PixFmt": "yuv420p",
+				},
+			},
+		},
+	})
+	require.NoError(t, err, "PutProcessTemplate(Transcode) 失败")
+	transcodeTemplateID := tcOut.TemplateID
+	t.Logf("创建 Transcode 模板: %s", transcodeTemplateID)
+	defer client.DeleteProcessTemplate(ctx, &tos.DeleteProcessTemplateInput{Bucket: env.bucket, ID: transcodeTemplateID})
+
+	outputPrefix := "dp-test/workflow-event/video-wm"
+	// 关键断言：WatermarkTemplateID 以 []string 形式提交，服务端能正确反序列化
+	_, err = client.CreateWorkflow(ctx, &tos.PutConvertWorkflowInput{
+		Bucket: env.bucket,
+		Role:   "ServiceRoleforTOSDataProcess",
+		Rules: []tos.WorkflowRule{{
+			ID:      "event-trigger-video-watermark",
+			Enabled: true,
+			ExtFilter: &tos.WorkflowExtFilter{
+				VideoExts: []string{"mp4"},
+			},
+			Topology: [][]string{{"op-video-wm"}},
+			Operations: tos.WorkflowOperations{
+				Transcode: []tos.WorkflowOperationTranscode{{
+					OperationID:         "op-video-wm",
+					TemplateID:          transcodeTemplateID,
+					WatermarkTemplateID: []string{watermarkTemplateID},
+					Output: tos.WorkflowJobOutput{
+						Region: env.region,
+						Bucket: env.bucket,
+						Object: outputPrefix + "/${InputName}.mp4",
+					},
+				}},
+			},
+		}},
+	})
+	require.NoError(t, err, "CreateWorkflow 失败：WatermarkTemplateID 字段类型可能与服务端不一致")
+	t.Log("✅ 含 WatermarkTemplateID 的 Workflow 规则创建成功")
+	defer client.DeleteWorkflow(ctx, &tos.DeleteConvertWorkflowInput{Bucket: env.bucket})
+
+	// 回读 Workflow 配置确认 WatermarkTemplateID 已落库且为数组
+	getOut, err := client.GetWorkflow(ctx, &tos.GetConvertWorkflowInput{Bucket: env.bucket})
+	require.NoError(t, err, "GetWorkflow 失败")
+	require.NotEmpty(t, getOut.Rules, "Rules 不应为空")
+	var found bool
+	for _, r := range getOut.Rules {
+		for _, op := range r.Operations.Transcode {
+			if op.OperationID == "op-video-wm" {
+				found = true
+				require.Equal(t, []string{watermarkTemplateID}, op.WatermarkTemplateID,
+					"WatermarkTemplateID 回读值应为 []string{watermarkTemplateID}")
+			}
+		}
+	}
+	require.True(t, found, "未在回读的 Workflow 中找到 op-video-wm")
+
+	// 上传一个真实视频作为触发对象，等待 Workflow 执行成功，并 HeadObject 确认产物落桶
+	triggerName := fmt.Sprintf("trigger-video-wm-%d", time.Now().UnixNano())
+	triggerKey := fmt.Sprintf("dp-test/workflow-event/%s.mp4", triggerName)
+	expectedOutputKey := fmt.Sprintf("%s/%s.mp4", outputPrefix, triggerName)
+
+	// 直接读 env.videoKey 到内存后用 bytes.Reader 上传到 prefix 作为触发对象（与旁边
+	// TestDP_WorkflowEventTriggerVideoTranscode 一致；bytes.Reader 是 io.Seeker，
+	// 可让 SDK 重试，避免直接复用 GetObjectV2 返回的 readCloserWithCRC 不支持 Reset）
+	srcOut, err := client.GetObjectV2(ctx, &tos.GetObjectV2Input{Bucket: env.bucket, Key: env.videoKey})
+	require.NoError(t, err, "获取源视频失败")
+	videoBytes, err := ioutil.ReadAll(srcOut.Content)
+	srcOut.Content.Close()
+	require.NoError(t, err, "读取源视频内容失败")
+	require.True(t, len(videoBytes) > 0, "源视频内容为空")
+
+	_, err = client.PutObjectV2(ctx, &tos.PutObjectV2Input{
+		PutObjectBasicInput: tos.PutObjectBasicInput{Bucket: env.bucket, Key: triggerKey},
+		Content:             bytes.NewReader(videoBytes),
+	})
+	require.NoError(t, err, "PutObjectV2 触发对象失败")
+	t.Logf("已上传触发对象: %s (%d bytes)", triggerKey, len(videoBytes))
+
+	require.Eventually(t, func() bool {
+		listOut, err := client.ListWorkflowExecution(ctx, &tos.ListWorkflowExecutionInput{Bucket: env.bucket})
+		if err != nil {
+			t.Logf("ListWorkflowExecution 错误: %v", err)
+			return false
+		}
+		for _, item := range listOut.Items {
+			if item.Object == triggerKey {
+				t.Logf("WorkflowExecution: ExecutionID=%s State=%s", item.ExecutionID, item.State)
+				return item.State == "Success" || item.State == "Failed"
+			}
+		}
+		return false
+	}, 180*time.Second, 10*time.Second, "180 秒内未观察到 WorkflowExecution 完成")
+
+	// 确认带水印转码后的产物对象已经落到 dp-test/ 目录下
+	headOut, err := client.HeadObjectV2(ctx, &tos.HeadObjectV2Input{
+		Bucket: env.bucket,
+		Key:    expectedOutputKey,
+	})
+	require.NoError(t, err, "HeadObject 产物对象失败: %s", expectedOutputKey)
+	require.NotNil(t, headOut)
+	require.True(t, headOut.ContentLength > 0, "产物对象大小应大于 0")
+	t.Logf("✅ 带水印转码产物落桶成功: %s (ContentLength=%d)", expectedOutputKey, headOut.ContentLength)
 }

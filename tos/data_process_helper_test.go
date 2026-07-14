@@ -167,6 +167,19 @@ func TestGetDataProcessHelper_VideoExtendedOps(t *testing.T) {
 	}
 }
 
+func TestGetDataProcessHelper_PostVideoOpsError(t *testing.T) {
+	ctx := context.Background()
+	_, err := GetDataProcessHelper(ctx, GetDataProcessParams{
+		GetProcessType: enum.GetProcessTypeVideo,
+		VideoProcessParams: &VideoProcessParams{
+			ConvertParams: &VideoConvertParams{Format: "mp4"},
+		},
+	})
+	if err == nil || !strings.Contains(err.Error(), "only supported by PostDataProcess") {
+		t.Fatalf("expected Post-only video operation error, got %v", err)
+	}
+}
+
 func TestGetDataProcessHelper_Doc(t *testing.T) {
 	ctx := context.Background()
 	params := GetDataProcessParams{
@@ -602,6 +615,19 @@ func TestPutDataProcessHelper_VideoTranscode(t *testing.T) {
 	}
 }
 
+func TestPutDataProcessHelper_PostVideoOpsError(t *testing.T) {
+	ctx := context.Background()
+	_, err := PutDataProcessHelper(ctx, PutDataProcessParams{
+		PutProcessType: enum.PutProcessTypeVideo,
+		VideoProcessParams: &VideoProcessParams{
+			RemuxParams: &VideoRemuxParams{Format: "mp4"},
+		},
+	})
+	if err == nil || !strings.Contains(err.Error(), "only supported by PostDataProcess") {
+		t.Fatalf("expected Post-only video operation error, got %v", err)
+	}
+}
+
 func TestPostDataProcessHelper_VideoSnapshot(t *testing.T) {
 	ctx := context.Background()
 	params := PostDataProcessParams{
@@ -717,6 +743,138 @@ func TestPostDataProcessHelper_VideoPCMWithoutSaveAs(t *testing.T) {
 	}
 }
 
+func TestPostDataProcessHelper_VideoConvert(t *testing.T) {
+	ctx := context.Background()
+	start := 1000
+	duration := 60000
+	width := 1920
+	height := 1080
+	videoBitRate := 2000000
+	maxRate := 2500000
+	bufferSize := 5000000
+	crf := 23
+	removeAudio := 0
+	frameInterval := 40
+
+	result, err := PostDataProcessHelper(ctx, PostDataProcessParams{
+		PostProcessType: enum.PostProcessTypeVideo,
+		VideoProcessParams: &VideoProcessParams{
+			ConvertParams: &VideoConvertParams{
+				Format:       "mp4",
+				StartTime:    &start,
+				Duration:     &duration,
+				VideoCodec:   "h264",
+				Width:        &width,
+				Height:       &height,
+				VideoBitRate: &videoBitRate,
+				MaxRate:      &maxRate,
+				BufferSize:   &bufferSize,
+				CRF:          &crf,
+				RemoveAudio:  &removeAudio,
+				AIGCMetadata: &AIGCMetadata{Label: "1"},
+				Watermarks: []VideoWatermark{{
+					Type:    "Text",
+					Pos:     "TopRight",
+					LocMode: "Relative",
+					Text:    &VideoWatermarkText{Text: "test watermark"},
+				}},
+				BlindWatermark: &VideoDigitalWatermark{
+					Type:          "Text",
+					Version:       "V1",
+					Message:       "ATIAAa6bqATuSQ-_394AAAAA",
+					FrameInterval: &frameInterval,
+				},
+			},
+		},
+		SaveAsParams: &SaveAsParams{
+			SaveBucket: "target-bucket",
+			SaveObject: "output.mp4",
+		},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if !strings.HasPrefix(result, "video/convert,f_mp4,ss_1000,t_60000,vcodec_h264,w_1920,h_1080,vb_2000000,maxrate_2500000,bufsize_5000000,crf_23,an_0,aigc_") {
+		t.Fatalf("unexpected convert process: %s", result)
+	}
+	if !strings.Contains(result, "&x-tos-save-object=b3V0cHV0Lm1wNA") {
+		t.Errorf("expected unpadded save object in result: %s", result)
+	}
+	if !strings.Contains(result, "&x-tos-save-bucket=dGFyZ2V0LWJ1Y2tldA") {
+		t.Errorf("expected unpadded save bucket in result: %s", result)
+	}
+	if strings.Contains(result, "aigc_eyJMYWJlbCI6IjEifQ==") {
+		t.Errorf("expected URL-safe base64 without padding: %s", result)
+	}
+	if !strings.Contains(result, "watermark_") || !strings.Contains(result, "blindwatermark_") {
+		t.Errorf("expected watermark parameters in result: %s", result)
+	}
+}
+
+func TestPostDataProcessHelper_VideoRemux(t *testing.T) {
+	ctx := context.Background()
+	segmentDuration := 5000
+	streamIndex := 1
+
+	result, err := PostDataProcessHelper(ctx, PostDataProcessParams{
+		PostProcessType: enum.PostProcessTypeVideo,
+		VideoProcessParams: &VideoProcessParams{
+			RemuxParams: &VideoRemuxParams{
+				Format:             "mp4",
+				HLSSegmentDuration: &segmentDuration,
+				StreamIndex:        &streamIndex,
+				C2PAMetadata: &C2PAMetadata{
+					AppID: "3006",
+					Manifest: map[string]interface{}{
+						"claim_generator": "TestApp/1.0",
+					},
+				},
+			},
+		},
+		SaveAsParams: &SaveAsParams{SaveObject: "remux/output.mp4"},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.HasPrefix(result, "video/remux,f_mp4,st_5000,ti_1,c2pa_") {
+		t.Fatalf("unexpected remux process: %s", result)
+	}
+	if !strings.Contains(result, "&x-tos-save-object=cmVtdXgvb3V0cHV0Lm1wNA") {
+		t.Errorf("expected unpadded save object in result: %s", result)
+	}
+}
+
+func TestPostDataProcessHelper_VideoLegacyTranscodeRejected(t *testing.T) {
+	_, err := PostDataProcessHelper(context.Background(), PostDataProcessParams{
+		PostProcessType: enum.PostProcessTypeVideo,
+		VideoProcessParams: &VideoProcessParams{
+			TranscodeParams: &VideoTranscodeParams{Tag: "Transcode", Name: "legacy-transcode"},
+		},
+	})
+	if err == nil || !strings.Contains(err.Error(), "use ConvertParams for synchronous processing") {
+		t.Fatalf("expected legacy Transcode rejection, got %v", err)
+	}
+}
+
+func TestPostDataProcessHelper_VideoConvertValidation(t *testing.T) {
+	ctx := context.Background()
+	width := 127
+	_, err := PostDataProcessHelper(ctx, PostDataProcessParams{
+		PostProcessType: enum.PostProcessTypeVideo,
+		VideoProcessParams: &VideoProcessParams{
+			ConvertParams: &VideoConvertParams{
+				Format: "mp4",
+				Width:  &width,
+			},
+		},
+		SaveAsParams: &SaveAsParams{SaveObject: "output.mp4"},
+	})
+	if err == nil || !strings.Contains(err.Error(), "Width") {
+		t.Fatalf("expected width validation error, got %v", err)
+	}
+}
+
 func TestPostDataProcessHelper_VideoMultipleOpsError(t *testing.T) {
 	ctx := context.Background()
 	params := PostDataProcessParams{
@@ -731,16 +889,31 @@ func TestPostDataProcessHelper_VideoMultipleOpsError(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error when multiple video operations are specified")
 	}
+
+	_, err = PostDataProcessHelper(ctx, PostDataProcessParams{
+		PostProcessType: enum.PostProcessTypeVideo,
+		VideoProcessParams: &VideoProcessParams{
+			ConvertParams: &VideoConvertParams{Format: "mp4"},
+			RemuxParams:   &VideoRemuxParams{Format: "mp4"},
+		},
+		SaveAsParams: &SaveAsParams{SaveObject: "output.mp4"},
+	})
+	if err == nil {
+		t.Fatal("expected error when convert and remux are both specified")
+	}
 }
 
 func TestPostDPOutputUnmarshalPCM(t *testing.T) {
-	var output PostDPOutput
+	output := PostDPOutput{ImageProcessOutput: &ImageProcessOutput{Bucket: "stale-image-bucket"}}
 	err := json.Unmarshal([]byte(`{"bucket":"target-bucket","object":"audio/output.pcm","status":"OK"}`), &output)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if output.VideoProcessOutput == nil {
 		t.Fatal("expected VideoProcessOutput to be populated")
+	}
+	if output.ImageProcessOutput != nil {
+		t.Fatal("video response must clear stale ImageProcessOutput")
 	}
 	if output.VideoProcessOutput.PcmBucket != "target-bucket" {
 		t.Fatalf("unexpected bucket: %s", output.VideoProcessOutput.PcmBucket)
@@ -753,125 +926,144 @@ func TestPostDPOutputUnmarshalPCM(t *testing.T) {
 	}
 }
 
-func TestPostDataProcessHelper_ImageWithSaveAs(t *testing.T) {
-	ctx := context.Background()
-	params := PostDataProcessParams{
+func TestPostDataProcessHelper_ImageCombinedWithSaveAs(t *testing.T) {
+	result, err := PostDataProcessHelper(context.Background(), PostDataProcessParams{
 		PostProcessType: enum.PostProcessTypeImage,
 		ImageProcessParams: []ImageProcessParams{
 			{
-				Operation: enum.ImageOperationResize,
-				ResizeParams: &ImageResizeParams{
-					W: intPtr(50),
+				Operation:       enum.ImageOperationWatermark,
+				WatermarkParams: &ImageWatermarkParams{Text: "dG9zIHRlc3Q"},
+			},
+			{
+				Operation: enum.ImageOperationBlindWatermark,
+				BlindWatermarkParams: &ImageBlindWatermarkParams{
+					Text: "dG9zdGVzdDEyMw", Version: intPtr(2), Level: intPtr(2),
+				},
+			},
+			{
+				Operation: enum.ImageOperationSetAIGCMetadata,
+				AIGCMetadataParams: &ImageAIGCMetadataParams{
+					Label:             "dGVzdF9sYWJlbA",
+					ContentProducer:   "dGVzdF9wcm9kdWNlcg",
+					ProduceID:         "dGVzdF9wcm9kdWNlcl9pZA",
+					ContentPropagator: "dGVzdF9wcm9wYWdhdG9y",
+					PropagateID:       "dGVzdF9wcm9wYWdhdG9yX2lk",
+					ReservedCode1:     "dGVzdF9yZXNlcnZlZF9jb2RlXzE",
+					ReservedCode2:     "dGVzdF9yZXNlcnZlZF9jb2RlXzI",
+				},
+			},
+			{
+				Operation: enum.ImageOperationSetC2PAMetadata,
+				SetC2PAMetadataParams: &ImageSetC2PAMetadataParams{
+					AppID:    "tos-functional-test",
+					Manifest: "eyJjbGFpbSI6InBvc3QtaW1hZ2UtcHJvY2VzcyJ9",
 				},
 			},
 		},
 		SaveAsParams: &SaveAsParams{
 			SaveBucket: "target-bucket",
-			SaveObject: "target-key.jpg",
+			SaveObject: "post/image/combined.jpg",
 		},
-	}
-
-	result, err := PostDataProcessHelper(ctx, params)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if !strings.Contains(result, "image/resize,w_50") {
-		t.Errorf("expected image resize in result: %q", result)
-	}
-	if !strings.Contains(result, "|sys/saveas,") {
-		t.Errorf("expected saveas in result: %q", result)
-	}
-}
-
-func TestPostDataProcessAsyncHelper_UnsupportedVideo(t *testing.T) {
-	ctx := context.Background()
-	_, err := PostDataProcessAsyncHelper(ctx, PostDataProcessAsyncParams{
-		PostProcessAsyncType: enum.PostProcessAsyncTypeVideo,
 	})
-	if err == nil {
-		t.Fatal("expected error for video async-process helper")
-	}
-	if !strings.Contains(err.Error(), "only supports audio") {
-		t.Fatalf("unexpected error: %v", err)
-	}
-}
-
-func TestPostDataProcessAsyncHelper_AudioConvert(t *testing.T) {
-	ctx := context.Background()
-	bitRate := 128000
-	sampleRate := 44100
-	params := PostDataProcessAsyncParams{
-		PostProcessAsyncType: enum.PostProcessAsyncTypeAudio,
-		AudioProcessAsyncParams: &AudioProcessAsyncParams{
-			Bucket:       "test-bucket",
-			Region:       "cn-beijing",
-			TargetObject: "test.mp3",
-			SaveAsParams: &SaveAsParams{
-				SaveBucket: "test-bucket",
-				SaveObject: "dp-test/audio/convert_output.wav",
-			},
-			ConvertParams: &AudioConvertParams{
-				ContainerFormat: "wav",
-				TimeInterval:    &TimeInterval{Start: 1, Duration: 3},
-				BitRate:         &bitRate,
-				SampleRate:      &sampleRate,
-				SampleFormat:    "s16",
-			},
-		},
-	}
-
-	result, err := PostDataProcessAsyncHelper(ctx, params)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	expectedPrefix := "x-tos-async-process=audio/convert,f_wav,ss_1,t_3,ar_44100,ab_128000,af_s16"
-	if !strings.HasPrefix(result, expectedPrefix) {
-		t.Fatalf("unexpected canonical uri body: %s", result)
-	}
-	if !strings.Contains(result, "&x-tos-save-object=") {
-		t.Fatalf("missing save-object in body: %s", result)
-	}
-	if !strings.Contains(result, "&x-tos-save-bucket=") {
-		t.Fatalf("missing save-bucket in body: %s", result)
+
+	expected := "image/watermark,text_dG9zIHRlc3Q/" +
+		"blindwatermark,text_dG9zdGVzdDEyMw,version_2,level_2/" +
+		"setaigcmetadata,Label_dGVzdF9sYWJlbA,ContentProducer_dGVzdF9wcm9kdWNlcg,ProduceID_dGVzdF9wcm9kdWNlcl9pZA," +
+		"ContentPropagator_dGVzdF9wcm9wYWdhdG9y,PropagateID_dGVzdF9wcm9wYWdhdG9yX2lk," +
+		"ReservedCode1_dGVzdF9yZXNlcnZlZF9jb2RlXzE,ReservedCode2_dGVzdF9yZXNlcnZlZF9jb2RlXzI/" +
+		"setc2pametadata,AppID_tos-functional-test,Manifest_eyJjbGFpbSI6InBvc3QtaW1hZ2UtcHJvY2VzcyJ9" +
+		"&x-tos-save-object=cG9zdC9pbWFnZS9jb21iaW5lZC5qcGc" +
+		"&x-tos-save-bucket=dGFyZ2V0LWJ1Y2tldA"
+	if result != expected {
+		t.Fatalf("expected %q, got %q", expected, result)
 	}
 }
 
-func TestPostDataProcessAsyncHelper_AudioConcat(t *testing.T) {
-	ctx := context.Background()
-	channels := 2
-	params := PostDataProcessAsyncParams{
-		PostProcessAsyncType: enum.PostProcessAsyncTypeAudio,
-		AudioProcessAsyncParams: &AudioProcessAsyncParams{
-			Bucket:       "test-bucket",
-			TargetObject: "target.mp3",
-			SaveAsParams: &SaveAsParams{
-				SaveObject: "dp-test/audio/concat_output.mp3",
-			},
-			ConcatParams: &AudioConcatParams{
-				ContainerFormat: "mp3",
-				Channels:        &channels,
-				PreFragments: []AudioConcatFragment{
-					{Object: "pre-1.mp3"},
-				},
-				SurFragments: []AudioConcatFragment{
-					{Object: "sur-1.mp3", Start: intPtr(2), Duration: intPtr(4)},
-				},
-			},
-		},
+func TestPostDataProcessHelper_ImageSaveAsRequiresObject(t *testing.T) {
+	_, err := PostDataProcessHelper(context.Background(), PostDataProcessParams{
+		PostProcessType: enum.PostProcessTypeImage,
+		ImageProcessParams: []ImageProcessParams{{
+			Operation:    enum.ImageOperationResize,
+			ResizeParams: &ImageResizeParams{W: intPtr(50)},
+		}},
+		SaveAsParams: &SaveAsParams{SaveBucket: "target-bucket"},
+	})
+	if err == nil || !strings.Contains(err.Error(), "SaveAsParams.SaveObject") {
+		t.Fatalf("expected required SaveObject error, got %v", err)
+	}
+}
+
+func TestPostDataProcessAsyncHelper_RequiresJobFields(t *testing.T) {
+	_, err := PostDataProcessAsyncHelper(context.Background(), PostDataProcessAsyncParams{})
+	if err == nil || !strings.Contains(err.Error(), "JobType is required") {
+		t.Fatalf("expected JobType error, got %v", err)
 	}
 
-	result, err := PostDataProcessAsyncHelper(ctx, params)
+	_, err = PostDataProcessAsyncHelper(context.Background(), PostDataProcessAsyncParams{
+		JobType: ProcessJobTypeTranscode,
+	})
+	if err == nil || !strings.Contains(err.Error(), "JobBody is required") {
+		t.Fatalf("expected JobBody error, got %v", err)
+	}
+}
+
+func TestPostDataProcessAsyncHelper_AudioConvertJSON(t *testing.T) {
+	result, err := PostDataProcessAsyncHelper(context.Background(), PostDataProcessAsyncParams{
+		JobType: ProcessJobTypeAudioConvert,
+		JobBody: &AudioConvertJobBody{
+			Input:              ProcessJobInput{Object: "audio/input.mp3"},
+			Output:             ProcessJobOutput{Region: "cn-beijing", Bucket: "target-bucket", Object: "audio/output.wav"},
+			AudioConvertConfig: AudioConvertJobConfig{ContainerFormat: "wav"},
+		},
+	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if !strings.HasPrefix(result, "x-tos-async-process=audio/concat,f_mp3,ac_2/pre,o_") {
-		t.Fatalf("unexpected canonical uri body: %s", result)
+	if strings.Contains(result, "x-tos-async-process=") {
+		t.Fatalf("async helper must return JSON, got %s", result)
 	}
-	if !strings.Contains(result, "/sur,o_") || !strings.Contains(result, "ss_2,t_4") {
-		t.Fatalf("unexpected concat canonical uri body: %s", result)
+	var body struct {
+		Input              ProcessJobInput       `json:"Input"`
+		Output             ProcessJobOutput      `json:"Output"`
+		AudioConvertConfig AudioConvertJobConfig `json:"AudioConvertConfig"`
 	}
-	if !strings.Contains(result, "&x-tos-save-object=") {
-		t.Fatalf("missing save-object in body: %s", result)
+	if err := json.Unmarshal([]byte(result), &body); err != nil {
+		t.Fatalf("async helper result is not JSON: %v", err)
+	}
+	if body.Input.Object != "audio/input.mp3" || body.Output.Object != "audio/output.wav" ||
+		body.AudioConvertConfig.ContainerFormat != "wav" {
+		t.Fatalf("unexpected audio convert JSON: %+v", body)
+	}
+}
+
+func TestPostDataProcessAsyncHelper_AudioConcatJSON(t *testing.T) {
+	result, err := PostDataProcessAsyncHelper(context.Background(), PostDataProcessAsyncParams{
+		JobType: ProcessJobTypeAudioConcat,
+		JobBody: &AudioConcatJobBody{
+			Input: AudioConcatInput{
+				Object:       "audio/input.mp3",
+				PreFragments: []AudioConcatPreFragment{{Object: "audio/pre.mp3"}},
+			},
+			Output:            ProcessJobOutput{Region: "cn-beijing", Bucket: "target-bucket", Object: "audio/output.mp3"},
+			AudioConcatConfig: AudioConcatConfig{ContainerFormat: "mp3"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if strings.Contains(result, "x-tos-async-process=") {
+		t.Fatalf("async helper must return JSON, got %s", result)
+	}
+	var body AudioConcatJobBody
+	if err := json.Unmarshal([]byte(result), &body); err != nil {
+		t.Fatalf("async helper result is not JSON: %v", err)
+	}
+	if body.Input.Object != "audio/input.mp3" || body.Output.Object != "audio/output.mp3" ||
+		body.AudioConcatConfig.ContainerFormat != "mp3" || len(body.Input.PreFragments) != 1 {
+		t.Fatalf("unexpected audio concat JSON: %+v", body)
 	}
 }
 

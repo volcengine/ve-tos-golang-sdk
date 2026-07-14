@@ -134,7 +134,7 @@ func (cli *ClientV2) getBucketType(ctx context.Context, bucketName string) (enum
 }
 
 // Close releases resources held by the client, including idle connections,
-// background DNS resolver goroutines, and credential refreshers.
+// in-flight DNS refreshes, and credential refreshers.
 func (cli *Client) Close() {
 	cli.mu.Lock()
 	defer cli.mu.Unlock()

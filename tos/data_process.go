@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"hash"
 	"io"
@@ -211,8 +212,107 @@ func (cli *ClientV2) PutDataProcess(ctx context.Context, input *PutObjectV2Input
 	}, nil
 }
 
+// parsePostProcessRequest 从请求体识别处理类型，并保留兼容旧版视频 JSON 的行为。
+func parsePostProcessRequest(body string) (enum.PostProcessType, string) {
+	trimmed := strings.TrimSpace(body)
+	if strings.HasPrefix(trimmed, "{") || strings.HasPrefix(trimmed, "[") {
+		var legacy struct {
+			CanonicalURI string `json:"CanonicalUri"`
+		}
+		if err := json.Unmarshal([]byte(trimmed), &legacy); err == nil {
+			return enum.PostProcessTypeVideo, legacy.CanonicalURI
+		}
+		return enum.PostProcessTypeVideo, ""
+	}
+
+	processURI := strings.TrimPrefix(trimmed, "x-tos-post-process=")
+	switch {
+	case strings.HasPrefix(processURI, "image/"):
+		return enum.PostProcessTypeImage, processURI
+	case strings.HasPrefix(processURI, "video/"):
+		return enum.PostProcessTypeVideo, processURI
+	case strings.HasPrefix(processURI, "doc-preview"):
+		return enum.PostProcessTypeDoc, processURI
+	default:
+		return "", processURI
+	}
+}
+
+// parsePostImageOutput 根据请求是否包含 SaveAs 区分结构化响应和由调用方负责关闭的响应流。
+func parsePostImageOutput(res *Response, output *PostDPOutput, saveAs bool) (*PostDPOutput, error) {
+	rawContentType := res.Header.Get(HeaderContentType)
+	imageOutput := &ImageProcessOutput{}
+	output.ImageProcessOutput = imageOutput
+	if !saveAs {
+		imageOutput.Content = res.Body
+		imageOutput.ContentType = rawContentType
+		imageOutput.ContentLength = res.ContentLength
+		return output, nil
+	}
+
+	defer res.Close()
+	if err := marshalOutput(res, imageOutput); err != nil {
+		return nil, err
+	}
+	return output, nil
+}
+
+func usesGenericVideoSaveAs(processURI string) bool {
+	if strings.HasPrefix(processURI, "video/remux") {
+		return true
+	}
+	return strings.HasPrefix(processURI, "video/convert") && !strings.Contains(processURI, ",f_pcm")
+}
+
+// parsePostVideoOutput 根据协议版本和请求操作区分旧版视频响应与新版 Convert/Remux SaveAs 响应。
+func parsePostVideoOutput(res *Response, output *PostDPOutput, processURI string, legacyJSON bool) (*PostDPOutput, error) {
+	defer res.Close()
+
+	// 旧版 JSON 同步 Transcode 的 bucket/object/object_size/status 历史上会反序列化到
+	// PcmDataProcessOutput。即使 JSON 中带 CanonicalUri，也必须保留该公开字段行为。
+	if !legacyJSON && usesGenericVideoSaveAs(processURI) {
+		var response struct {
+			Bucket     string                      `json:"bucket"`
+			Object     string                      `json:"object"`
+			FileSize   int64                       `json:"fileSize,string"`
+			ObjectSize int64                       `json:"object_size,string"`
+			Status     enum.VideoDataProcessStatus `json:"status"`
+		}
+		if err := marshalOutput(res, &response); err != nil {
+			return nil, err
+		}
+		size := response.ObjectSize
+		if size == 0 {
+			size = response.FileSize
+		}
+		output.VideoProcessOutput = &VideoProcessOutput{
+			SaveAsBucket:     response.Bucket,
+			SaveAsObject:     response.Object,
+			SaveAsObjectSize: size,
+			SaveAsStatus:     response.Status,
+		}
+		return output, nil
+	}
+
+	if err := marshalOutput(res, output); err != nil {
+		return nil, err
+	}
+	return output, nil
+}
+
+// parsePostUntypedOutput 校验尚无类型化响应的 Post 操作，避免将 Doc 等响应误判成视频。
+func parsePostUntypedOutput(res *Response, output *PostDPOutput) (*PostDPOutput, error) {
+	defer res.Close()
+	var raw json.RawMessage
+	if err := marshalOutput(res, &raw); err != nil {
+		return nil, err
+	}
+	return output, nil
+}
+
 // PostDataProcess 通过 POST 请求对 TOS 对象进行同步数据处理。
-// PostProcess 字段支持两种格式：x-tos-process 风格字符串或 JSON，SDK 会自动补全 "x-tos-post-process=" 前缀。
+// PostProcess 字段支持 Post 处理流水线字符串或旧版 JSON，SDK 会自动补全
+// "x-tos-post-process=" 前缀。
 func (cli *ClientV2) PostDataProcess(ctx context.Context, input *PostDPInput) (*PostDPOutput, error) {
 	if input == nil {
 		return nil, InputIsNilClientError
@@ -225,7 +325,7 @@ func (cli *ClientV2) PostDataProcess(ctx context.Context, input *PostDPInput) (*
 	}
 
 	// --- 自动补全 post-process 前缀：用户传入裸 process 字符串时补 "x-tos-post-process="，JSON 格式不补 ---
-	postProcessBody := input.PostProcess
+	postProcessBody := strings.TrimSpace(input.PostProcess)
 	if postProcessBody != "" &&
 		!strings.HasPrefix(postProcessBody, "x-tos-post-process=") &&
 		!strings.HasPrefix(postProcessBody, "{") &&
@@ -233,29 +333,42 @@ func (cli *ClientV2) PostDataProcess(ctx context.Context, input *PostDPInput) (*
 		postProcessBody = "x-tos-post-process=" + postProcessBody
 	}
 
-	// x-tos-post-process 作为 query key 标记（值为空），实际参数通过 body 传递
+	// x-tos-post-process 作为 query key 标记（值为空），实际参数通过 body 传递。
+	// 新版 Post 视频协议使用 text/plain；保留旧版 JSON body 的 application/json 兼容行为。
+	legacyJSON := strings.HasPrefix(postProcessBody, "{") || strings.HasPrefix(postProcessBody, "[")
+	contentType := "text/plain"
+	if legacyJSON {
+		contentType = "application/json"
+	}
+	processType, processURI := parsePostProcessRequest(postProcessBody)
+
 	res, err := cli.newBuilder(input.Bucket, input.Key).
 		SetGeneric(input.GenericInput).
 		WithQuery("x-tos-post-process", "").
+		WithHeader(HeaderContentType, contentType).
 		WithRetry(OnRetryFromStart, StatusCodeClassifier{}).
 		Request(ctx, http.MethodPost, bytes.NewReader([]byte(postProcessBody)), cli.roundTripper(http.StatusOK))
 	if err != nil {
 		return nil, err
 	}
-	defer res.Close()
 
-	output := PostDPOutput{
+	output := &PostDPOutput{
 		RequestInfo: res.RequestInfo(),
 	}
-	if err = marshalOutput(res, &output); err != nil {
-		return nil, err
+	switch processType {
+	case enum.PostProcessTypeImage:
+		return parsePostImageOutput(res, output, strings.Contains(processURI, "&x-tos-save-object="))
+	case enum.PostProcessTypeVideo:
+		return parsePostVideoOutput(res, output, processURI, legacyJSON)
+	default:
+		return parsePostUntypedOutput(res, output)
 	}
-	return &output, nil
 }
 
-// PostDataProcessAsync 提交异步数据处理任务，支持两种模式：
-// 1. Job 模式：设置 JobType + JobBody，通过 job_type + media_jobs/file_jobs query 提交。
-// 2. async-process 模式：设置 Key + PostProcess，通过 x-tos-async-process query 提交（仅音频保留此路径）。
+// PostDataProcessAsync 提交异步数据处理任务。新调用应设置 JobType + JobBody，
+// SDK 将结构化 JobBody 序列化为 JSON；PostDataProcessAsyncHelper 返回的 JSON 字符串
+// 也可以直接作为 JobBody 传入。请求通过 job_type + media_jobs/file_jobs query 提交。
+// Key + PostProcess 的 x-tos-async-process 模式仅为旧版兼容路径。
 func (cli *ClientV2) PostDataProcessAsync(ctx context.Context, input *PostDPAsyncInput) (*PostDPAsyncOutput, error) {
 	if input == nil {
 		return nil, InputIsNilClientError
@@ -263,13 +376,16 @@ func (cli *ClientV2) PostDataProcessAsync(ctx context.Context, input *PostDPAsyn
 	if err := isValidBucketName(input.Bucket, cli.isCustomDomain); err != nil {
 		return nil, err
 	}
+	if input.JobBody != nil && input.JobType == "" {
+		return nil, fmt.Errorf("tos: JobType is required when JobBody is set")
+	}
 
 	if input.JobType != "" {
 		// --- Job 模式：JobBody 序列化为 JSON，通过 job_type + media_jobs/file_jobs query 提交 ---
 		if input.JobBody == nil {
 			return nil, fmt.Errorf("tos: JobBody is required when JobType is set")
 		}
-		data, _, err := marshalInput("PostDataProcessAsyncInput", input.JobBody)
+		data, err := marshalPostDataProcessAsyncJobBody(input.JobBody)
 		if err != nil {
 			return nil, err
 		}
@@ -296,7 +412,7 @@ func (cli *ClientV2) PostDataProcessAsync(ctx context.Context, input *PostDPAsyn
 		return &output, nil
 	}
 
-	// --- async-process 模式：仅音频保留此路径，process 字符串作为 body 提交 ---
+	// Deprecated: 旧版 async-process 模式，query-string process 作为 body 提交。
 	if input.Key == "" {
 		return nil, fmt.Errorf("tos: Key is required for async-process mode")
 	}
@@ -330,6 +446,27 @@ func (cli *ClientV2) PostDataProcessAsync(ctx context.Context, input *PostDPAsyn
 		return nil, err
 	}
 	return &output, nil
+}
+
+func marshalPostDataProcessAsyncJobBody(jobBody interface{}) ([]byte, error) {
+	var raw []byte
+	switch body := jobBody.(type) {
+	case string:
+		raw = []byte(body)
+	case []byte:
+		raw = body
+	case json.RawMessage:
+		raw = body
+	default:
+		data, _, err := marshalInput("PostDataProcessAsyncInput.JobBody", jobBody)
+		return data, err
+	}
+
+	raw = bytes.TrimSpace(raw)
+	if len(raw) == 0 || raw[0] != '{' || !json.Valid(raw) {
+		return nil, fmt.Errorf("tos: JobBody must contain a valid JSON object")
+	}
+	return raw, nil
 }
 
 // GetDPAsyncResult 查询异步数据处理任务结果，支持两种模式：

@@ -23,6 +23,9 @@ func GetDataProcessHelper(ctx context.Context, params GetDataProcessParams) (str
 		if params.VideoProcessParams == nil {
 			return "", fmt.Errorf("tos: VideoProcessParams is required for video process type")
 		}
+		if params.VideoProcessParams.ConvertParams != nil || params.VideoProcessParams.RemuxParams != nil {
+			return "", fmt.Errorf("tos: video/convert and video/remux are only supported by PostDataProcess")
+		}
 		if params.VideoProcessParams.SnapshotsParams != nil {
 			return "", fmt.Errorf("tos: video/snapshots is only supported by PostDataProcess")
 		}
@@ -77,7 +80,16 @@ func PutDataProcessHelper(ctx context.Context, params PutDataProcessParams) (str
 		}
 		return "", fmt.Errorf("tos: ImageOperations or ImageProcessParams is required for image put process type")
 	case enum.PutProcessTypeVideo:
-		if params.VideoProcessParams != nil && params.VideoProcessParams.TranscodeParams != nil {
+		if params.VideoProcessParams == nil {
+			return "", fmt.Errorf("tos: VideoProcessParams.TranscodeParams is required for video put process type")
+		}
+		if count := countVideoProcessOperations(params.VideoProcessParams); count > 1 {
+			return "", fmt.Errorf("tos: only one video operation can be specified")
+		}
+		if params.VideoProcessParams.ConvertParams != nil || params.VideoProcessParams.RemuxParams != nil {
+			return "", fmt.Errorf("tos: video/convert and video/remux are only supported by PostDataProcess")
+		}
+		if params.VideoProcessParams.TranscodeParams != nil {
 			data, err := json.Marshal(params.VideoProcessParams.TranscodeParams)
 			if err != nil {
 				return "", fmt.Errorf("tos: failed to marshal VideoTranscodeParams: %w", err)
@@ -95,8 +107,7 @@ func PutDataProcessHelper(ctx context.Context, params PutDataProcessParams) (str
 	}
 }
 
-// PostDataProcessHelper 将 PostDataProcessParams 结构化参数转换为 PostProcess 字符串。
-// 视频 snapshots/PCM 走 query-string + SaveAs query 参数风格；transcode 走 JSON 风格。
+// PostDataProcessHelper 将 PostDataProcessParams 结构化参数转换为 query-string 风格的 PostProcess 字符串。
 func PostDataProcessHelper(ctx context.Context, params PostDataProcessParams) (string, error) {
 	switch params.PostProcessType {
 	case enum.PostProcessTypeImage:
@@ -105,12 +116,38 @@ func PostDataProcessHelper(ctx context.Context, params PostDataProcessParams) (s
 			return "", err
 		}
 		if params.SaveAsParams != nil {
-			process += buildSaveAsString(params.SaveAsParams)
+			saveAs, err := buildPostImageSaveAsQuery(params.SaveAsParams)
+			if err != nil {
+				return "", err
+			}
+			process += saveAs
 		}
 		return process, nil
 	case enum.PostProcessTypeVideo:
 		if params.VideoProcessParams == nil {
 			return "", fmt.Errorf("tos: VideoProcessParams is required for video post process type")
+		}
+		if count := countVideoProcessOperations(params.VideoProcessParams); count > 1 {
+			return "", fmt.Errorf("tos: only one video operation can be specified")
+		}
+		if params.VideoProcessParams.ConvertParams != nil || params.VideoProcessParams.RemuxParams != nil {
+			var (
+				process string
+				err     error
+			)
+			if params.VideoProcessParams.ConvertParams != nil {
+				process, err = buildVideoConvertPostProcessString(params.VideoProcessParams.ConvertParams)
+			} else {
+				process, err = buildVideoRemuxPostProcessString(params.VideoProcessParams.RemuxParams)
+			}
+			if err != nil {
+				return "", err
+			}
+			saveAs, err := buildPostVideoSaveAsQuery(params.SaveAsParams)
+			if err != nil {
+				return "", err
+			}
+			return process + saveAs, nil
 		}
 		if params.VideoProcessParams.InfoParams != nil ||
 			params.VideoProcessParams.PM3U8Params != nil ||
@@ -140,13 +177,8 @@ func PostDataProcessHelper(ctx context.Context, params PostDataProcessParams) (s
 			}
 			return process, nil
 		}
-		// 视频 transcode 走 JSON
 		if params.VideoProcessParams.TranscodeParams != nil {
-			data, err := json.Marshal(params.VideoProcessParams.TranscodeParams)
-			if err != nil {
-				return "", fmt.Errorf("tos: failed to marshal VideoTranscodeParams: %w", err)
-			}
-			return string(data), nil
+			return "", fmt.Errorf("tos: VideoProcessParams.TranscodeParams uses legacy JSON and is not supported by PostDataProcessHelper; use ConvertParams for synchronous processing or PostDataProcessAsync with TranscodeJobBody")
 		}
 		// 视频 snapshot 走 query-string 风格
 		process, err := buildVideoProcessString(params.VideoProcessParams)
@@ -171,18 +203,20 @@ func PostDataProcessHelper(ctx context.Context, params PostDataProcessParams) (s
 	}
 }
 
-// PostDataProcessAsyncHelper 将 PostDataProcessAsyncParams 结构化参数转换为异步请求体。
-// 当前仅 audio 保留 x-tos-async-process 路径，其余异步能力统一走 Job 模式。
+// PostDataProcessAsyncHelper 将 JobBody 序列化为 Post 异步处理使用的 JSON 请求体。
+// 返回值可直接赋给 PostDPAsyncInput.JobBody，并配合相同的 JobType 提交。
 func PostDataProcessAsyncHelper(ctx context.Context, params PostDataProcessAsyncParams) (string, error) {
-	switch params.PostProcessAsyncType {
-	case enum.PostProcessAsyncTypeAudio:
-		if params.AudioProcessAsyncParams == nil {
-			return "", fmt.Errorf("tos: AudioProcessAsyncParams is required")
-		}
-		return buildAudioAsyncProcessBody(params.AudioProcessAsyncParams)
-	default:
-		return "", fmt.Errorf("tos: async-process helper only supports audio; use Job mode for %s", params.PostProcessAsyncType)
+	if params.JobType == "" {
+		return "", fmt.Errorf("tos: JobType is required for Post async processing")
 	}
+	if params.JobBody == nil {
+		return "", fmt.Errorf("tos: JobBody is required for Post async processing")
+	}
+	data, _, err := marshalInput("PostDataProcessAsyncParams.JobBody", params.JobBody)
+	if err != nil {
+		return "", err
+	}
+	return string(data), nil
 }
 
 // ==================== 内部拼接函数 ====================
@@ -325,25 +359,25 @@ func buildSingleImageOperation(p ImageProcessParams) (string, error) {
 		}
 		a := p.AIGCMetadataParams
 		if a.Label != "" {
-			kvParts = append(kvParts, "label_"+a.Label)
+			kvParts = append(kvParts, "Label_"+a.Label)
 		}
 		if a.ContentProducer != "" {
-			kvParts = append(kvParts, "contentproducer_"+a.ContentProducer)
+			kvParts = append(kvParts, "ContentProducer_"+a.ContentProducer)
 		}
 		if a.ProduceID != "" {
-			kvParts = append(kvParts, "produceid_"+a.ProduceID)
+			kvParts = append(kvParts, "ProduceID_"+a.ProduceID)
 		}
 		if a.ContentPropagator != "" {
-			kvParts = append(kvParts, "contentpropagator_"+a.ContentPropagator)
+			kvParts = append(kvParts, "ContentPropagator_"+a.ContentPropagator)
 		}
 		if a.PropagateID != "" {
-			kvParts = append(kvParts, "propagateid_"+a.PropagateID)
+			kvParts = append(kvParts, "PropagateID_"+a.PropagateID)
 		}
 		if a.ReservedCode1 != "" {
-			kvParts = append(kvParts, "reservedcode1_"+a.ReservedCode1)
+			kvParts = append(kvParts, "ReservedCode1_"+a.ReservedCode1)
 		}
 		if a.ReservedCode2 != "" {
-			kvParts = append(kvParts, "reservedcode2_"+a.ReservedCode2)
+			kvParts = append(kvParts, "ReservedCode2_"+a.ReservedCode2)
 		}
 
 	case enum.ImageOperationGetAIGCMetadata, enum.ImageOperationGetC2PAMetadata, enum.ImageOperationAiTag:
@@ -780,6 +814,274 @@ func buildVideoPCMPostProcessString(params *VideoPCMParams) (string, error) {
 	return fmt.Sprintf("video/convert,f_pcm,acodec_pcm_s16le,ac_%d,ar_%d,vn_1", channels, sampleRate), nil
 }
 
+func countVideoProcessOperations(params *VideoProcessParams) int {
+	if params == nil {
+		return 0
+	}
+	count := 0
+	if params.InfoParams != nil {
+		count++
+	}
+	if params.SnapshotParams != nil {
+		count++
+	}
+	if params.PM3U8Params != nil {
+		count++
+	}
+	if params.EmbeddingParams != nil {
+		count++
+	}
+	if params.UnderstandingParams != nil {
+		count++
+	}
+	if params.AIGCMetadataParams != nil {
+		count++
+	}
+	if params.C2PAMetadataParams != nil {
+		count++
+	}
+	if params.SnapshotsParams != nil {
+		count++
+	}
+	if params.TranscodeParams != nil {
+		count++
+	}
+	if params.PCMParams != nil {
+		count++
+	}
+	if params.ConvertParams != nil {
+		count++
+	}
+	if params.RemuxParams != nil {
+		count++
+	}
+	return count
+}
+
+func buildVideoConvertPostProcessString(params *VideoConvertParams) (string, error) {
+	if params == nil {
+		return "", fmt.Errorf("tos: VideoConvertParams is required")
+	}
+	if params.Format == "" {
+		return "", fmt.Errorf("tos: VideoConvertParams.Format is required")
+	}
+
+	parts := []string{"video/convert", "f_" + params.Format}
+	if params.StartTime != nil {
+		if *params.StartTime < 0 {
+			return "", fmt.Errorf("tos: VideoConvertParams.StartTime must be non-negative")
+		}
+		parts = append(parts, "ss_"+strconv.Itoa(*params.StartTime))
+	}
+	if params.Duration != nil {
+		if err := validatePostVideoIntRange("VideoConvertParams.Duration", *params.Duration, 0, 900000); err != nil {
+			return "", err
+		}
+		parts = append(parts, "t_"+strconv.Itoa(*params.Duration))
+	}
+	if params.HLSSegmentDuration != nil {
+		if err := validatePostVideoIntRange("VideoConvertParams.HLSSegmentDuration", *params.HLSSegmentDuration, 0, 3600000); err != nil {
+			return "", err
+		}
+		parts = append(parts, "st_"+strconv.Itoa(*params.HLSSegmentDuration))
+	}
+	if params.RemoveVideo != nil {
+		if err := validatePostVideoFlag("VideoConvertParams.RemoveVideo", *params.RemoveVideo); err != nil {
+			return "", err
+		}
+		parts = append(parts, "vn_"+strconv.Itoa(*params.RemoveVideo))
+	}
+	if params.VideoCodec != "" {
+		parts = append(parts, "vcodec_"+params.VideoCodec)
+	}
+	if params.FPS != nil {
+		if err := validatePostVideoIntRange("VideoConvertParams.FPS", *params.FPS, 0, 60); err != nil {
+			return "", err
+		}
+		parts = append(parts, "fps_"+strconv.Itoa(*params.FPS))
+	}
+	if params.PixelFormat != "" {
+		parts = append(parts, "pixfmt_"+params.PixelFormat)
+	}
+	if params.Width != nil {
+		if err := validatePostVideoDimension("VideoConvertParams.Width", *params.Width); err != nil {
+			return "", err
+		}
+		parts = append(parts, "w_"+strconv.Itoa(*params.Width))
+	}
+	if params.Height != nil {
+		if err := validatePostVideoDimension("VideoConvertParams.Height", *params.Height); err != nil {
+			return "", err
+		}
+		parts = append(parts, "h_"+strconv.Itoa(*params.Height))
+	}
+	if params.VideoBitRate != nil {
+		if err := validatePostVideoIntRange("VideoConvertParams.VideoBitRate", *params.VideoBitRate, 10000, 50000000); err != nil {
+			return "", err
+		}
+		parts = append(parts, "vb_"+strconv.Itoa(*params.VideoBitRate))
+	}
+	if params.MaxRate != nil {
+		if params.VideoBitRate == nil {
+			return "", fmt.Errorf("tos: VideoConvertParams.MaxRate requires VideoBitRate")
+		}
+		if err := validatePostVideoIntRange("VideoConvertParams.MaxRate", *params.MaxRate, 10000, 50000000); err != nil {
+			return "", err
+		}
+		if *params.MaxRate < *params.VideoBitRate {
+			return "", fmt.Errorf("tos: VideoConvertParams.MaxRate must be greater than or equal to VideoBitRate")
+		}
+		parts = append(parts, "maxrate_"+strconv.Itoa(*params.MaxRate))
+	}
+	if params.BufferSize != nil {
+		if params.MaxRate == nil {
+			return "", fmt.Errorf("tos: VideoConvertParams.BufferSize requires MaxRate")
+		}
+		if err := validatePostVideoIntRange("VideoConvertParams.BufferSize", *params.BufferSize, 1000000, 128000000); err != nil {
+			return "", err
+		}
+		parts = append(parts, "bufsize_"+strconv.Itoa(*params.BufferSize))
+	}
+	if params.CRF != nil {
+		if err := validatePostVideoIntRange("VideoConvertParams.CRF", *params.CRF, 0, 51); err != nil {
+			return "", err
+		}
+		parts = append(parts, "crf_"+strconv.Itoa(*params.CRF))
+	}
+	if params.RemoveAudio != nil {
+		if err := validatePostVideoFlag("VideoConvertParams.RemoveAudio", *params.RemoveAudio); err != nil {
+			return "", err
+		}
+		parts = append(parts, "an_"+strconv.Itoa(*params.RemoveAudio))
+	}
+	if params.AudioCodec != "" {
+		parts = append(parts, "acodec_"+params.AudioCodec)
+	}
+	if params.SampleRate != nil {
+		if *params.SampleRate < 0 {
+			return "", fmt.Errorf("tos: VideoConvertParams.SampleRate must be non-negative")
+		}
+		parts = append(parts, "ar_"+strconv.Itoa(*params.SampleRate))
+	}
+	if params.Channels != nil {
+		if *params.Channels < 0 {
+			return "", fmt.Errorf("tos: VideoConvertParams.Channels must be non-negative")
+		}
+		parts = append(parts, "ac_"+strconv.Itoa(*params.Channels))
+	}
+	if params.AudioBitRate != nil {
+		if err := validatePostVideoIntRange("VideoConvertParams.AudioBitRate", *params.AudioBitRate, 8000, 1000000); err != nil {
+			return "", err
+		}
+		parts = append(parts, "ab_"+strconv.Itoa(*params.AudioBitRate))
+	}
+	if params.SampleFormat != "" {
+		parts = append(parts, "af_"+params.SampleFormat)
+	}
+
+	var err error
+	if params.AIGCMetadata != nil {
+		parts, err = appendPostVideoJSONParam(parts, "aigc_", params.AIGCMetadata)
+		if err != nil {
+			return "", err
+		}
+	}
+	if params.C2PAMetadata != nil {
+		parts, err = appendPostVideoJSONParam(parts, "c2pa_", params.C2PAMetadata)
+		if err != nil {
+			return "", err
+		}
+	}
+	if len(params.Watermarks) > 0 {
+		parts, err = appendPostVideoJSONParam(parts, "watermark_", params.Watermarks)
+		if err != nil {
+			return "", err
+		}
+	}
+	if params.BlindWatermark != nil {
+		parts, err = appendPostVideoJSONParam(parts, "blindwatermark_", params.BlindWatermark)
+		if err != nil {
+			return "", err
+		}
+	}
+	return strings.Join(parts, ","), nil
+}
+
+func buildVideoRemuxPostProcessString(params *VideoRemuxParams) (string, error) {
+	if params == nil {
+		return "", fmt.Errorf("tos: VideoRemuxParams is required")
+	}
+	if params.Format == "" {
+		return "", fmt.Errorf("tos: VideoRemuxParams.Format is required")
+	}
+
+	parts := []string{"video/remux", "f_" + params.Format}
+	if params.HLSSegmentDuration != nil {
+		if err := validatePostVideoIntRange("VideoRemuxParams.HLSSegmentDuration", *params.HLSSegmentDuration, 0, 3600000); err != nil {
+			return "", err
+		}
+		parts = append(parts, "st_"+strconv.Itoa(*params.HLSSegmentDuration))
+	}
+	if params.StreamIndex != nil {
+		if *params.StreamIndex < 0 {
+			return "", fmt.Errorf("tos: VideoRemuxParams.StreamIndex must be non-negative")
+		}
+		parts = append(parts, "ti_"+strconv.Itoa(*params.StreamIndex))
+	}
+
+	var err error
+	if params.AIGCMetadata != nil {
+		parts, err = appendPostVideoJSONParam(parts, "aigc_", params.AIGCMetadata)
+		if err != nil {
+			return "", err
+		}
+	}
+	if params.C2PAMetadata != nil {
+		parts, err = appendPostVideoJSONParam(parts, "c2pa_", params.C2PAMetadata)
+		if err != nil {
+			return "", err
+		}
+	}
+	return strings.Join(parts, ","), nil
+}
+
+func appendPostVideoJSONParam(parts []string, prefix string, value interface{}) ([]string, error) {
+	encoded, err := encodePostVideoJSON(value)
+	if err != nil {
+		return nil, err
+	}
+	return append(parts, prefix+encoded), nil
+}
+
+func encodePostVideoJSON(value interface{}) (string, error) {
+	data, err := json.Marshal(value)
+	if err != nil {
+		return "", fmt.Errorf("tos: failed to marshal Post video parameter: %w", err)
+	}
+	return encodeBase64URLSafe(string(data)), nil
+}
+
+func validatePostVideoFlag(name string, value int) error {
+	if value != 0 && value != 1 {
+		return fmt.Errorf("tos: %s must be 0 or 1", name)
+	}
+	return nil
+}
+
+func validatePostVideoIntRange(name string, value, min, max int) error {
+	if value < min || value > max {
+		return fmt.Errorf("tos: %s must be between %d and %d", name, min, max)
+	}
+	return nil
+}
+
+func validatePostVideoDimension(name string, value int) error {
+	if value < 128 || value > 4096 || value%2 != 0 {
+		return fmt.Errorf("tos: %s must be an even number between 128 and 4096", name)
+	}
+	return nil
+}
+
 func isValidPCMSampleRate(sampleRate int) bool {
 	switch sampleRate {
 	case 8000, 11025, 16000, 22050, 24000, 32000, 44100, 48000, 88200, 96000:
@@ -966,131 +1268,28 @@ func buildPostSaveAsQuery(params *SaveAsParams) string {
 	return "&" + strings.Join(parts, "&")
 }
 
-// buildAudioAsyncProcessBody 拼接音频 async-process 路径的请求体（"x-tos-async-process=audio/convert,...&x-tos-save-object=xxx&x-tos-save-bucket=xxx"）。
-func buildAudioAsyncProcessBody(params *AudioProcessAsyncParams) (string, error) {
-	if params == nil {
-		return "", fmt.Errorf("tos: AudioProcessAsyncParams is required")
-	}
-	if params.SaveAsParams == nil || params.SaveAsParams.SaveObject == "" {
-		return "", fmt.Errorf("tos: SaveAsParams.SaveObject is required for audio async process")
+func buildPostVideoSaveAsQuery(params *SaveAsParams) (string, error) {
+	if params == nil || params.SaveObject == "" {
+		return "", fmt.Errorf("tos: SaveAsParams.SaveObject is required for Post video processing")
 	}
 
-	var canonicalURI string
-	switch {
-	case params.ConvertParams != nil && params.ConcatParams != nil:
-		return "", fmt.Errorf("tos: only one audio async operation can be specified")
-	case params.ConvertParams != nil:
-		var err error
-		canonicalURI, err = buildAudioConvertCanonicalURI(params.ConvertParams)
-		if err != nil {
-			return "", err
-		}
-	case params.ConcatParams != nil:
-		var err error
-		canonicalURI, err = buildAudioConcatCanonicalURI(params.ConcatParams)
-		if err != nil {
-			return "", err
-		}
-	default:
-		return "", fmt.Errorf("tos: one audio async operation is required")
+	parts := []string{"x-tos-save-object=" + encodeBase64URLSafe(params.SaveObject)}
+	if params.SaveBucket != "" {
+		parts = append(parts, "x-tos-save-bucket="+encodeBase64URLSafe(params.SaveBucket))
 	}
-
-	body := "x-tos-async-process=" + canonicalURI
-	body += "&x-tos-save-object=" + base64.URLEncoding.EncodeToString([]byte(params.SaveAsParams.SaveObject))
-	if params.SaveAsParams.SaveBucket != "" {
-		body += "&x-tos-save-bucket=" + base64.URLEncoding.EncodeToString([]byte(params.SaveAsParams.SaveBucket))
-	}
-	return body, nil
+	return "&" + strings.Join(parts, "&"), nil
 }
 
-func buildAudioConvertCanonicalURI(params *AudioConvertParams) (string, error) {
-	if params == nil {
-		return "", fmt.Errorf("tos: AudioConvertParams is required")
-	}
-	if params.ContainerFormat == "" {
-		return "", fmt.Errorf("tos: AudioConvertParams.ContainerFormat is required")
+func buildPostImageSaveAsQuery(params *SaveAsParams) (string, error) {
+	if params == nil || params.SaveObject == "" {
+		return "", fmt.Errorf("tos: SaveAsParams.SaveObject is required for Post image processing")
 	}
 
-	parts := []string{"audio/convert", "f_" + params.ContainerFormat}
-	appendAudioConvertOptions(&parts, params.TimeInterval, params.SampleRate, params.Channels, params.BitRate, params.BitRateOpt, params.SampleFormat)
-	return strings.Join(parts, ","), nil
-}
-
-func buildAudioConcatCanonicalURI(params *AudioConcatParams) (string, error) {
-	if params == nil {
-		return "", fmt.Errorf("tos: AudioConcatParams is required")
+	parts := []string{"x-tos-save-object=" + encodeBase64URLSafe(params.SaveObject)}
+	if params.SaveBucket != "" {
+		parts = append(parts, "x-tos-save-bucket="+encodeBase64URLSafe(params.SaveBucket))
 	}
-	if params.ContainerFormat == "" {
-		return "", fmt.Errorf("tos: AudioConcatParams.ContainerFormat is required")
-	}
-	if len(params.PreFragments) == 0 && len(params.SurFragments) == 0 {
-		return "", fmt.Errorf("tos: at least one pre/sur fragment is required for audio concat")
-	}
-
-	parts := []string{"audio/concat", "f_" + params.ContainerFormat}
-	appendAudioConvertOptions(&parts, params.TimeInterval, params.SampleRate, params.Channels, params.BitRate, params.BitRateOpt, params.SampleFormat)
-
-	var builder strings.Builder
-	builder.WriteString(strings.Join(parts, ","))
-	for _, fragment := range params.PreFragments {
-		segment, err := buildAudioConcatFragmentSegment("pre", fragment)
-		if err != nil {
-			return "", err
-		}
-		builder.WriteString("/")
-		builder.WriteString(segment)
-	}
-	for _, fragment := range params.SurFragments {
-		segment, err := buildAudioConcatFragmentSegment("sur", fragment)
-		if err != nil {
-			return "", err
-		}
-		builder.WriteString("/")
-		builder.WriteString(segment)
-	}
-	return builder.String(), nil
-}
-
-func appendAudioConvertOptions(parts *[]string, interval *TimeInterval, sampleRate, channels, bitRate, bitRateOpt *int, sampleFormat string) {
-	if interval != nil {
-		*parts = append(*parts, "ss_"+strconv.Itoa(interval.Start))
-		if interval.Duration > 0 {
-			*parts = append(*parts, "t_"+strconv.Itoa(interval.Duration))
-		}
-	}
-	if sampleRate != nil {
-		*parts = append(*parts, "ar_"+strconv.Itoa(*sampleRate))
-	}
-	if channels != nil {
-		*parts = append(*parts, "ac_"+strconv.Itoa(*channels))
-	}
-	if bitRate != nil {
-		*parts = append(*parts, "ab_"+strconv.Itoa(*bitRate))
-	}
-	if bitRateOpt != nil {
-		*parts = append(*parts, "abopt_"+strconv.Itoa(*bitRateOpt))
-	}
-	if sampleFormat != "" {
-		*parts = append(*parts, "af_"+sampleFormat)
-	}
-}
-
-func buildAudioConcatFragmentSegment(kind string, fragment AudioConcatFragment) (string, error) {
-	if fragment.Object == "" {
-		return "", fmt.Errorf("tos: audio concat fragment object is required")
-	}
-
-	segmentParts := []string{
-		kind,
-		"o_" + base64.URLEncoding.EncodeToString([]byte(fragment.Object)),
-	}
-	if fragment.Start != nil {
-		segmentParts = append(segmentParts, "ss_"+strconv.Itoa(*fragment.Start))
-	}
-	if fragment.Duration != nil {
-		segmentParts = append(segmentParts, "t_"+strconv.Itoa(*fragment.Duration))
-	}
-	return strings.Join(segmentParts, ","), nil
+	return "&" + strings.Join(parts, "&"), nil
 }
 
 // ==================== MCAP 处理字符串拼接 ====================
@@ -1118,4 +1317,3 @@ func encodeBase64URLSafe(s string) string {
 	encoded := base64.URLEncoding.EncodeToString([]byte(s))
 	return strings.TrimRight(encoded, "=")
 }
-

@@ -1,4 +1,9 @@
 # ChangeLog of TOS SDK for Go
+## 版本号 v2.9.7 日期：2026-07-10
+- 新增 PutAccelerator、GetAccelerator、ListAccelerator 和 DeleteAccelerator 接口
+- AccessPoint 接口对齐 BucketAccountId、AccessPointType 和 Status 字段
+- 优化 DNS 缓存刷新机制，提升长时间运行稳定性
+
 ## 版本号 v2.9.6 日期：2026-06-22
 - 新增 CreateBucketCustomDomainToken 和 GetBucketCustomDomainToken 接口
 - 修复 PutObjectFromFile、UploadPartFromFile、UploadPartV2 等文件上传场景中文件变长可能读取超出预期长度的问题

@@ -3423,7 +3423,7 @@ type CreateAccessPointInput struct {
 	AccountID       string                 `json:"-"`               // required
 	AccessPointName string                 `json:"-"`               // required
 	Bucket          string                 `json:"Bucket"`          // required
-	BucketAccountID string                 `json:"BucketAccountID"` // required
+	BucketAccountID string                 `json:"BucketAccountId"` // required
 	NetworkOrigin   enum.NetworkOriginType `json:"NetworkOrigin"`
 	VpcId           string                 `json:"VpcId"`
 }
@@ -3461,15 +3461,17 @@ type ListAccessPointsOutput struct {
 }
 
 type AccessPoint struct {
-	AccessPointName string                 `json:"Name"`
-	Alias           string                 `json:"Alias"`
-	Bucket          string                 `json:"Bucket"`
-	BucketAccountID string                 `json:"BucketAccountID"`
-	NetworkOrigin   enum.NetworkOriginType `json:"NetworkOrigin"`
-	AccessPointTrn  string                 `json:"AccessPointTrn"`
-	CreationDate    time.Time              `json:"CreationDate,omitempty"`
-	Endpoints       AccessPointEndpoints   `json:"Endpoints"`
-	VpcId           string                 `json:"VpcId"`
+	AccessPointName string                     `json:"Name"`
+	Alias           string                     `json:"Alias"`
+	Bucket          string                     `json:"Bucket"`
+	BucketAccountID string                     `json:"BucketAccountId"`
+	AccessPointType enum.AccessPointType       `json:"AccessPointType"`
+	Status          enum.AccessPointStatusType `json:"Status"`
+	NetworkOrigin   enum.NetworkOriginType     `json:"NetworkOrigin"`
+	AccessPointTrn  string                     `json:"AccessPointTrn"`
+	CreationDate    time.Time                  `json:"CreationDate,omitempty"`
+	Endpoints       AccessPointEndpoints       `json:"Endpoints"`
+	VpcId           string                     `json:"VpcId"`
 }
 
 type AccessPointEndpoints struct {
@@ -3499,9 +3501,78 @@ type ListBindAcceleratorForAccessPointOutput struct {
 }
 
 type Accelerator struct {
-	AcceleratorID   string `json:"Id"`
-	AcceleratorName string `json:"Name"`
-	AZ              string `json:"AZ"`
+	Account         string                   `json:"Account"`
+	AcceleratorID   string                   `json:"Id"`
+	AcceleratorName string                   `json:"Name"`
+	Region          string                   `json:"Region"`
+	AZ              string                   `json:"AZ"`
+	CreateTime      int64                    `json:"CreateTime"`
+	UpdateTime      int64                    `json:"UpdateTime"`
+	CacheCapacity   AcceleratorCacheCapacity `json:"CacheCapacity"`
+	CachePolicy     []AcceleratorCachePolicy `json:"CachePolicy,omitempty"`
+}
+
+type AcceleratorCacheCapacity struct {
+	Value int64  `json:"Value"`
+	Unit  string `json:"Unit"`
+}
+
+type AcceleratorCachePolicy struct {
+	CachePath       string   `json:"CachePath"`
+	IsSync          bool     `json:"IsSync,omitempty"`
+	IsPinned        bool     `json:"IsPinned,omitempty"`
+	TTL             int64    `json:"TTL,omitempty"`
+	ExcludePathList []string `json:"ExcludePathList,omitempty"`
+}
+
+type PutAcceleratorInput struct {
+	GenericInput    `json:"-"`
+	AccountID       string                   `json:"-"`
+	AcceleratorName string                   `json:"Name"`
+	Region          string                   `json:"Region"`
+	AZ              string                   `json:"AZ"`
+	Type            enum.AcceleratorType     `json:"Type,omitempty"`
+	CacheCapacity   AcceleratorCacheCapacity `json:"CacheCapacity"`
+	CachePolicy     []AcceleratorCachePolicy `json:"CachePolicy,omitempty"`
+}
+
+type PutAcceleratorOutput struct {
+	RequestInfo
+	AcceleratorID string `json:"Id"`
+}
+
+type GetAcceleratorInput struct {
+	GenericInput
+	AccountID     string
+	AcceleratorID string
+}
+
+type GetAcceleratorOutput struct {
+	RequestInfo
+	Accelerator
+}
+
+type ListAcceleratorInput struct {
+	GenericInput
+	AccountID  string
+	MaxResults int
+	NextToken  string
+}
+
+type ListAcceleratorOutput struct {
+	RequestInfo
+	Accelerators []Accelerator `json:"Accelerators"`
+	NextToken    string        `json:"NextToken"`
+}
+
+type DeleteAcceleratorInput struct {
+	GenericInput
+	AccountID     string
+	AcceleratorID string
+}
+
+type DeleteAcceleratorOutput struct {
+	RequestInfo
 }
 
 type ListBindAccessPointForAcceleratorInput struct {
