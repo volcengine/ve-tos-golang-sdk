@@ -1,4 +1,7 @@
 # ChangeLog of TOS SDK for Go
+## 版本号 v2.9.8 日期：2026-07-29
+- 修复预签名使用自定义请求时间时签名时间不一致的问题
+
 ## 版本号 v2.9.7 日期：2026-07-10
 - 新增 PutAccelerator、GetAccelerator、ListAccelerator 和 DeleteAccelerator 接口
 - AccessPoint 接口对齐 BucketAccountId、AccessPointType 和 Status 字段

@@ -289,6 +289,28 @@ func TestWorkflowMediaJobBuilders(t *testing.T) {
 		t.Fatalf("unexpected remux detail: %+v", remuxDetail)
 	}
 
+	speechInput, err := NewSpeechRecognitionWorkflowJobInput(CreateSpeechRecognitionWorkflowJobParams{
+		Bucket:       "media-bucket",
+		SourceKey:    "speech.wav",
+		Region:       "cn-beijing",
+		OutputObject: "speech/result.json",
+		SpeechRecognitionConfig: &SpeechRecognitionJobConfig{
+			Language:     "zh",
+			OutputFormat: "json",
+		},
+	})
+	if err != nil {
+		t.Fatalf("NewSpeechRecognitionWorkflowJobInput error: %v", err)
+	}
+	speechDetail := speechInput.JobDetail.(*WorkflowVideoJobDetail)
+	if speechInput.JobType != WorkflowJobTypeSpeechRecognition ||
+		speechDetail.Tag != string(WorkflowJobTypeSpeechRecognition) ||
+		speechDetail.SpeechRecognitionConfig == nil ||
+		speechDetail.SpeechRecognitionConfig.Language != "zh" ||
+		speechDetail.Output.Object != "speech/result.json" {
+		t.Fatalf("unexpected speech recognition detail: %+v", speechDetail)
+	}
+
 	compressInput, err := NewFileCompressWorkflowJobInput(CreateFileCompressWorkflowJobParams{
 		Bucket:       "file-bucket",
 		Region:       "cn-beijing",

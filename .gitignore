@@ -17,9 +17,4 @@ tos/tests/*.file
 tos/tests/*.download
 tos/tests/*.temp
 env.sh
-TOS SDK数据处理接口重构方案.md
-TOS数据处理接口整理.md
-数据处理接口测试文档.md
-新版SDK数据处理使用文档.md
-未调通算子清单.md
 testdata/

@@ -169,6 +169,24 @@ func NewVideoRemuxWorkflowJobInput(params CreateVideoRemuxWorkflowJobParams) (*C
 	})
 }
 
+// NewSpeechRecognitionWorkflowJobInput 构造语音识别的工作流 Job 输入。
+func NewSpeechRecognitionWorkflowJobInput(params CreateSpeechRecognitionWorkflowJobParams) (*CreateWorkflowJobInput, error) {
+	if params.SpeechRecognitionConfig == nil {
+		return nil, fmt.Errorf("tos: SpeechRecognitionConfig is required")
+	}
+	return newMediaWorkflowJobInput(workflowMediaJobBuildParams{
+		bucket:       params.Bucket,
+		jobType:      WorkflowJobTypeSpeechRecognition,
+		sourceKey:    params.SourceKey,
+		region:       params.Region,
+		outputBucket: params.OutputBucket,
+		outputObject: params.OutputObject,
+		jobDetail: &WorkflowVideoJobDetail{
+			SpeechRecognitionConfig: params.SpeechRecognitionConfig,
+		},
+	})
+}
+
 // NewFileCompressWorkflowJobInput 构造文件压缩的工作流 Job 输入，SourceKeys 和 SourcePrefix 二选一。
 func NewFileCompressWorkflowJobInput(params CreateFileCompressWorkflowJobParams) (*CreateWorkflowJobInput, error) {
 	if params.Region == "" {

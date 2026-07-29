@@ -1014,9 +1014,12 @@ func TestPostDataProcessAsyncHelper_AudioConvertJSON(t *testing.T) {
 	result, err := PostDataProcessAsyncHelper(context.Background(), PostDataProcessAsyncParams{
 		JobType: ProcessJobTypeAudioConvert,
 		JobBody: &AudioConvertJobBody{
-			Input:              ProcessJobInput{Object: "audio/input.mp3"},
-			Output:             ProcessJobOutput{Region: "cn-beijing", Bucket: "target-bucket", Object: "audio/output.wav"},
-			AudioConvertConfig: AudioConvertJobConfig{ContainerFormat: "wav"},
+			Input:  ProcessJobInput{Object: "audio/input.mp3"},
+			Output: ProcessJobOutput{Region: "cn-beijing", Bucket: "target-bucket", Object: "audio/output.wav"},
+			AudioConvertConfig: AudioConvertJobConfig{
+				ContainerFormat: "wav",
+				TimeInterval:    &TimeInterval{Start: 1000, Duration: 5000},
+			},
 		},
 	})
 	if err != nil {
@@ -1034,7 +1037,8 @@ func TestPostDataProcessAsyncHelper_AudioConvertJSON(t *testing.T) {
 		t.Fatalf("async helper result is not JSON: %v", err)
 	}
 	if body.Input.Object != "audio/input.mp3" || body.Output.Object != "audio/output.wav" ||
-		body.AudioConvertConfig.ContainerFormat != "wav" {
+		body.AudioConvertConfig.ContainerFormat != "wav" || body.AudioConvertConfig.TimeInterval == nil ||
+		body.AudioConvertConfig.TimeInterval.Start != 1000 || body.AudioConvertConfig.TimeInterval.Duration != 5000 {
 		t.Fatalf("unexpected audio convert JSON: %+v", body)
 	}
 }
@@ -1044,11 +1048,14 @@ func TestPostDataProcessAsyncHelper_AudioConcatJSON(t *testing.T) {
 		JobType: ProcessJobTypeAudioConcat,
 		JobBody: &AudioConcatJobBody{
 			Input: AudioConcatInput{
-				Object:       "audio/input.mp3",
-				PreFragments: []AudioConcatPreFragment{{Object: "audio/pre.mp3"}},
+				Object: "audio/input.mp3",
 			},
-			Output:            ProcessJobOutput{Region: "cn-beijing", Bucket: "target-bucket", Object: "audio/output.mp3"},
-			AudioConcatConfig: AudioConcatConfig{ContainerFormat: "mp3"},
+			Output: ProcessJobOutput{Region: "cn-beijing", Bucket: "target-bucket", Object: "audio/output.mp3"},
+			AudioConcatConfig: AudioConcatConfig{
+				ContainerFormat: "mp3",
+				PreFragments:    []AudioConcatPreFragment{{Object: "audio/pre.mp3", Start: 1000, Duration: 5000}},
+				SurFragments:    []AudioConcatPreFragment{{Object: "audio/sur.mp3"}},
+			},
 		},
 	})
 	if err != nil {
@@ -1062,8 +1069,41 @@ func TestPostDataProcessAsyncHelper_AudioConcatJSON(t *testing.T) {
 		t.Fatalf("async helper result is not JSON: %v", err)
 	}
 	if body.Input.Object != "audio/input.mp3" || body.Output.Object != "audio/output.mp3" ||
-		body.AudioConcatConfig.ContainerFormat != "mp3" || len(body.Input.PreFragments) != 1 {
+		body.AudioConcatConfig.ContainerFormat != "mp3" ||
+		len(body.AudioConcatConfig.PreFragments) != 1 || len(body.AudioConcatConfig.SurFragments) != 1 ||
+		body.AudioConcatConfig.PreFragments[0].Object != "audio/pre.mp3" ||
+		body.AudioConcatConfig.PreFragments[0].Start != 1000 ||
+		body.AudioConcatConfig.PreFragments[0].Duration != 5000 {
 		t.Fatalf("unexpected audio concat JSON: %+v", body)
+	}
+}
+
+func TestPostDataProcessAsyncHelper_SpeechRecognitionJSON(t *testing.T) {
+	result, err := PostDataProcessAsyncHelper(context.Background(), PostDataProcessAsyncParams{
+		JobType: ProcessJobTypeSpeechRecognition,
+		JobBody: &SpeechRecognitionJobBody{
+			Input: ProcessJobInput{Object: "audio/speech.wav"},
+			SpeechRecognitionConfig: SpeechRecognitionJobConfig{
+				Language:      "zh",
+				SingleSegment: false,
+				OutputFormat:  "json",
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if strings.Contains(result, "x-tos-async-process=") {
+		t.Fatalf("async helper must return JSON, got %s", result)
+	}
+	var body SpeechRecognitionJobBody
+	if err := json.Unmarshal([]byte(result), &body); err != nil {
+		t.Fatalf("async helper result is not JSON: %v", err)
+	}
+	if body.Input.Object != "audio/speech.wav" ||
+		body.SpeechRecognitionConfig.Language != "zh" ||
+		body.SpeechRecognitionConfig.OutputFormat != "json" {
+		t.Fatalf("unexpected speech recognition JSON: %+v", body)
 	}
 }
 

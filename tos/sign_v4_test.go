@@ -68,3 +68,28 @@ func TestAlgV4(t *testing.T) {
 	require.Equal(t, "20210721T104454Z", header.Get(v4Date))
 	require.Equal(t, "", header.Get(v4ContentSHA256))
 }
+
+func TestSignQueryUsesRequestDateConsistently(t *testing.T) {
+	requestDate := time.Date(2026, 7, 22, 23, 59, 59, 0, time.UTC)
+	newRequest := func(date time.Time) *Request {
+		return &Request{
+			Method:      http.MethodGet,
+			Host:        "bucket.tos-cn-beijing.volces.com",
+			Path:        "/test.txt",
+			Query:       make(url.Values),
+			Header:      make(http.Header),
+			RequestDate: date,
+		}
+	}
+
+	cred := NewStaticCredentials("AKIAIOSFODNN7EXAMPLE", "secret")
+	signer := NewSignV4(cred, "cn-beijing")
+	signer.now = func() time.Time { return requestDate.Add(2 * time.Second) }
+	actual := signer.SignQuery(newRequest(requestDate), time.Hour)
+
+	referenceSigner := NewSignV4(cred, "cn-beijing")
+	referenceSigner.now = func() time.Time { return requestDate }
+	expected := referenceSigner.SignQuery(newRequest(time.Time{}), time.Hour)
+
+	require.Equal(t, expected, actual)
+}

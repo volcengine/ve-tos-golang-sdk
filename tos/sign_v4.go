@@ -306,12 +306,12 @@ func (sv *SignV4) SignQuery(req *Request, ttl time.Duration) url.Values {
 
 func (sv *SignV4) SignQueryWithHeader(req *Request, ttl time.Duration, extraHeader map[string]string) url.Values {
 	now := sv.now()
+	if !req.RequestDate.IsZero() {
+		now = req.RequestDate.UTC()
+	}
 	date := now.Format(iso8601Layout)
 	query := req.Query
 	extra := make(url.Values)
-	if !req.RequestDate.IsZero() {
-		date = req.RequestDate.Format(iso8601Layout)
-	}
 
 	host := req.Host
 	if req.RequestHost != "" {
