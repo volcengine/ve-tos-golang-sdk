@@ -166,15 +166,16 @@ type QueryWorkflowJobsOutput struct {
 type WorkflowJobType string
 
 const (
-	WorkflowJobTypeAudioConvert   WorkflowJobType = "AudioConvert"
-	WorkflowJobTypeAudioConcat    WorkflowJobType = "AudioConcat"
-	WorkflowJobTypeTranscode      WorkflowJobType = "Transcode"
-	WorkflowJobTypeVideoSnapshots WorkflowJobType = "VideoSnapshots"
-	WorkflowJobTypeRemux          WorkflowJobType = "Remux"
-	WorkflowJobTypeConcat         WorkflowJobType = "Concat"
-	WorkflowJobTypeDocConvert     WorkflowJobType = "DocConvert"
-	WorkflowJobTypeFileCompress   WorkflowJobType = "FileCompress"
-	WorkflowJobTypeFileUncompress WorkflowJobType = "FileUncompress"
+	WorkflowJobTypeAudioConvert      WorkflowJobType = "AudioConvert"
+	WorkflowJobTypeAudioConcat       WorkflowJobType = "AudioConcat"
+	WorkflowJobTypeTranscode         WorkflowJobType = "Transcode"
+	WorkflowJobTypeVideoSnapshots    WorkflowJobType = "VideoSnapshots"
+	WorkflowJobTypeRemux             WorkflowJobType = "Remux"
+	WorkflowJobTypeConcat            WorkflowJobType = "Concat"
+	WorkflowJobTypeSpeechRecognition WorkflowJobType = "SpeechRecognition"
+	WorkflowJobTypeDocConvert        WorkflowJobType = "DocConvert"
+	WorkflowJobTypeFileCompress      WorkflowJobType = "FileCompress"
+	WorkflowJobTypeFileUncompress    WorkflowJobType = "FileUncompress"
 )
 
 type WorkflowDocType string
@@ -243,11 +244,12 @@ type WorkflowAudioJobDetail struct {
 }
 
 type WorkflowVideoJobDetail struct {
-	Input           ProcessJobInput               `json:"Input"`
-	TranscodeConfig *WorkflowVideoTranscodeConfig `json:"TranscodeConfig,omitempty"`
-	RemuxConfig     *WorkflowVideoRemuxConfig     `json:"RemuxConfig,omitempty"`
-	Output          ProcessJobOutput              `json:"Output"`
-	Tag             string                        `json:"Tag"`
+	Input                   ProcessJobInput               `json:"Input"`
+	TranscodeConfig         *WorkflowVideoTranscodeConfig `json:"TranscodeConfig,omitempty"`
+	RemuxConfig             *WorkflowVideoRemuxConfig     `json:"RemuxConfig,omitempty"`
+	SpeechRecognitionConfig *SpeechRecognitionJobConfig   `json:"SpeechRecognitionConfig,omitempty"`
+	Output                  ProcessJobOutput              `json:"Output"`
+	Tag                     string                        `json:"Tag"`
 }
 
 type WorkflowVideoTranscodeConfig struct {
@@ -266,7 +268,7 @@ type WorkflowVideoRemuxConfig struct {
 }
 
 type WorkflowFileJobDetail struct {
-	Input                WorkflowFileJobInput           `json:"Input"`
+	Input                WorkflowFileJobInput          `json:"Input"`
 	FileCompressConfig   *WorkflowFileCompressConfig   `json:"FileCompressConfig,omitempty"`
 	FileUncompressConfig *WorkflowFileUncompressConfig `json:"FileUncompressConfig,omitempty"`
 	Output               WorkflowFileJobOutput         `json:"Output"`
@@ -352,6 +354,15 @@ type CreateVideoRemuxWorkflowJobParams struct {
 	OutputBucket string
 	OutputObject string
 	RemuxConfig  *WorkflowVideoRemuxConfig
+}
+
+type CreateSpeechRecognitionWorkflowJobParams struct {
+	Bucket                  string
+	SourceKey               string
+	Region                  string
+	OutputBucket            string
+	OutputObject            string
+	SpeechRecognitionConfig *SpeechRecognitionJobConfig
 }
 
 type CreateFileCompressWorkflowJobParams struct {

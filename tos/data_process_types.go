@@ -406,6 +406,7 @@ type AudioConfig struct {
 
 type TranscodeOptions struct {
 	AIGCMetadata *AIGCMetadata `json:"AIGCMetadata,omitempty"`
+	C2PAMetadata *C2PAMetadata `json:"C2PAMetadata,omitempty"`
 }
 
 type AIGCMetadata struct {
@@ -941,23 +942,30 @@ type AudioProcessAsyncOutput struct {
 type ProcessJobType string
 
 const (
-	ProcessJobTypeTranscode      ProcessJobType = "Transcode"
-	ProcessJobTypeRemux          ProcessJobType = "Remux"
-	ProcessJobTypeAnimation      ProcessJobType = "Animation"
-	ProcessJobTypeAudioConvert   ProcessJobType = "AudioConvert"
-	ProcessJobTypeAudioConcat    ProcessJobType = "AudioConcat"
-	ProcessJobTypeDocConvert     ProcessJobType = "DocConvert"
-	ProcessJobTypeDocAnalyze     ProcessJobType = "DocAnalyze"
-	ProcessJobTypeFileCompress   ProcessJobType = "FileCompress"
-	ProcessJobTypeFileUncompress ProcessJobType = "FileUncompress"
+	ProcessJobTypeTranscode         ProcessJobType = "Transcode"
+	ProcessJobTypeRemux             ProcessJobType = "Remux"
+	ProcessJobTypeAnimation         ProcessJobType = "Animation"
+	ProcessJobTypeConcat            ProcessJobType = "Concat"
+	ProcessJobTypeSpeechRecognition ProcessJobType = "SpeechRecognition"
+	ProcessJobTypeAudioConvert      ProcessJobType = "AudioConvert"
+	ProcessJobTypeAudioConcat       ProcessJobType = "AudioConcat"
+	ProcessJobTypeDocConvert        ProcessJobType = "DocConvert"
+	ProcessJobTypeDocAnalyze        ProcessJobType = "DocAnalyze"
+	ProcessJobTypeFileCompress      ProcessJobType = "FileCompress"
+	ProcessJobTypeFileUncompress    ProcessJobType = "FileUncompress"
 )
 
-// jobsQueryParam 根据 JobType 返回对应的 query 参数名（media_jobs 或 file_jobs）。
+// jobsQueryParam 根据 JobType 返回对应的 query 参数名。
+// route 侧注册了 media_jobs / doc_jobs / file_jobs / audit_jobs 四类，
+// 语义上按 JobType 归属分发；CommitJobs 内部虽仅按 job_type 分发，但走对应
+// query 名可以保持路由指标、限流 tag 与文档口径一致。
 func (t ProcessJobType) jobsQueryParam() string {
 	switch t {
-	case ProcessJobTypeTranscode, ProcessJobTypeRemux, ProcessJobTypeAnimation,
+	case ProcessJobTypeTranscode, ProcessJobTypeRemux, ProcessJobTypeAnimation, ProcessJobTypeConcat, ProcessJobTypeSpeechRecognition,
 		ProcessJobTypeAudioConvert, ProcessJobTypeAudioConcat:
 		return "media_jobs"
+	case ProcessJobTypeDocConvert, ProcessJobTypeDocAnalyze:
+		return "doc_jobs"
 	default:
 		return "file_jobs"
 	}
@@ -1007,15 +1015,17 @@ type DocConvertJobBody struct {
 }
 
 type ProcessJobResult struct {
-	JobID      string           `json:"JobID"`
-	CreateTime string           `json:"CreateTime"`
-	StartTime  string           `json:"StartTime"`
-	EndTime    string           `json:"EndTime"`
-	State      string           `json:"State"`
-	Code       int              `json:"Code"`
-	Message    string           `json:"Message"`
-	Input      ProcessJobInput  `json:"Input"`
-	Output     ProcessJobOutput `json:"Output"`
+	JobID                   string                      `json:"JobID"`
+	CreateTime              string                      `json:"CreateTime"`
+	StartTime               string                      `json:"StartTime"`
+	EndTime                 string                      `json:"EndTime"`
+	State                   string                      `json:"State"`
+	Code                    int                         `json:"Code"`
+	Message                 string                      `json:"Message"`
+	Input                   ProcessJobInput             `json:"Input"`
+	Output                  ProcessJobOutput            `json:"Output"`
+	SpeechRecognitionConfig *SpeechRecognitionJobConfig `json:"SpeechRecognitionConfig,omitempty"`
+	SpeechRecognitionResult *SpeechRecognitionJobResult `json:"SpeechRecognitionResult,omitempty"`
 }
 
 // ==================== Job 模式请求体类型 ====================
@@ -1041,12 +1051,13 @@ type RemuxJobBody struct {
 
 // AudioConvertJobConfig 音频异步转码 Job 配置
 type AudioConvertJobConfig struct {
-	ContainerFormat string `json:"ContainerFormat,omitempty"`
-	BitRate         *int   `json:"BitRate,omitempty"`
-	BitRateOpt      *int   `json:"BitRateOpt,omitempty"`
-	SampleRate      *int   `json:"SampleRate,omitempty"`
-	Channels        *int   `json:"Channels,omitempty"`
-	SampleFormat    string `json:"SampleFormat,omitempty"`
+	ContainerFormat string        `json:"ContainerFormat,omitempty"`
+	TimeInterval    *TimeInterval `json:"TimeInterval,omitempty"`
+	BitRate         *int          `json:"BitRate,omitempty"`
+	BitRateOpt      *int          `json:"BitRateOpt,omitempty"`
+	SampleRate      *int          `json:"SampleRate,omitempty"`
+	Channels        *int          `json:"Channels,omitempty"`
+	SampleFormat    string        `json:"SampleFormat,omitempty"`
 }
 
 // AudioConvertJobBody 音频异步转码 Job 请求体
@@ -1056,18 +1067,27 @@ type AudioConvertJobBody struct {
 	AudioConvertConfig AudioConvertJobConfig `json:"AudioConvertConfig"`
 }
 
-// AudioConcatInput 音频异步拼接 Job 输入。
+// AudioConcatInput 音频异步拼接 Job 主输入。
 type AudioConcatInput struct {
-	Object       string                   `json:"Object"`
-	PreFragments []AudioConcatPreFragment `json:"PreFragments,omitempty"`
-}
-
-type AudioConcatPreFragment struct {
 	Object string `json:"Object"`
 }
 
+type AudioConcatPreFragment struct {
+	Object   string `json:"Object"`
+	Start    int64  `json:"Start,omitempty"`
+	Duration int64  `json:"Duration,omitempty"`
+}
+
 type AudioConcatConfig struct {
-	ContainerFormat string `json:"ContainerFormat"`
+	ContainerFormat string                   `json:"ContainerFormat,omitempty"`
+	TimeInterval    *TimeInterval            `json:"TimeInterval,omitempty"`
+	BitRate         *int                     `json:"BitRate,omitempty"`
+	BitRateOpt      *int                     `json:"BitRateOpt,omitempty"`
+	SampleRate      *int                     `json:"SampleRate,omitempty"`
+	Channels        *int                     `json:"Channels,omitempty"`
+	SampleFormat    string                   `json:"SampleFormat,omitempty"`
+	PreFragments    []AudioConcatPreFragment `json:"PreFragments,omitempty"`
+	SurFragments    []AudioConcatPreFragment `json:"SurFragments,omitempty"`
 }
 
 // AudioConcatJobBody 音频异步拼接 Job 请求体。
@@ -1075,6 +1095,131 @@ type AudioConcatJobBody struct {
 	Input             AudioConcatInput  `json:"Input"`
 	Output            ProcessJobOutput  `json:"Output"`
 	AudioConcatConfig AudioConcatConfig `json:"AudioConcatConfig"`
+}
+
+// SpeechRecognitionJobConfig 语音识别 Job 配置。
+type SpeechRecognitionJobConfig struct {
+	Language      string `json:"Language,omitempty"`      // zh / en / auto，默认 auto
+	SingleSegment bool   `json:"SingleSegment,omitempty"` // 是否输出为单段结果
+	OutputFormat  string `json:"OutputFormat,omitempty"`  // 目前仅支持 json，默认 json
+}
+
+// SpeechRecognitionSegment 语音识别分段结果。
+type SpeechRecognitionSegment struct {
+	Text      string  `json:"Text,omitempty"`
+	StartTime float64 `json:"StartTime,omitempty"`
+	EndTime   float64 `json:"EndTime,omitempty"`
+}
+
+// SpeechRecognitionJobResult 语音识别 Job 结果。
+type SpeechRecognitionJobResult struct {
+	Text      string                     `json:"Text,omitempty"`
+	StartTime float64                    `json:"StartTime,omitempty"`
+	EndTime   float64                    `json:"EndTime,omitempty"`
+	Segments  []SpeechRecognitionSegment `json:"Segments,omitempty"`
+}
+
+// SpeechRecognitionJobBody 语音识别 Job 请求体。
+type SpeechRecognitionJobBody struct {
+	Input                   ProcessJobInput            `json:"Input"`
+	Output                  *ProcessJobOutput          `json:"Output,omitempty"`
+	SpeechRecognitionConfig SpeechRecognitionJobConfig `json:"SpeechRecognitionConfig"`
+}
+
+// ==================== 视频异步拼接（Concat） ====================
+
+// ConcatFragment 视频异步拼接的单个片段。ConcatFragments 会按 FragmentIndex 升序排序后拼接。
+// StartTime/EndTime 单位为毫秒；不填（默认 0/0）表示取整段。
+type ConcatFragment struct {
+	Object        string `json:"Object"`
+	FragmentIndex int    `json:"FragmentIndex"`
+	StartTime     int64  `json:"StartTime"`
+	EndTime       int64  `json:"EndTime"`
+}
+
+// ConcatContainer 视频异步拼接的目标容器配置。
+type ConcatContainer struct {
+	Format string `json:"Format"` // mp4/mkv/avi/ts/mp3/aac/flac
+}
+
+// ConcatVideoArgs 视频拼接的目标视频编码参数（拼接过程会重新编码，所有片段统一到该参数）。
+type ConcatVideoArgs struct {
+	Codec      string `json:"Codec,omitempty"`      // h264 / h265，默认 h264；Remove=true 时忽略
+	Width      int    `json:"Width,omitempty"`      // [128,4096] 且为偶数
+	Height     int    `json:"Height,omitempty"`     // [128,4096] 且为偶数
+	Crf        *int   `json:"Crf,omitempty"`        // [0,51]；用 *int 区分"未设置"与"显式 0"（lossless），使用方式：crf := 0; args.Crf = &crf
+	PixFmt     string `json:"PixFmt,omitempty"`     // yuv420p / yuv420p10le，默认 yuv420p
+	BitRate    int    `json:"BitRate,omitempty"`    // 视频码率
+	Fps        int    `json:"Fps,omitempty"`        // 帧率
+	Remove     bool   `json:"Remove,omitempty"`     // 是否移除视频流
+	MaxBitRate int    `json:"MaxBitRate,omitempty"` // 最大码率
+	BufferSize int    `json:"BufferSize,omitempty"` // 码控缓冲区
+}
+
+// ConcatAudioArgs 视频拼接的目标音频编码参数。
+type ConcatAudioArgs struct {
+	Codec        string `json:"Codec,omitempty"`        // aac/mp3/flac/opus/pcm_s16le 等；wav/pcm 默认 pcm_s16le，其余默认 aac
+	SampleRate   int    `json:"SampleRate,omitempty"`   // 采样率
+	BitRate      int    `json:"BitRate,omitempty"`      // [8000,1000000]
+	Channels     int    `json:"Channels,omitempty"`     // 声道数
+	SampleFormat string `json:"SampleFormat,omitempty"` // 采样格式
+	Remove       bool   `json:"Remove,omitempty"`       // 是否移除音频流
+}
+
+// ConcatJobConfig 视频异步拼接 Job 配置。
+type ConcatJobConfig struct {
+	ConcatFragments []ConcatFragment `json:"ConcatFragments"`
+	Container       ConcatContainer  `json:"Container"`
+	Video           ConcatVideoArgs  `json:"Video"`
+	Audio           ConcatAudioArgs  `json:"Audio"`
+}
+
+// ConcatJobBody 视频异步拼接 Job 请求体（对应 DP 的 VideoJobDetail{Input, ConcatConfig, Output}）。
+// Input.Object 事实必填：DP 处理时会将其视为拼接的"第 0 片"并用它计算 CS 鉴权，
+// 后续下载 ConcatFragments 均依赖该鉴权。若留空，任务提交阶段能返回 JobId，
+// 但异步执行阶段会固定失败（state=Failed，code=4014 Request is invalid）。
+type ConcatJobBody struct {
+	Input        ProcessJobInput  `json:"Input"`
+	ConcatConfig ConcatJobConfig  `json:"ConcatConfig"`
+	Output       ProcessJobOutput `json:"Output"`
+}
+
+// ==================== 视频转动图（Animation） ====================
+
+// AnimationTimeInterval 视频转动图的时间区间，单位为毫秒。
+type AnimationTimeInterval struct {
+	Start    int `json:"Start"`    // 起始毫秒，0 表示视频起点
+	Duration int `json:"Duration"` // 持续时长毫秒，0 表示到视频末尾
+}
+
+// AnimationContainer 视频转动图的输出容器。
+type AnimationContainer struct {
+	Format string `json:"Format"` // gif / webp
+}
+
+// AnimationOptions 视频转动图的画面参数。
+type AnimationOptions struct {
+	Width         int    `json:"Width,omitempty"`         // [32,4096]，0 表示按源比例自动
+	Height        int    `json:"Height,omitempty"`        // [32,4096]，0 表示按源比例自动
+	Fps           int    `json:"Fps,omitempty"`           // [0,240]，默认为 FrameInterval 倒数
+	FrameInterval int    `json:"FrameInterval,omitempty"` // 抽帧间隔（毫秒），默认抽所有帧
+	FrameNum      int    `json:"FrameNum,omitempty"`      // 帧数上限，默认不限
+	ScaleType     string `json:"ScaleType,omitempty"`     // crop/stretch(默认)/fill/fit
+}
+
+// AnimationJobConfig 视频转动图 Job 配置（对应 DP 端 VideoJobDetail.AnimationConfig）。
+type AnimationJobConfig struct {
+	TimeInterval *AnimationTimeInterval `json:"TimeInterval,omitempty"`
+	Container    AnimationContainer     `json:"Container"`
+	Animation    AnimationOptions       `json:"Animation"`
+}
+
+// AnimationJobBody 视频转动图 Job 请求体（对应 DP 端 VideoJobDetail{Input, AnimationConfig, Output}）。
+// 说明：与 ConcatJobBody 相同，DP 处理时会使用 Input.Object 计算 CS 鉴权，因此 Input.Object 为必填。
+type AnimationJobBody struct {
+	Input           ProcessJobInput    `json:"Input"`
+	AnimationConfig AnimationJobConfig `json:"AnimationConfig"`
+	Output          ProcessJobOutput   `json:"Output"`
 }
 
 // ==================== Put 接口返回类型 ====================

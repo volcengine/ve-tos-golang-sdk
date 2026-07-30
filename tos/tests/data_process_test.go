@@ -2157,11 +2157,13 @@ func TestDP_PostAsyncAudioConcat(t *testing.T) {
 		JobType: tos.ProcessJobTypeAudioConcat,
 		JobBody: &tos.AudioConcatJobBody{
 			Input: tos.AudioConcatInput{
-				Object:       env.audioKey,
-				PreFragments: []tos.AudioConcatPreFragment{{Object: env.audioKey2}},
+				Object: env.audioKey,
 			},
-			Output:            tos.ProcessJobOutput{Region: env.region, Bucket: env.bucket, Object: saveKey},
-			AudioConcatConfig: tos.AudioConcatConfig{ContainerFormat: "mp3"},
+			Output: tos.ProcessJobOutput{Region: env.region, Bucket: env.bucket, Object: saveKey},
+			AudioConcatConfig: tos.AudioConcatConfig{
+				ContainerFormat: "mp3",
+				PreFragments:    []tos.AudioConcatPreFragment{{Object: env.audioKey2}},
+			},
 		},
 	})
 	if err != nil {
