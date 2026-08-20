@@ -42,6 +42,45 @@ func TestBucketCustomDomain(t *testing.T) {
 
 }
 
+func TestBucketCustomDomainToken(t *testing.T) {
+	var (
+		env    = newTestEnv(t)
+		bucket = generateBucketName("custom-domain-token")
+		client = env.prepareClient(bucket)
+		ctx    = context.Background()
+		domain = bucket + ".volcengine.com"
+	)
+	defer func() {
+		cleanBucket(t, client, bucket)
+	}()
+
+	createResp, err := client.CreateBucketCustomDomainToken(ctx, &tos.CreateBucketCustomDomainTokenInput{
+		Bucket: bucket,
+		Rule: tos.CustomDomainTokenRule{
+			Domain: domain,
+		},
+	})
+	require.NoError(t, err)
+	require.NotEmpty(t, createResp.RequestID)
+	require.Equal(t, domain, createResp.Token.Domain)
+	require.NotEmpty(t, createResp.Token.Token)
+	require.NotZero(t, createResp.Token.ExpireTime)
+	require.False(t, createResp.Token.Verified)
+	t.Log("CreateBucketCustomDomainToken Request ID:", createResp.RequestID)
+
+	getResp, err := client.GetBucketCustomDomainToken(ctx, &tos.GetBucketCustomDomainTokenInput{
+		Bucket: bucket,
+		Domain: domain,
+	})
+	require.NoError(t, err)
+	require.NotEmpty(t, getResp.RequestID)
+	require.Equal(t, domain, getResp.Token.Domain)
+	require.Equal(t, createResp.Token.Token, getResp.Token.Token)
+	require.Equal(t, createResp.Token.ExpireTime, getResp.Token.ExpireTime)
+	require.Equal(t, createResp.Token.Verified, getResp.Token.Verified)
+	t.Log("GetBucketCustomDomainToken Request ID:", getResp.RequestID)
+}
+
 func TestCustomDomain(t *testing.T) {
 	var (
 		env     = newTestEnv(t)

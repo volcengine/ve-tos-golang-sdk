@@ -1,4 +1,7 @@
 # ChangeLog of TOS SDK for Go
+## 版本号 v2.9.9 日期：2026-08-20
+- 修复 CreateBucketCustomDomainToken 和 GetBucketCustomDomainToken 的请求路径及查询参数错误
+
 ## 版本号 v2.9.8 日期：2026-07-29
 - 修复预签名使用自定义请求时间时签名时间不一致的问题
 
