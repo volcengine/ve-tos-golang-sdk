@@ -94,8 +94,9 @@ func (cli *ClientV2) CreateBucketCustomDomainToken(ctx context.Context, input *C
 		return nil, err
 	}
 
-	res, err := cli.newBuilder(input.Bucket, "custom-domain").
+	res, err := cli.newBuilder(input.Bucket, "").
 		SetGeneric(input.GenericInput).
+		WithQuery("customdomain", "").
 		WithQuery("token", "").
 		WithHeader(HeaderContentMD5, contentMD5).
 		WithRetry(OnRetryFromStart, StatusCodeClassifier{}).
@@ -120,10 +121,10 @@ func (cli *ClientV2) GetBucketCustomDomainToken(ctx context.Context, input *GetB
 		return nil, err
 	}
 
-	res, err := cli.newBuilder(input.Bucket, "custom-domain").
+	res, err := cli.newBuilder(input.Bucket, "").
 		SetGeneric(input.GenericInput).
+		WithQuery("customdomain", input.Domain).
 		WithQuery("token", "").
-		WithQuery("domain", input.Domain).
 		WithRetry(nil, StatusCodeClassifier{}).
 		Request(ctx, http.MethodGet, nil, cli.roundTripper(http.StatusOK))
 	if err != nil {
