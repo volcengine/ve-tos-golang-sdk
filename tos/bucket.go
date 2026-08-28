@@ -294,6 +294,64 @@ func (cli *ClientV2) GetBucketStat(ctx context.Context, input *GetBucketStatInpu
 	return &output, nil
 }
 
+func (cli *ClientV2) PutBucketQuota(ctx context.Context, input *PutBucketQuotaInput) (*PutBucketQuotaOutput, error) {
+	if input == nil {
+		return nil, InputIsNilClientError
+	}
+	if err := isValidBucketName(input.Bucket, cli.isCustomDomain); err != nil {
+		return nil, err
+	}
+	if input.StorageQuota < 0 {
+		return nil, newTosClientError("invalid storage quota, the value must be non-negative", nil)
+	}
+
+	data, contentMD5, err := marshalInput("PutBucketQuota", putBucketQuotaInput{
+		StorageQuota: input.StorageQuota,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	res, err := cli.newBuilder(input.Bucket, "").
+		SetGeneric(input.GenericInput).
+		WithQuery("quota", "").
+		WithHeader(HeaderContentMD5, contentMD5).
+		WithRetry(OnRetryFromStart, StatusCodeClassifier{}).
+		Request(ctx, http.MethodPut, bytes.NewReader(data), cli.roundTripper(http.StatusOK))
+	if err != nil {
+		return nil, err
+	}
+	defer res.Close()
+
+	output := PutBucketQuotaOutput{RequestInfo: res.RequestInfo()}
+	return &output, nil
+}
+
+func (cli *ClientV2) GetBucketQuota(ctx context.Context, input *GetBucketQuotaInput) (*GetBucketQuotaOutput, error) {
+	if input == nil {
+		return nil, InputIsNilClientError
+	}
+	if err := isValidBucketName(input.Bucket, cli.isCustomDomain); err != nil {
+		return nil, err
+	}
+
+	res, err := cli.newBuilder(input.Bucket, "").
+		SetGeneric(input.GenericInput).
+		WithQuery("quota", "").
+		WithRetry(nil, StatusCodeClassifier{}).
+		Request(ctx, http.MethodGet, nil, cli.roundTripper(http.StatusOK))
+	if err != nil {
+		return nil, err
+	}
+	defer res.Close()
+
+	output := GetBucketQuotaOutput{RequestInfo: res.RequestInfo()}
+	if err = marshalOutput(res, &output); err != nil {
+		return nil, err
+	}
+	return &output, nil
+}
+
 func (cli *ClientV2) GetBucketInfo(ctx context.Context, input *GetBucketInfoInput) (*GetBucketInfoOutput, error) {
 	if input == nil {
 		return nil, InputIsNilClientError

@@ -1,4 +1,7 @@
 # ChangeLog of TOS SDK for Go
+## 版本号 v2.9.10 日期：2026-08-27
+- 新增 PutBucketQuota 和 GetBucketQuota 接口
+
 ## 版本号 v2.9.9 日期：2026-08-20
 - 修复 CreateBucketCustomDomainToken 和 GetBucketCustomDomainToken 的请求路径及查询参数错误
 
