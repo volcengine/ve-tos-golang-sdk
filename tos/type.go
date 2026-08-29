@@ -2245,6 +2245,30 @@ type GetBucketStatOutput struct {
 	IntelligentTieringStorageStats *IntelligentTieringStats `json:"IntelligentTieringStorageStats"`
 }
 
+type putBucketQuotaInput struct {
+	StorageQuota int64 `json:"StorageQuota"`
+}
+
+type PutBucketQuotaInput struct {
+	Bucket       string
+	StorageQuota int64
+	GenericInput
+}
+
+type PutBucketQuotaOutput struct {
+	RequestInfo
+}
+
+type GetBucketQuotaInput struct {
+	Bucket string
+	GenericInput
+}
+
+type GetBucketQuotaOutput struct {
+	RequestInfo  `json:"-"`
+	StorageQuota int64 `json:"StorageQuota"`
+}
+
 type BasicStorageStat struct {
 	Storage       string `json:"Storage"`
 	ChargeStorage string `json:"ChargeStorage"`

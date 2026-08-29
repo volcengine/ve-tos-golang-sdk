@@ -7,7 +7,7 @@ import (
 
 const (
 	// Version tos-go-sdk version
-	Version = "v2.9.9"
+	Version = "v2.9.10"
 )
 
 const TempFileSuffix = ".temp"
